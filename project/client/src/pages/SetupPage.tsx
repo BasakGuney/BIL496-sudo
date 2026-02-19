@@ -11,6 +11,9 @@ export function SetupPage({
   onPrepared: (config: SessionConfig, sessionId: string, previewQuestions: string[]) => void;
 }) {
   const [config, setConfig] = useState<SessionConfig>(() => ({
+    firstName: "",
+    lastName: "",
+    gender: "Kadın",
     interviewType: "HR",
     role: "Example: DevOps Engineer",
     companyOrIndustry: "Example: Amazon",

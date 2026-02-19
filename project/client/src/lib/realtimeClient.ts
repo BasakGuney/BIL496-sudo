@@ -27,6 +27,9 @@ export async function connectRealtimeInterview(opts: {
   backendBaseUrl: string;
   mode: Mode;
   interviewType: "HR" | "Technical";
+  firstName: string;
+  lastName: string;
+  gender: "Kadın" | "Erkek";
   role: string;
   companyOrIndustry: string;
   domainInterest: string;
@@ -67,6 +70,9 @@ export async function connectRealtimeInterview(opts: {
   const qs = new URLSearchParams({
     mode: opts.mode,
     interviewType: opts.interviewType,
+    firstName: opts.firstName,
+    lastName: opts.lastName,
+    gender: opts.gender,
     role: opts.role,
     companyOrIndustry: opts.companyOrIndustry,
     domainInterest: opts.domainInterest,

@@ -22,36 +22,38 @@ export function SessionSetupForm({
   onStart,
   starting,
 }: {
-  value: SessionConfig;                 // parent'tan gelen config (placeholder kaynağı)
-  onChange: (v: SessionConfig) => void; // parent state güncelleme
+  value: SessionConfig;
+  onChange: (v: SessionConfig) => void;
   onStart: () => void;
   starting: boolean;
 }) {
-  // Kullanıcının gerçekten yazdığı değerler (input içini dolduran şey)
   const [draft, setDraft] = React.useState({
+    firstName: "",
+    lastName: "",
     role: "",
     companyOrIndustry: "",
     domainInterest: "",
   });
 
-  // Zorunlu alan kontrolü: Select'ler value'dan, text input'lar draft'tan (boşsa doldurulmamış say)
   const isFilled =
+    !!value.gender &&
     !!value.interviewType &&
     !!value.difficulty &&
     !!value.mode &&
+    draft.firstName.trim().length > 0 &&
+    draft.lastName.trim().length > 0 &&
     draft.role.trim().length > 0 &&
     draft.companyOrIndustry.trim().length > 0 &&
     draft.domainInterest.trim().length > 0;
 
-  // Consent de zorunlu
   const consentOk = value.consent.mic && value.consent.camera;
-
   const canStart = isFilled && consentOk;
 
   const handleStart = () => {
-    // Zorunlu olduğu için draft boş olamaz; yine de güvenli olsun:
     const merged: SessionConfig = {
       ...value,
+      firstName: draft.firstName.trim(),
+      lastName: draft.lastName.trim(),
       role: draft.role.trim(),
       companyOrIndustry: draft.companyOrIndustry.trim(),
       domainInterest: draft.domainInterest.trim(),
@@ -63,6 +65,39 @@ export function SessionSetupForm({
 
   return (
     <div className="grid gap-4">
+      <div className="grid gap-2">
+        <RequiredLabel>İsim</RequiredLabel>
+        <Input
+          className="rounded-xl"
+          value={draft.firstName}
+          placeholder={value.firstName || "Örn: Ahmet"}
+          onChange={(e) => setDraft((p) => ({ ...p, firstName: e.target.value }))}
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <RequiredLabel>Soyisim</RequiredLabel>
+        <Input
+          className="rounded-xl"
+          value={draft.lastName}
+          placeholder={value.lastName || "Örn: Yılmaz"}
+          onChange={(e) => setDraft((p) => ({ ...p, lastName: e.target.value }))}
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <RequiredLabel>Cinsiyet</RequiredLabel>
+        <Select value={value.gender} onValueChange={(v) => onChange({ ...value, gender: v as any })}>
+          <SelectTrigger className="rounded-xl">
+            <SelectValue placeholder="Cinsiyet" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Kadın">Kadın</SelectItem>
+            <SelectItem value="Erkek">Erkek</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid gap-2">
         <RequiredLabel>Interview Type</RequiredLabel>
         <Select
@@ -139,7 +174,6 @@ export function SessionSetupForm({
         <ModeBadge mode={value.mode} />
       </div>
 
-      {/* Oturum kurulumu (consent) zorunlu: yıldızlı not */}
       <div className="text-xs text-muted-foreground">
         <span className="text-red-500">*</span> Zorunlu: Mikrofon ve Kamera onayı verilmeden oturum başlatılamaz.
       </div>

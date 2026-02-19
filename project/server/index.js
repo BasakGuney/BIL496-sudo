@@ -16,8 +16,21 @@ const getDurationByDifficulty = (difficulty) => {
   return "18-22 dakika";
 };
 
-const buildFlowRules = ({ interviewType, mode, role, companyOrIndustry, domainInterest, difficulty }) => {
+const buildFlowRules = ({
+  interviewType,
+  mode,
+  firstName,
+  lastName,
+  gender,
+  role,
+  companyOrIndustry,
+  domainInterest,
+  difficulty,
+}) => {
   const duration = getDurationByDifficulty(difficulty);
+  const honorific = gender === "Kadın" ? "Hanım" : "Bey";
+  const candidateAddress = `${lastName} ${honorific}`;
+
   const supportiveStyle =
     mode === "Supportive"
       ? [
@@ -50,20 +63,23 @@ const buildFlowRules = ({ interviewType, mode, role, companyOrIndustry, domainIn
     "Aşağıdaki akışa KURAL TABANLI (rule-based) şekilde harfiyen uy; direkt soru listesi dökme.",
     "Kısa, net ve mülakatçı üslubunda konuş.",
     supportiveStyle,
+    `Aday bilgisi: ad='${firstName}', soyad='${lastName}', cinsiyet='${gender}'.`,
+    `Adaya her zaman '${candidateAddress}' diye hitap et. Adayın ismini tek başına kullanma.`,
     "",
     "[OPENING - zorunlu sıra]",
-    "1) Adayı selamla ve '... Hanım/Bey nasılsınız?' benzeri bir ifade kullan.",
+    `1) Adayı '${candidateAddress}' hitabıyla selamla ve 'nasılsınız?' sor.`,
     "2) Adayın cevabını bekle.",
     "3) Aday 'siz nasılsınız?' derse 'Ben de iyiyim, teşekkür ederim.' de. Sormadıysa bu cümleyi kısa şekilde yine söyleyebilirsin.",
     `4) Mülakat akışını açıkla: bunun ${interviewType} mülakatı olduğunu, yaklaşık ${duration} süreceğini, kamera/mikrofon uygunluğunu kontrol etmesini söyle.`,
     "",
     "[QUESTION LOOP - zorunlu]",
     questionRules,
+    `Soru sorarken gerektiğinde '${candidateAddress}' hitabını kullan; sadece isim kullanma.`,
     "Her sorudan sonra mutlaka adayın cevabını bekle.",
     "Cevaplardan olgu/başlıkları hafızada tut ve sonraki sorularda referans ver.",
     "",
     "[CLOSING - zorunlu]",
-    "Sorular bitince kısa kapanış yap: 'Tanıştığımıza memnun oldum ... değerlendirmeler yapılıp şu süre içinde geri dönüş sağlanacak.'",
+    `Sorular bitince '${candidateAddress}' hitabıyla kısa kapanış yap: 'Tanıştığımıza memnun oldum ... değerlendirmeler yapılıp şu süre içinde geri dönüş sağlanacak.'`,
     "Kapanıştan sonra adaya son söz hakkı ver ve 'iyi günler/görüşmek üzere' demesini bekle.",
     "Aday veda ettikten sonra mülakatı nazikçe sonlandır.",
   ].join("\n");
@@ -72,6 +88,9 @@ const buildFlowRules = ({ interviewType, mode, role, companyOrIndustry, domainIn
 function makeSessionConfig({
   mode = "Neutral",
   interviewType = "HR",
+  firstName = "Aday",
+  lastName = "Aday",
+  gender = "Erkek",
   role = "Genel Pozisyon",
   companyOrIndustry = "Genel Sektör",
   domainInterest = "Genel Alan",
@@ -80,6 +99,9 @@ function makeSessionConfig({
   const instructions = buildFlowRules({
     mode,
     interviewType,
+    firstName,
+    lastName,
+    gender,
     role,
     companyOrIndustry,
     domainInterest,
@@ -107,6 +129,9 @@ function makeSessionConfig({
 app.post("/session", async (req, res) => {
   const mode = normalizeText(req.query.mode, "Neutral");
   const interviewType = normalizeText(req.query.interviewType, "HR");
+  const firstName = normalizeText(req.query.firstName, "Aday");
+  const lastName = normalizeText(req.query.lastName, "Aday");
+  const gender = normalizeText(req.query.gender, "Erkek");
   const role = normalizeText(req.query.role, "Genel Pozisyon");
   const companyOrIndustry = normalizeText(req.query.companyOrIndustry, "Genel Sektör");
   const domainInterest = normalizeText(req.query.domainInterest, "Genel Alan");
@@ -121,6 +146,9 @@ app.post("/session", async (req, res) => {
       makeSessionConfig({
         mode,
         interviewType,
+        firstName,
+        lastName,
+        gender,
         role,
         companyOrIndustry,
         domainInterest,
