@@ -6,21 +6,85 @@ const app = express();
 app.use(cors());
 app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
-function makeSessionConfig({ mode = "Neutral" } = {}) {
-  // ✅ Türkçe ve direkt interviewer gibi başla
-  const base =
-    "Sen gerçek bir mülakatçısın. Her zaman TÜRKÇE konuş. Kısa, net ve profesyonel ol. " +
-    "Önce selam ver, sonra 1 cümlede oturumu başlat ve hemen ilk soruyu sor. " +
-    "Kullanıcının cevabını bekle; gereksiz uzun açıklama yapma.";
+const normalizeText = (value, fallback) => {
+  const v = (value || "").toString().trim();
+  return v.length > 0 ? v : fallback;
+};
 
-  const supportive =
-    "Supportive moddasın: nazikçe yönlendir, kısa ipuçları ver, kullanıcı takılırsa yeniden çerçevele. " +
-    "Ama yine de mülakatçı gibi soruları sırayla sor ve akışı yönet.";
+const getDurationByDifficulty = (difficulty) => {
+  if (difficulty === "Intermediate") return "25-30 dakika";
+  return "18-22 dakika";
+};
 
-  const neutral =
-    "Neutral moddasın: daha tarafsız ve resmi ol, ipucu verme; sadece net sorular sor ve takip soruları sor.";
+const buildFlowRules = ({ interviewType, mode, role, companyOrIndustry, domainInterest, difficulty }) => {
+  const duration = getDurationByDifficulty(difficulty);
+  const supportiveStyle =
+    mode === "Supportive"
+      ? [
+          "Supportive mod: Tonun daha neşeli, pozitif ve rahatlatıcı olsun.",
+          "Aday 'bilmiyorum', 'ııı', 'aaa' gibi zorlanma sinyali verirse kısa ipucu ver, soruyu yeniden çerçevele veya ilgili alt soruya yumuşak geçiş yap.",
+        ].join("\n")
+      : [
+          "Neutral mod: Tarafsız, resmi ve profesyonel kal.",
+          "İpucu verme; net soru sor ve gerekirse sadece açıklayıcı takip sorusu sor.",
+        ].join("\n");
 
-  const instructions = mode === "Supportive" ? `${base} ${supportive}` : `${base} ${neutral}`;
+  const questionRules =
+    interviewType === "HR"
+      ? [
+          "Soru turu toplam 5-6 soru içersin.",
+          "İlk soru sabit: 'Hazırsanız başlayalım. Kısaca kendinizden bahseder misiniz; eğitim hayatınız ve iş tecrübelerinizden söz eder misiniz?'",
+          "Devamında HR/behavioral sorular sor ve STAR mantığına uygun yönlendir (Situation, Task, Action, Result).",
+          "Her yeni soruyu adayın önceki cevaplarına göre kişiselleştir; aynı soruyu tekrar etme.",
+        ].join("\n")
+      : [
+          "Soru turu toplam 5-6 soru içersin.",
+          "İlk soru sabit: 'Hazırsanız başlayalım. Kısaca kendinizden bahseder misiniz; eğitim hayatınız ve iş tecrübelerinizden söz eder misiniz?'",
+          `Sonraki teknik soruları şu bağlama göre seç: pozisyon='${role}', ilgi alanı='${domainInterest}', şirket/sektör='${companyOrIndustry}', seviye='${difficulty}'.`,
+          "Adayın geçmiş proje/çalışmalarını bu ilgi alanı ve pozisyonla ilişkilendirerek sor.",
+          "Her yeni soruyu adayın önceki cevaplarına göre kişiselleştir; aynı soruyu tekrar etme.",
+        ].join("\n");
+
+  return [
+    "Sen gerçek bir mülakatçısın ve her zaman TÜRKÇE konuşursun.",
+    "Aşağıdaki akışa KURAL TABANLI (rule-based) şekilde harfiyen uy; direkt soru listesi dökme.",
+    "Kısa, net ve mülakatçı üslubunda konuş.",
+    supportiveStyle,
+    "",
+    "[OPENING - zorunlu sıra]",
+    "1) Adayı selamla ve '... Hanım/Bey nasılsınız?' benzeri bir ifade kullan.",
+    "2) Adayın cevabını bekle.",
+    "3) Aday 'siz nasılsınız?' derse 'Ben de iyiyim, teşekkür ederim.' de. Sormadıysa bu cümleyi kısa şekilde yine söyleyebilirsin.",
+    `4) Mülakat akışını açıkla: bunun ${interviewType} mülakatı olduğunu, yaklaşık ${duration} süreceğini, kamera/mikrofon uygunluğunu kontrol etmesini söyle.`,
+    "",
+    "[QUESTION LOOP - zorunlu]",
+    questionRules,
+    "Her sorudan sonra mutlaka adayın cevabını bekle.",
+    "Cevaplardan olgu/başlıkları hafızada tut ve sonraki sorularda referans ver.",
+    "",
+    "[CLOSING - zorunlu]",
+    "Sorular bitince kısa kapanış yap: 'Tanıştığımıza memnun oldum ... değerlendirmeler yapılıp şu süre içinde geri dönüş sağlanacak.'",
+    "Kapanıştan sonra adaya son söz hakkı ver ve 'iyi günler/görüşmek üzere' demesini bekle.",
+    "Aday veda ettikten sonra mülakatı nazikçe sonlandır.",
+  ].join("\n");
+};
+
+function makeSessionConfig({
+  mode = "Neutral",
+  interviewType = "HR",
+  role = "Genel Pozisyon",
+  companyOrIndustry = "Genel Sektör",
+  domainInterest = "Genel Alan",
+  difficulty = "Junior",
+} = {}) {
+  const instructions = buildFlowRules({
+    mode,
+    interviewType,
+    role,
+    companyOrIndustry,
+    domainInterest,
+    difficulty,
+  });
 
   return JSON.stringify({
     type: "realtime",
@@ -41,13 +105,28 @@ function makeSessionConfig({ mode = "Neutral" } = {}) {
 }
 
 app.post("/session", async (req, res) => {
-  const mode = (req.query.mode || "Neutral").toString();
+  const mode = normalizeText(req.query.mode, "Neutral");
+  const interviewType = normalizeText(req.query.interviewType, "HR");
+  const role = normalizeText(req.query.role, "Genel Pozisyon");
+  const companyOrIndustry = normalizeText(req.query.companyOrIndustry, "Genel Sektör");
+  const domainInterest = normalizeText(req.query.domainInterest, "Genel Alan");
+  const difficulty = normalizeText(req.query.difficulty, "Junior");
   const offerSdp = req.body;
 
   try {
     const fd = new FormData();
     fd.set("sdp", offerSdp);
-    fd.set("session", makeSessionConfig({ mode }));
+    fd.set(
+      "session",
+      makeSessionConfig({
+        mode,
+        interviewType,
+        role,
+        companyOrIndustry,
+        domainInterest,
+        difficulty,
+      })
+    );
 
     const r = await fetch("https://api.openai.com/v1/realtime/calls", {
       method: "POST",

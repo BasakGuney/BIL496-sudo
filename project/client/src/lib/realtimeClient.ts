@@ -26,6 +26,11 @@ async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
 export async function connectRealtimeInterview(opts: {
   backendBaseUrl: string;
   mode: Mode;
+  interviewType: "HR" | "Technical";
+  role: string;
+  companyOrIndustry: string;
+  domainInterest: string;
+  difficulty: "Junior" | "Intermediate";
 }): Promise<RealtimeConnection> {
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -59,14 +64,20 @@ export async function connectRealtimeInterview(opts: {
   await waitForIceGatheringComplete(pc);
 
   const localSdp = pc.localDescription?.sdp || "";
-  const sdpResp = await fetch(
-    `${opts.backendBaseUrl}/session?mode=${encodeURIComponent(opts.mode)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/sdp" },
-      body: localSdp,
-    }
-  );
+  const qs = new URLSearchParams({
+    mode: opts.mode,
+    interviewType: opts.interviewType,
+    role: opts.role,
+    companyOrIndustry: opts.companyOrIndustry,
+    domainInterest: opts.domainInterest,
+    difficulty: opts.difficulty,
+  });
+
+  const sdpResp = await fetch(`${opts.backendBaseUrl}/session?${qs.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/sdp" },
+    body: localSdp,
+  });
 
   if (!sdpResp.ok) {
     const t = await sdpResp.text();
@@ -139,15 +150,14 @@ export async function connectRealtimeInterview(opts: {
       })
     );
 
-    // ✅ İlk konuşmayı garanti: response.create + modalities + instructions
+    // ✅ İlk konuşmayı garanti: response.create + modalities
     dc.send(
       JSON.stringify({
         type: "response.create",
         response: {
           modalities: ["audio", "text"],
           instructions:
-            "Şimdi Türkçe bir mülakat başlat. 1 cümle selamla, 1 cümle süreci söyle ve hemen ilk soruyu sor. " +
-            "Mülakatçı gibi kısa ve net ol. Kullanıcının cevabını bekle.",
+            "Session talimatlarına harfiyen uyarak mülakatı başlat. Açılış akışını uygula ve adayı bekle.",
         },
       })
     );
