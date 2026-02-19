@@ -1,7 +1,38 @@
 export class PromptTemplates {
-  turkishInterviewerOpening(cfg) {
-    return `Türkçe bir ${cfg.interviewType} mülakatı başlat. Rol: ${cfg.role}, alan: ${cfg.domain}, zorluk: ${cfg.difficulty}.`;
+  buildInterviewerConfig(cfg) {
+    return {
+      language: "tr",
+      interview: {
+        type: cfg.interviewType,
+        role: cfg.role,
+        companyOrIndustry: cfg.companyOrIndustry,
+        domainInterest: cfg.domainInterest,
+        difficulty: cfg.difficulty,
+        mode: cfg.mode,
+      },
+      behaviorRules: {
+        askOneQuestionAtATime: true,
+        keepQuestionShort: true,
+        referenceCandidatePreviousAnswers: true,
+        supportiveToneWhenModeSupportive: true,
+      },
+      memoryRules: {
+        keepTurnSummary: true,
+        avoidRepeatingAskedQuestion: true,
+        personalizeFollowUpsFromCandidateHistory: true,
+      },
+      outputRules: {
+        firstQuestionOnly: true,
+        asPlainTextQuestion: true,
+      },
+    };
   }
-  supportiveStyle() { return "Nazik, yönlendirici ve cesaretlendirici ton kullan."; }
-  neutralStyle() { return "Nötr, değerlendirme odaklı ve resmi ton kullan."; }
+
+  supportiveStyle() {
+    return { tone: "supportive", encouragementLevel: "medium", redirection: "gentle" };
+  }
+
+  neutralStyle() {
+    return { tone: "neutral", encouragementLevel: "low", redirection: "strict" };
+  }
 }

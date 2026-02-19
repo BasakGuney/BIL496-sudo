@@ -14,7 +14,13 @@ export class BackendOrchestrator {
   }
 
   async createSession(cfg) {
-    const session = new InterviewSession({ id: this.idGenerator.newId("S"), config: cfg, state: SessionState.Configured });
+    const preparedQuestions = await this.ai.generateQuestionPlan(cfg, 5);
+    const session = new InterviewSession({
+      id: this.idGenerator.newId("S"),
+      config: cfg,
+      state: SessionState.Configured,
+      preparedQuestions,
+    });
     await this.sessions.create(session);
     return session;
   }
@@ -32,8 +38,11 @@ export class BackendOrchestrator {
     this.guardrails.enforceRequiredConsent(session.consent);
     this.guardrails.enforceStateForStart(session);
     session.start();
-    const questionText = await this.ai.generateFirstQuestion(session.config);
+
+    const firstPrepared = session.preparedQuestions.find((q) => !session.questions.some((asked) => asked.text === q));
+    const questionText = firstPrepared || (await this.ai.generateFirstQuestion(session));
     session.questions.push(new Question({ id: this.idGenerator.newId("Q"), text: questionText }));
+
     await this.sessions.update(session);
     return { sessionId: session.id, turnIndex: 1, questionText, status: "asked" };
   }

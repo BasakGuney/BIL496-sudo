@@ -5,15 +5,31 @@ export class SessionUpdateBuilder {
 
   buildSessionCreate(cfg) {
     return {
-      mode: cfg.mode,
-      instructions: `Interview type: ${cfg.interviewType}, role: ${cfg.role}`,
-      turn_detection: this.turnPolicy.buildServerVad(),
+      interview: {
+        interviewType: cfg.interviewType,
+        role: cfg.role,
+        companyOrIndustry: cfg.companyOrIndustry,
+        domainInterest: cfg.domainInterest,
+        difficulty: cfg.difficulty,
+        mode: cfg.mode,
+      },
+      behaviorRules: {
+        useStructuredPrompting: true,
+        keepInterviewContextAcrossTurns: true,
+        doNotForgetCandidateAnswers: true,
+      },
+      audio: {
+        voice: "verse",
+        styleHint: "warm_natural",
+      },
+      turnDetection: this.turnPolicy.buildServerVad(),
     };
   }
 
-  buildSessionUpdate(cfg) {
+  buildSessionUpdate(cfg, memory = []) {
     return {
       session: this.buildSessionCreate(cfg),
+      memory,
     };
   }
 }

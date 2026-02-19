@@ -8,6 +8,8 @@ export function toSessionView(session) {
       camera: session.consent.camera,
       timestamp: session.consent.timestamp?.toISOString?.() || new Date().toISOString(),
     },
+    preparedQuestions: session.preparedQuestions,
+    previewQuestions: session.preparedQuestions.slice(0, 2),
   };
 }
 

@@ -8,7 +8,7 @@ export class OpenAIClientAdapter {
 
   async createRealtimeCall(offerSdp, sessionPayload) {
     if (!this.apiKey) {
-      return `v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=MockAnswer\r\nt=0 0\r\na=x-session:${sessionPayload.mode || "Neutral"}\r\n${offerSdp}`;
+      return `v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=MockAnswer\r\nt=0 0\r\na=x-session:${sessionPayload.interview?.mode || "Neutral"}\r\na=x-voice:${sessionPayload.audio?.voice || "alloy"}\r\n${offerSdp}`;
     }
 
     const response = await fetch(`${this.baseUrl}/realtime?model=gpt-4o-realtime-preview`, {
@@ -28,7 +28,15 @@ export class OpenAIClientAdapter {
 
   async callLLM(payload) {
     if (!this.apiKey) {
+      if (payload.task === "generate_question_plan") {
+        return { questions: payload.fallbackQuestions || [] };
+      }
       return { text: payload.fallbackText || "Kendinizden kısaca bahsedebilir misiniz?" };
+    }
+
+    // Provider path can be upgraded to live JSON-schema calls.
+    if (payload.task === "generate_question_plan") {
+      return { questions: payload.fallbackQuestions || [] };
     }
     return { text: payload.fallbackText || "Kendinizden kısaca bahsedebilir misiniz?" };
   }
