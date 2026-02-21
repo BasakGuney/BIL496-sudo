@@ -108,6 +108,12 @@ function extractTextMessage(msg: RealtimeEvent): { role: "interviewer" | "candid
   if (msg?.type === "response.audio_transcript.delta" && typeof msg?.delta === "string") {
     return { role: "interviewer", text: msg.delta };
   }
+
+  if (msg?.type === "response.done") {
+    const merged = extractFromResponseDone(msg);
+    if (merged) return merged;
+  }
+
   return null;
 }
 
@@ -128,6 +134,23 @@ function pushTranscript(
   }
 
   transcript.push({ role, text: clean, ts });
+}
+
+
+function extractFromResponseDone(msg: any): { role: "interviewer"; text: string } | null {
+  const outputs = Array.isArray(msg?.response?.output) ? msg.response.output : [];
+  const chunks: string[] = [];
+
+  for (const out of outputs) {
+    const contents = Array.isArray(out?.content) ? out.content : [];
+    for (const c of contents) {
+      if (typeof c?.transcript === "string" && c.transcript.trim()) chunks.push(c.transcript.trim());
+      else if (typeof c?.text === "string" && c.text.trim()) chunks.push(c.text.trim());
+    }
+  }
+
+  if (chunks.length === 0) return null;
+  return { role: "interviewer", text: chunks.join(" ") };
 }
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
