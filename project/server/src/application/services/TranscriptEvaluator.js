@@ -57,7 +57,7 @@ export class TranscriptEvaluator {
             {
               role: "system",
               content:
-                "Türkçe mülakat değerlendirme uzmanısın. Verilen soru-cevap çiftleri için sadece geçerli JSON döndür. Şema: {overallScore:number, content:[{key,label,score,detail}], communication:[{key,label,score,detail}], recommendations:[{title,text}], notes:string[], qaEvaluations:[{index:number,question:string,answer:string,relevance:number,clarity:number,summary:string}] }",
+                "Türkçe mülakat değerlendirme uzmanısın. Verilen soru-cevap çiftleri için sadece geçerli JSON döndür. Şema: {overallScore:number, content:[{key,label,score,detail}], communication:[{key,label,score,detail}], recommendations:[{title,text}], notes:string[], qaEvaluations:[{index:number,question:string,answer:string,relevance:number,clarity:number,durationSec:number,timeLimitSec:number,exceededTimeLimit:boolean,summary:string}] }",
             },
             {
               role: "user",
@@ -98,18 +98,26 @@ export class TranscriptEvaluator {
 
     const pairs = [];
     let pendingQuestion = null;
+    let pendingQuestionTs = null;
 
     for (const turn of normalized) {
       if (turn.role === "interviewer") {
         // Yeni soru geldiyse, önceki cevaplanmamış soruyu düşürüp son soruyu beklet.
         pendingQuestion = turn.text;
+        pendingQuestionTs = turn.ts;
         continue;
       }
 
       if (turn.role === "candidate") {
         if (!pendingQuestion) continue;
-        pairs.push({ question: pendingQuestion, answer: turn.text });
+        pairs.push({
+          question: pendingQuestion,
+          answer: turn.text,
+          questionTs: pendingQuestionTs || turn.ts,
+          answerTs: turn.ts,
+        });
         pendingQuestion = null;
+        pendingQuestionTs = null;
       }
     }
 
@@ -124,6 +132,9 @@ export class TranscriptEvaluator {
       const fillerCount = (pair.answer.match(fillerRegex) || []).length;
       const fillerRatio = words.length ? fillerCount / words.length : 0;
       const lexicalRichness = words.length ? uniqueWords.size / words.length : 0;
+      const durationSec = Math.max(0, Math.round((pair.answerTs - pair.questionTs) / 1000));
+      const timeLimitSec = this.extractTimeLimitSec(pair.question);
+      const exceededTimeLimit = durationSec > timeLimitSec;
 
       const relevance = this.clamp(
         Math.round(50 + Math.min(28, words.length * 1.1) + Math.min(10, lexicalRichness * 25)),
@@ -149,6 +160,9 @@ export class TranscriptEvaluator {
         answer: pair.answer,
         relevance,
         clarity,
+        durationSec,
+        timeLimitSec,
+        exceededTimeLimit,
         summary,
       };
     });
@@ -166,7 +180,14 @@ export class TranscriptEvaluator {
       .length;
     const fillerRatio = allWords.length ? allFillerCount / allWords.length : 0;
 
-    const pacingScore = this.clamp(Math.round(74 - Math.min(24, fillerRatio * 140)), 36, 94);
+    const exceededCount = qaEvaluations.filter((item) => item.exceededTimeLimit).length;
+    const overrunRatio = qaEvaluations.length ? exceededCount / qaEvaluations.length : 0;
+
+    const pacingScore = this.clamp(
+      Math.round(74 - Math.min(24, fillerRatio * 140) - Math.min(10, overrunRatio * 30)),
+      36,
+      94
+    );
     const overallScore = Math.round((avgRelevance + avgClarity + pacingScore) / 3);
 
     const recommendations = [];
@@ -218,7 +239,7 @@ export class TranscriptEvaluator {
           key: "pacing",
           label: "Tempo",
           score: pacingScore,
-          detail: `Toplam dolgu kelime oranına göre hesaplandı (${(fillerRatio * 100).toFixed(1)}%).`,
+          detail: `Dolgu kelime oranı (${(fillerRatio * 100).toFixed(1)}%) ve süre aşımı (${exceededCount}/${qaEvaluations.length}) birlikte değerlendirildi.`,
         },
       ],
       recommendations,
@@ -231,5 +252,20 @@ export class TranscriptEvaluator {
 
   clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
+  }
+
+  extractTimeLimitSec(questionText) {
+    const text = String(questionText || "").toLowerCase();
+    const minuteMatch = text.match(/(\d{1,2})\s*dakika/);
+    if (minuteMatch) {
+      return Number(minuteMatch[1]) * 60;
+    }
+
+    const secondMatch = text.match(/(\d{1,3})\s*saniye/);
+    if (secondMatch) {
+      return Number(secondMatch[1]);
+    }
+
+    return 90;
   }
 }

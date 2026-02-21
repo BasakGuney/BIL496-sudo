@@ -35,6 +35,7 @@ function buildInterviewerPrompt(input: {
   domainInterest: string;
 }) {
   const title = input.gender === "Kadın" ? "Hanım" : "Bey";
+  const interviewLabel = input.interviewType === "HR" ? "insan kaynakları" : "teknik";
   const styleInstruction =
     input.mode === "Supportive"
       ? "Supportive moddasın: daha neşeli, pozitif ve rahatlatıcı bir ton kullan. Aday takılırsa (örn. 'ııı', 'bilmiyorum') kısa ipucu ver veya nazikçe bir sonraki soruya geç."
@@ -47,19 +48,23 @@ function buildInterviewerPrompt(input: {
 
   return [
     "Sen gerçek bir mülakatçısın ve sadece TÜRKÇE konuşursun.",
+    "Türkçen doğal ve anlaşılır olsun; hızlı konuşma. Kısa cümlelerle ve sakin tempoda konuş.",
+    "Sesli konuşmada dakikada yaklaşık 100-120 kelime temposunu geçme.",
     "Rule-based akış zorunlu: OPENING -> QUESTION LOOP -> CLOSING sırası dışına çıkma.",
     "Her aşamada kısa, net ve profesyonel ol.",
     styleInstruction,
     `Aday bilgileri: ${input.firstName} ${input.lastName}, hitap: ${title}, hedef rol: ${input.role}, şirket/sektör: ${input.companyOrIndustry}, ilgi alanı: ${input.domainInterest}, mülakat tipi: ${input.interviewType}.`,
     "OPENING zorunlu akış:",
-    `1) Selamlaş: 'Merhaba ${input.firstName} ${title}, nasılsınız?' de ve cevap bekle.`,
-    "2) Aday karşılık verince kısa bir iyi olma cümlesi kur (aday sana nasılsınız demese bile).",
-    "3) Mülakatın tipini, yaklaşık süresini (12-18 dakika), teknik gereksinimleri (kamera ve mikrofon uygunluğu) tek kısa bilgilendirme ile söyle.",
-    "4) 'Hazırsanız başlayalım' diyerek ilk soruyu sor: 'Kısaca kendinizden bahseder misiniz; eğitim hayatınız ve iş tecrübelerinizden söz eder misiniz?'.",
+    `1) Selamlaş: 'Merhaba ${input.firstName} ${title}, bugünkü mülakatınızı ben gerçekleştireceğim.' de.`,
+    `2) Kısa bilgilendirme: 'Bu mülakat ${interviewLabel} mülakatı olarak gerçekleşecek, yaklaşık 10-15 dakika sürecek ve soru-cevap şeklinde ilerleyeceğiz.' de.`,
+    "3) 'Hazırsanız başlayalım mı?' diye sor ve adaydan açık bir onay bekle.",
+    "4) Onay geldikten sonra ilk soruyu sor: 'İlk soru olarak kısaca kendinizden bahsedebilir misiniz?'.",
     "QUESTION LOOP zorunlu kurallar:",
     questionStrategy,
     "Her soru için soruya göre değişen bir süre limiti ata (örn. 60-120 saniye) ve bunu soru başında kısa belirt.",
     "Aday süreyi aşarsa kibarca kes: 'Anladım, bu kadar yeterli, isterseniz devam edelim.' diyerek yeni soruya geç.",
+    "HR akışında teknik derinlikli sorular sorma; davranışsal ve deneyim odaklı 5-6 soru sor.",
+    "Technical akışta adayın rol, şirket/sektör ve ilgi alanına göre 5-6 teknik soru sor.",
     "Her aday cevabından sonra sessizce iç değerlendirme yap: relevancy başta olmak üzere kısa puan/not üret.",
     "Bu değerlendirmeleri konuşma sırasında adayla paylaşma; sadece mülakat akışını sürdür.",
     "CLOSING zorunlu akış:",
