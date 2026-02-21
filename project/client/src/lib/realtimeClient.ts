@@ -1,5 +1,8 @@
 export type Mode = "Supportive" | "Neutral";
 
+type InterviewType = "HR" | "Technical";
+type CandidateGender = "Kadın" | "Erkek";
+
 export type RealtimeConnection = {
   pc: RTCPeerConnection;
   dc: RTCDataChannel;
@@ -9,6 +12,50 @@ export type RealtimeConnection = {
   audioCtx: AudioContext;
   close: () => void;
 };
+
+function buildInterviewerPrompt(input: {
+  mode: Mode;
+  interviewType: InterviewType;
+  firstName: string;
+  lastName: string;
+  gender: CandidateGender;
+  role: string;
+  companyOrIndustry: string;
+  domainInterest: string;
+}) {
+  const title = input.gender === "Kadın" ? "Hanım" : "Bey";
+  const styleInstruction =
+    input.mode === "Supportive"
+      ? "Supportive moddasın: daha neşeli, pozitif ve rahatlatıcı bir ton kullan. Aday takılırsa (örn. 'ııı', 'bilmiyorum') kısa ipucu ver veya nazikçe bir sonraki soruya geç."
+      : "Neutral moddasın: resmi, dengeli ve tarafsız ilerle. Gereksiz ipucu verme.";
+
+  const questionStrategy =
+    input.interviewType === "HR"
+      ? "Soru döngüsünde STAR yaklaşımına uygun toplam 5-6 soru sor. Her yeni soruyu adayın önceki cevaplarına göre şekillendir ve cevapları unutma."
+      : "Soru döngüsünde toplam 5-6 teknik soru sor. Sorular adayın hedef rolü, ilgi alanı ve çalışmak istediği sektörle uyumlu olsun. Soruların birbirine çok sıkı bağlı olması zorunlu değil.";
+
+  return [
+    "Sen gerçek bir mülakatçısın ve sadece TÜRKÇE konuşursun.",
+    "Rule-based akış zorunlu: OPENING -> QUESTION LOOP -> CLOSING sırası dışına çıkma.",
+    "Her aşamada kısa, net ve profesyonel ol.",
+    styleInstruction,
+    `Aday bilgileri: ${input.firstName} ${input.lastName}, hitap: ${title}, hedef rol: ${input.role}, şirket/sektör: ${input.companyOrIndustry}, ilgi alanı: ${input.domainInterest}, mülakat tipi: ${input.interviewType}.`,
+    "OPENING zorunlu akış:",
+    `1) Selamlaş: 'Merhaba ${input.firstName} ${title}, nasılsınız?' de ve cevap bekle.`,
+    "2) Aday karşılık verince kısa bir iyi olma cümlesi kur (aday sana nasılsınız demese bile).",
+    "3) Mülakatın tipini, yaklaşık süresini (12-18 dakika), teknik gereksinimleri (kamera ve mikrofon uygunluğu) tek kısa bilgilendirme ile söyle.",
+    "4) 'Hazırsanız başlayalım' diyerek ilk soruyu sor: 'Kısaca kendinizden bahseder misiniz; eğitim hayatınız ve iş tecrübelerinizden söz eder misiniz?'.",
+    "QUESTION LOOP zorunlu kurallar:",
+    questionStrategy,
+    "Her soru için soruya göre değişen bir süre limiti ata (örn. 60-120 saniye) ve bunu soru başında kısa belirt.",
+    "Aday süreyi aşarsa kibarca kes: 'Anladım, bu kadar yeterli, isterseniz devam edelim.' diyerek yeni soruya geç.",
+    "Her aday cevabından sonra sessizce iç değerlendirme yap: kısa puanlama/not üret (relevancy dahil) ama bunu adaya sesli söyleme.",
+    "Değerlendirme sonuçlarını backend'e döndürülecek iç metaveri gibi üret; konuşma akışında sadece mülakatı sürdür.",
+    "CLOSING zorunlu akış:",
+    `Tanışma memnuniyeti bildir, ${input.firstName} ${title} için kısa değerlendirme süreci ve geri dönüş süresi bilgisini ver.`,
+    "Kapanıştan sonra adayın 'iyi günler/görüşmek üzere' benzeri vedasını bekle, sonra mülakatı sonlandır.",
+  ].join(" ");
+}
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === "complete") return;
@@ -26,6 +73,13 @@ async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
 export async function connectRealtimeInterview(opts: {
   backendBaseUrl: string;
   mode: Mode;
+  interviewType: InterviewType;
+  firstName: string;
+  lastName: string;
+  gender: CandidateGender;
+  role: string;
+  companyOrIndustry: string;
+  domainInterest: string;
 }): Promise<RealtimeConnection> {
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -37,7 +91,6 @@ export async function connectRealtimeInterview(opts: {
     console.log("[RTC] iceConnectionState:", pc.iceConnectionState);
   pc.onicecandidateerror = (e) => console.log("[RTC] icecandidateerror:", e);
 
-  // Remote audio garanti
   pc.addTransceiver("audio", { direction: "recvonly" });
 
   const dc = pc.createDataChannel("oai-events");
@@ -49,11 +102,9 @@ export async function connectRealtimeInterview(opts: {
     remoteStream.addTrack(e.track);
   };
 
-  // mic
   const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   pc.addTrack(micStream.getTracks()[0], micStream);
 
-  // offer
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
   await waitForIceGatheringComplete(pc);
@@ -76,7 +127,6 @@ export async function connectRealtimeInterview(opts: {
   const answerSdp = await sdpResp.text();
   await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
 
-  // ✅ audio element tek olsun
   const existing = document.getElementById("realtime-remote-audio") as HTMLAudioElement | null;
   if (existing) {
     try {
@@ -94,14 +144,12 @@ export async function connectRealtimeInterview(opts: {
   audioEl.srcObject = remoteStream;
   document.body.appendChild(audioEl);
 
-  // analyser
   const audioCtx = new AudioContext();
   const source = audioCtx.createMediaStreamSource(remoteStream);
   const analyser = audioCtx.createAnalyser();
   analyser.fftSize = 1024;
   source.connect(analyser);
 
-  // Event log
   dc.onmessage = (e) => {
     try {
       const msg = JSON.parse(e.data);
@@ -116,11 +164,9 @@ export async function connectRealtimeInterview(opts: {
     } catch {}
   };
 
-  // ✅ VAD + “HEMEN KONUŞ” (conversation.item.create yok, direkt response.create)
   dc.onopen = () => {
     console.log("[RTC] datachannel open → configuring + starting interview");
 
-    // VAD (doğru path)
     dc.send(
       JSON.stringify({
         type: "session.update",
@@ -139,15 +185,21 @@ export async function connectRealtimeInterview(opts: {
       })
     );
 
-    // ✅ İlk konuşmayı garanti: response.create + modalities + instructions
     dc.send(
       JSON.stringify({
         type: "response.create",
         response: {
           modalities: ["audio", "text"],
-          instructions:
-            "Şimdi Türkçe bir mülakat başlat. 1 cümle selamla, 1 cümle süreci söyle ve hemen ilk soruyu sor. " +
-            "Mülakatçı gibi kısa ve net ol. Kullanıcının cevabını bekle.",
+          instructions: buildInterviewerPrompt({
+            mode: opts.mode,
+            interviewType: opts.interviewType,
+            firstName: opts.firstName,
+            lastName: opts.lastName,
+            gender: opts.gender,
+            role: opts.role,
+            companyOrIndustry: opts.companyOrIndustry,
+            domainInterest: opts.domainInterest,
+          }),
         },
       })
     );

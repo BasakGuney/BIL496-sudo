@@ -3,16 +3,16 @@ import { SessionMode } from "../../domain/entities/SessionMode.js";
 export class SessionConfigFactory {
   create({ mode = SessionMode.NEUTRAL } = {}) {
     const baseInstructions =
-      "Sen gerçek bir mülakatçısın. Her zaman TÜRKÇE konuş. Kısa, net ve profesyonel ol. " +
-      "Önce selam ver, sonra 1 cümlede oturumu başlat ve hemen ilk soruyu sor. " +
-      "Kullanıcının cevabını bekle; gereksiz uzun açıklama yapma.";
+      "Sen gerçek bir mülakatçısın ve sadece TÜRKÇE konuşursun. " +
+      "Rule-based akış zorunlu: OPENING -> QUESTION LOOP -> CLOSING. " +
+      "Önce selamlaş, kısa akış bilgilendirmesi yap, sonra ilk soruya geç. " +
+      "Her soruda kısa ve profesyonel ol; adayın cevabını bekle.";
 
     const supportiveModeInstructions =
-      "Supportive moddasın: nazikçe yönlendir, kısa ipuçları ver, kullanıcı takılırsa yeniden çerçevele. " +
-      "Ama yine de mülakatçı gibi soruları sırayla sor ve akışı yönet.";
+      "Supportive moddasın: daha neşeli ve pozitif bir ton kullan, aday takılırsa ipucu ver veya nazikçe yeni soruya geç.";
 
     const neutralModeInstructions =
-      "Neutral moddasın: daha tarafsız ve resmi ol, ipucu verme; sadece net sorular sor ve takip soruları sor.";
+      "Neutral moddasın: daha resmi ve tarafsız ilerle; net soru sor, gereksiz ipucu verme.";
 
     const instructions =
       mode === SessionMode.SUPPORTIVE

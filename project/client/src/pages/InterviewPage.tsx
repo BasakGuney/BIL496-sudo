@@ -79,6 +79,13 @@ export function InterviewPage({
         const conn = await connectRealtimeInterview({
           backendBaseUrl: BACKEND_URL,
           mode: config.mode,
+          interviewType: config.interviewType,
+          firstName: config.firstName,
+          lastName: config.lastName,
+          gender: config.gender,
+          role: config.role,
+          companyOrIndustry: config.companyOrIndustry,
+          domainInterest: config.domainInterest,
         });
 
         if (!mounted) {
