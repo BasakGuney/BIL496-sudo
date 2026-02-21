@@ -1,3 +1,4 @@
+import path from "node:path";
 import express from "express";
 import cors from "cors";
 import { getEnv } from "../config/env.js";
@@ -10,6 +11,7 @@ import { InterviewSessionOrchestrator } from "../application/orchestration/Inter
 import { SessionController } from "../api/controllers/SessionController.js";
 import { createSessionRouter } from "../api/routes/sessionRoutes.js";
 import { TranscriptEvaluator } from "../application/services/TranscriptEvaluator.js";
+import { FileReportArchive } from "../infrastructure/persistence/FileReportArchive.js";
 
 export class AppServer {
   constructor({ env = getEnv(), logger = new Logger() } = {}) {
@@ -26,6 +28,9 @@ export class AppServer {
     const sessionRepository = new InMemorySessionRepository();
     const idGenerator = new IdGenerator();
     const transcriptEvaluator = new TranscriptEvaluator({ apiKey: this.env.openAiApiKey });
+    const reportArchive = new FileReportArchive({
+      baseDir: this.env.reportsDir || path.resolve(process.cwd(), "reports"),
+    });
 
     const interviewSessionOrchestrator = new InterviewSessionOrchestrator({
       sessionConfigFactory,
@@ -33,6 +38,7 @@ export class AppServer {
       sessionRepository,
       idGenerator,
       transcriptEvaluator,
+      reportArchive,
     });
 
     const sessionController = new SessionController({
