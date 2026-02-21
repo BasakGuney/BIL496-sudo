@@ -12,6 +12,7 @@ type RealtimeEvent = {
   delta?: string;
   response_id?: string;
   item_id?: string;
+  item?: any;
 };
 
 export type RealtimeConnection = {
@@ -84,13 +85,24 @@ function buildInterviewerPrompt(input: {
 }
 
 function extractTextMessage(msg: RealtimeEvent): { role: "interviewer" | "candidate"; text: string } | null {
-  const candidateText = msg?.transcript || msg?.text;
+  const nestedCandidateText = Array.isArray(msg?.item?.content)
+    ? msg.item.content
+        .map((c: any) => c?.transcript || c?.text || "")
+        .filter(Boolean)
+        .join(" ")
+    : "";
+
+  const candidateText = msg?.transcript || msg?.text || nestedCandidateText;
   if (msg?.type === "conversation.item.input_audio_transcription.completed" && typeof candidateText === "string") {
     return { role: "candidate", text: candidateText };
   }
 
   if (msg?.type === "conversation.item.input_audio_transcription.delta" && typeof msg?.delta === "string") {
     return { role: "candidate", text: msg.delta };
+  }
+
+  if (msg?.type === "conversation.item.completed" && msg?.item?.role === "user" && candidateText) {
+    return { role: "candidate", text: candidateText };
   }
 
   if (msg?.type === "response.audio_transcript.done" && typeof msg?.transcript === "string") {
@@ -227,9 +239,11 @@ export async function connectRealtimeInterview(opts: {
 
   const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const localSpeechRecognition = SpeechRecognitionCtor ? new SpeechRecognitionCtor() : null;
+  let recognitionStopped = false;
   if (localSpeechRecognition) {
     localSpeechRecognition.continuous = true;
     localSpeechRecognition.interimResults = false;
+    localSpeechRecognition.maxAlternatives = 1;
     localSpeechRecognition.lang = "tr-TR";
     localSpeechRecognition.onresult = (event: any) => {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -240,6 +254,15 @@ export async function connectRealtimeInterview(opts: {
       }
     };
     localSpeechRecognition.onerror = () => undefined;
+    localSpeechRecognition.onend = () => {
+      if (recognitionStopped) return;
+      try {
+        localSpeechRecognition.start();
+      } catch (_error) {
+        // ignored
+      }
+    };
+
     try {
       localSpeechRecognition.start();
     } catch (_error) {
@@ -391,6 +414,7 @@ export async function connectRealtimeInterview(opts: {
   };
 
   const close = () => {
+    recognitionStopped = true;
     safeCleanup(() => localSpeechRecognition?.stop());
     safeCleanup(() => micStream.getTracks().forEach((t) => t.stop()));
     safeCleanup(() => pc.close());
