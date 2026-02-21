@@ -163,6 +163,8 @@ export function InterviewPage({
   }
 
   async function finish() {
+    // Erken bitirme anında son transkript event'lerinin düşmesi için kısa bir pencere bırak
+    await new Promise((resolve) => setTimeout(resolve, 900));
     const transcript = connRef.current?.getTranscript() || [];
     stopMedia();
     const rep = await endSession(sessionId, transcript);
