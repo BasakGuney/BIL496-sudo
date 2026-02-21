@@ -114,6 +114,11 @@ function extractTextMessage(msg: RealtimeEvent): { role: "interviewer" | "candid
     if (merged) return merged;
   }
 
+  if (msg?.type === "conversation.item.created" || msg?.type === "conversation.item.updated") {
+    const conversationText = extractFromConversationItem(msg);
+    if (conversationText) return conversationText;
+  }
+
   return null;
 }
 
@@ -136,6 +141,24 @@ function pushTranscript(
   transcript.push({ role, text: clean, ts });
 }
 
+
+function extractFromConversationItem(msg: any): { role: "interviewer" | "candidate"; text: string } | null {
+  const item = msg?.item;
+  if (!item) return null;
+
+  const role = item?.role === "assistant" ? "interviewer" : item?.role === "user" ? "candidate" : null;
+  if (!role) return null;
+
+  const contents = Array.isArray(item?.content) ? item.content : [];
+  const chunks: string[] = [];
+  for (const c of contents) {
+    if (typeof c?.transcript === "string" && c.transcript.trim()) chunks.push(c.transcript.trim());
+    else if (typeof c?.text === "string" && c.text.trim()) chunks.push(c.text.trim());
+  }
+
+  if (chunks.length === 0) return null;
+  return { role, text: chunks.join(" ") };
+}
 
 function extractFromResponseDone(msg: any): { role: "interviewer"; text: string } | null {
   const outputs = Array.isArray(msg?.response?.output) ? msg.response.output : [];
@@ -201,6 +224,28 @@ export async function connectRealtimeInterview(opts: {
 
   const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   pc.addTrack(micStream.getTracks()[0], micStream);
+
+  const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  const localSpeechRecognition = SpeechRecognitionCtor ? new SpeechRecognitionCtor() : null;
+  if (localSpeechRecognition) {
+    localSpeechRecognition.continuous = true;
+    localSpeechRecognition.interimResults = false;
+    localSpeechRecognition.lang = "tr-TR";
+    localSpeechRecognition.onresult = (event: any) => {
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const result = event.results[i];
+        if (result?.isFinal && result[0]?.transcript) {
+          pushTranscript(transcript, "candidate", String(result[0].transcript), Date.now());
+        }
+      }
+    };
+    localSpeechRecognition.onerror = () => undefined;
+    try {
+      localSpeechRecognition.start();
+    } catch (_error) {
+      // ignored
+    }
+  }
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
@@ -346,6 +391,7 @@ export async function connectRealtimeInterview(opts: {
   };
 
   const close = () => {
+    safeCleanup(() => localSpeechRecognition?.stop());
     safeCleanup(() => micStream.getTracks().forEach((t) => t.stop()));
     safeCleanup(() => pc.close());
     safeCleanup(() => audioCtx.close());
@@ -357,11 +403,11 @@ export async function connectRealtimeInterview(opts: {
   };
 
   const flushBufferedTranscript = () => {
-    for (const buffered of deltaBuffers.values()) {
+    deltaBuffers.forEach((buffered) => {
       if (buffered?.text?.trim()) {
         pushTranscript(transcript, buffered.role, buffered.text, buffered.ts);
       }
-    }
+    });
     deltaBuffers.clear();
   };
 
