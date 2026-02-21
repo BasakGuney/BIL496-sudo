@@ -12,6 +12,8 @@ export class ReportView {
       recommendations: report?.recommendations || [],
       notes: report?.notes || [],
       qaEvaluations: report?.qaEvaluations || [],
+      transcript: Array.isArray(report?.transcript) ? report.transcript : [],
+      transcriptText: report?.transcriptText || "",
       evidence: Array.isArray(report?.evidence)
         ? report.evidence.map((item) => EvidenceItemView.fromEvidenceItem(item))
         : [],

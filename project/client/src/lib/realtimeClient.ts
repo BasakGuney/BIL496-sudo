@@ -333,6 +333,15 @@ export async function connectRealtimeInterview(opts: {
     });
   };
 
+  const flushBufferedTranscript = () => {
+    for (const buffered of deltaBuffers.values()) {
+      if (buffered?.text?.trim()) {
+        pushTranscript(transcript, buffered.role, buffered.text, buffered.ts);
+      }
+    }
+    deltaBuffers.clear();
+  };
+
   return {
     pc,
     dc,
@@ -340,7 +349,10 @@ export async function connectRealtimeInterview(opts: {
     analyser,
     audioEl,
     audioCtx,
-    getTranscript: () => [...transcript],
+    getTranscript: () => {
+      flushBufferedTranscript();
+      return [...transcript];
+    },
     close,
   };
 }

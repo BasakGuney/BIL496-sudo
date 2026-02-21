@@ -64,6 +64,18 @@ export class BackendOrchestrator {
 
     session.end();
     const report = await this.analyzer.generateReport(session, transcript);
+    const transcriptEntries = Array.isArray(transcript) ? transcript : [];
+    const transcriptText = transcriptEntries
+      .map((item) => {
+        const role = item?.role === "interviewer" ? "Interviewer" : "Candidate";
+        return `[${role}] ${String(item?.text || "").trim()}`;
+      })
+      .filter(Boolean)
+      .join("\n");
+
+    report.transcript = transcriptEntries;
+    report.transcriptText = transcriptText;
+
     session.report = report;
     session.state = reason ? SessionState.ABORTED : SessionState.COMPLETED;
 
@@ -71,7 +83,7 @@ export class BackendOrchestrator {
     await this.reports.save(report);
 
     if (this.reportArchive?.save) {
-      await this.reportArchive.save({ sessionId, transcript, report });
+      await this.reportArchive.save({ sessionId, transcript: transcriptEntries, report });
     }
 
     return report;
