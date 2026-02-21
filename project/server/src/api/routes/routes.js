@@ -7,6 +7,7 @@ export function createRoutes({ sessionController, consentController, realtimeCon
   router.get("/sessions/:sessionId", async (req, res, next) => { try { res.json(await sessionController.getSession(req.params.sessionId)); } catch (e) { next(e); } });
   router.patch("/sessions/:sessionId/consent", async (req, res, next) => { try { res.json(await consentController.updateConsent(req.params.sessionId, req)); } catch (e) { next(e); } });
   router.post("/sessions/:sessionId/start", async (req, res, next) => { try { res.json(await sessionController.startSession(req.params.sessionId, req)); } catch (e) { next(e); } });
+  router.post("/sessions/:sessionId/answers", async (req, res, next) => { try { res.json(await sessionController.recordAnswer(req.params.sessionId, req)); } catch (e) { next(e); } });
   router.post("/sessions/:sessionId/end", async (req, res, next) => { try { res.json(await sessionController.endSession(req.params.sessionId, req)); } catch (e) { next(e); } });
   router.get("/sessions/:sessionId/report", async (req, res, next) => { try { res.json(await reportController.getReport(req.params.sessionId)); } catch (e) { next(e); } });
   router.post("/sessions/:sessionId/realtime/offer", async (req, res, next) => { try { res.json(await realtimeController.postOffer(req.params.sessionId, req)); } catch (e) { next(e); } });

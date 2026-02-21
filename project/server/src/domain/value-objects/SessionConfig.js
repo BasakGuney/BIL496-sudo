@@ -2,7 +2,10 @@ import { normalizeInterviewType } from "../enums/InterviewType.js";
 import { normalizeMode } from "../enums/Mode.js";
 
 export class SessionConfig {
-  constructor({ interviewType, role, companyOrIndustry, domainInterest, domain, difficulty, mode }) {
+  constructor({ firstName, lastName, gender, interviewType, role, companyOrIndustry, domainInterest, domain, difficulty, mode }) {
+    this.firstName = firstName || "Aday";
+    this.lastName = lastName || "";
+    this.gender = gender || "Unspecified";
     this.interviewType = normalizeInterviewType(interviewType);
     this.role = role || "Generalist";
     this.companyOrIndustry = companyOrIndustry || "General";

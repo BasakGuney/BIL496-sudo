@@ -79,6 +79,8 @@ export function InterviewPage({
         const conn = await connectRealtimeInterview({
           backendBaseUrl: BACKEND_URL,
           mode: config.mode,
+          sessionId,
+          config,
         });
 
         if (!mounted) {
@@ -127,7 +129,7 @@ export function InterviewPage({
       connRef.current = null;
       connectingRef.current = false;
     };
-  }, [config.mode]);
+  }, [config, sessionId]);
 
   async function enableAudio() {
     const conn = connRef.current;

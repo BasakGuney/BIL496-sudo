@@ -1,6 +1,7 @@
 import { CreateSessionRequest } from "../requests/CreateSessionRequest.js";
 import { StartSessionRequest } from "../requests/StartSessionRequest.js";
 import { EndSessionRequest } from "../requests/EndSessionRequest.js";
+import { RecordAnswerRequest } from "../requests/RecordAnswerRequest.js";
 import { toSessionView, toReportView } from "../responses/views.js";
 
 export class SessionController {
@@ -17,6 +18,12 @@ export class SessionController {
   async startSession(sessionId, req) {
     const _dto = new StartSessionRequest(req.body || {});
     return this.orchestrator.startSession(sessionId);
+  }
+
+
+  async recordAnswer(sessionId, req) {
+    const dto = new RecordAnswerRequest(req.body || {});
+    return this.orchestrator.recordAnswer(sessionId, dto);
   }
 
   async endSession(sessionId, req) {

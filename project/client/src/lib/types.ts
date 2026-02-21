@@ -1,6 +1,7 @@
 export type InterviewType = "HR" | "Technical";
 export type Difficulty = "Junior" | "Intermediate";
 export type Mode = "Supportive" | "Neutral";
+export type Gender = "Female" | "Male" | "Unspecified";
 
 export type ConsentState = {
   mic: boolean;
@@ -8,6 +9,9 @@ export type ConsentState = {
 };
 
 export type SessionConfig = {
+  firstName: string;
+  lastName: string;
+  gender: Gender;
   interviewType: InterviewType;
   role: string;
   companyOrIndustry: string;
@@ -25,7 +29,7 @@ export type InterviewTurn = {
 export type FeedbackMetric = {
   key: string;
   label: string;
-  score: number; // 0..100
+  score: number;
   detail?: string;
 };
 

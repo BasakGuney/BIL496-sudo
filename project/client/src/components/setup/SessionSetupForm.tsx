@@ -22,56 +22,53 @@ export function SessionSetupForm({
   onStart,
   starting,
 }: {
-  value: SessionConfig;                 // parent'tan gelen config (placeholder kaynağı)
-  onChange: (v: SessionConfig) => void; // parent state güncelleme
+  value: SessionConfig;
+  onChange: (v: SessionConfig) => void;
   onStart: () => void;
   starting: boolean;
 }) {
-  // Kullanıcının gerçekten yazdığı değerler (input içini dolduran şey)
-  const [draft, setDraft] = React.useState({
-    role: "",
-    companyOrIndustry: "",
-    domainInterest: "",
-  });
-
-  // Zorunlu alan kontrolü: Select'ler value'dan, text input'lar draft'tan (boşsa doldurulmamış say)
   const isFilled =
+    !!value.firstName.trim() &&
+    !!value.lastName.trim() &&
     !!value.interviewType &&
     !!value.difficulty &&
     !!value.mode &&
-    draft.role.trim().length > 0 &&
-    draft.companyOrIndustry.trim().length > 0 &&
-    draft.domainInterest.trim().length > 0;
+    !!value.role.trim() &&
+    !!value.companyOrIndustry.trim() &&
+    !!value.domainInterest.trim();
 
-  // Consent de zorunlu
   const consentOk = value.consent.mic && value.consent.camera;
-
   const canStart = isFilled && consentOk;
-
-  const handleStart = () => {
-    // Zorunlu olduğu için draft boş olamaz; yine de güvenli olsun:
-    const merged: SessionConfig = {
-      ...value,
-      role: draft.role.trim(),
-      companyOrIndustry: draft.companyOrIndustry.trim(),
-      domainInterest: draft.domainInterest.trim(),
-    };
-
-    onChange(merged);
-    onStart();
-  };
 
   return (
     <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid gap-2">
+          <RequiredLabel>İsim</RequiredLabel>
+          <Input className="rounded-xl" value={value.firstName} onChange={(e) => onChange({ ...value, firstName: e.target.value })} placeholder="Örn: Ayşe" />
+        </div>
+        <div className="grid gap-2">
+          <RequiredLabel>Soyisim</RequiredLabel>
+          <Input className="rounded-xl" value={value.lastName} onChange={(e) => onChange({ ...value, lastName: e.target.value })} placeholder="Örn: Yılmaz" />
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        <RequiredLabel>Cinsiyet</RequiredLabel>
+        <Select value={value.gender} onValueChange={(v) => onChange({ ...value, gender: v as any })}>
+          <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Female">Kadın</SelectItem>
+            <SelectItem value="Male">Erkek</SelectItem>
+            <SelectItem value="Unspecified">Belirtmek istemiyorum</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid gap-2">
         <RequiredLabel>Interview Type</RequiredLabel>
-        <Select
-          value={value.interviewType}
-          onValueChange={(v) => onChange({ ...value, interviewType: v as any })}
-        >
-          <SelectTrigger className="rounded-xl">
-            <SelectValue placeholder="Select type" />
-          </SelectTrigger>
+        <Select value={value.interviewType} onValueChange={(v) => onChange({ ...value, interviewType: v as any })}>
+          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="HR">HR</SelectItem>
             <SelectItem value="Technical">Technical (non-coding)</SelectItem>
@@ -81,43 +78,23 @@ export function SessionSetupForm({
 
       <div className="grid gap-2">
         <RequiredLabel>Target role / position</RequiredLabel>
-        <Input
-          className="rounded-xl"
-          value={draft.role}
-          placeholder={value.role || "e.g., Backend Developer"}
-          onChange={(e) => setDraft((p) => ({ ...p, role: e.target.value }))}
-        />
+        <Input className="rounded-xl" value={value.role} placeholder="e.g., DevOps Engineer" onChange={(e) => onChange({ ...value, role: e.target.value })} />
       </div>
 
       <div className="grid gap-2">
         <RequiredLabel>Company / industry context</RequiredLabel>
-        <Input
-          className="rounded-xl"
-          value={draft.companyOrIndustry}
-          placeholder={value.companyOrIndustry || "e.g., Fintech / Banking"}
-          onChange={(e) => setDraft((p) => ({ ...p, companyOrIndustry: e.target.value }))}
-        />
+        <Input className="rounded-xl" value={value.companyOrIndustry} placeholder="e.g., Fintech / Banking" onChange={(e) => onChange({ ...value, companyOrIndustry: e.target.value })} />
       </div>
 
       <div className="grid gap-2">
         <RequiredLabel>Domain / interest area</RequiredLabel>
-        <Input
-          className="rounded-xl"
-          value={draft.domainInterest}
-          placeholder={value.domainInterest || "e.g., Kubernetes / ML"}
-          onChange={(e) => setDraft((p) => ({ ...p, domainInterest: e.target.value }))}
-        />
+        <Input className="rounded-xl" value={value.domainInterest} placeholder="e.g., Kubernetes / ML" onChange={(e) => onChange({ ...value, domainInterest: e.target.value })} />
       </div>
 
       <div className="grid gap-2">
         <RequiredLabel>Difficulty</RequiredLabel>
-        <Select
-          value={value.difficulty}
-          onValueChange={(v) => onChange({ ...value, difficulty: v as any })}
-        >
-          <SelectTrigger className="rounded-xl">
-            <SelectValue placeholder="Difficulty" />
-          </SelectTrigger>
+        <Select value={value.difficulty} onValueChange={(v) => onChange({ ...value, difficulty: v as any })}>
+          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Difficulty" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="Junior">Junior</SelectItem>
             <SelectItem value="Intermediate">Intermediate</SelectItem>
@@ -128,9 +105,7 @@ export function SessionSetupForm({
       <div className="grid gap-2">
         <RequiredLabel>Mode</RequiredLabel>
         <Select value={value.mode} onValueChange={(v) => onChange({ ...value, mode: v as any })}>
-          <SelectTrigger className="rounded-xl">
-            <SelectValue placeholder="Mode" />
-          </SelectTrigger>
+          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Mode" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="Supportive">Supportive</SelectItem>
             <SelectItem value="Neutral">Neutral</SelectItem>
@@ -139,19 +114,12 @@ export function SessionSetupForm({
         <ModeBadge mode={value.mode} />
       </div>
 
-      {/* Oturum kurulumu (consent) zorunlu: yıldızlı not */}
       <div className="text-xs text-muted-foreground">
         <span className="text-red-500">*</span> Zorunlu: Mikrofon ve Kamera onayı verilmeden oturum başlatılamaz.
       </div>
 
-      <Button className="rounded-xl" onClick={handleStart} disabled={!canStart || starting}>
-        {starting
-          ? "Hazırlanıyor..."
-          : canStart
-          ? "Örnek Sorulara Geç"
-          : !consentOk
-          ? "Mikrofon + Kamera onayı gerekli"
-          : "Lütfen tüm zorunlu alanları doldur"}
+      <Button className="rounded-xl" onClick={onStart} disabled={!canStart || starting}>
+        {starting ? "Hazırlanıyor..." : canStart ? "Örnek Sorulara Geç" : !consentOk ? "Mikrofon + Kamera onayı gerekli" : "Lütfen tüm zorunlu alanları doldur"}
         <ChevronRight className="ml-2 h-4 w-4" />
       </Button>
     </div>
