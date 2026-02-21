@@ -33,23 +33,22 @@ export class AIServiceGateway {
       askedQuestions: asked,
       candidateMemory: memory,
       fallbackText: session.config.mode === "Supportive"
-        ? "İsterseniz küçük bir ipucu ile devam edebiliriz; problem ve aksiyon kısmını ayırarak anlatabilirsiniz."
-        : "Anladım, bu kadarı yeterli. Devam sorusuna geçelim.",
+        ? "İsterseniz küçük bir ipucu ile devam edebiliriz; az önce anlattığınız deneyimde attığınız adımları biraz daha detaylandırır mısınız?"
+        : "Teşekkürler. Az önce bahsettiğiniz deneyimde karar verme yaklaşımınızı biraz daha açar mısınız?",
     });
 
     return result.text;
   }
 
   #fallbackQuestionPlan(cfg) {
-    const prefix = `${cfg.firstName} ${cfg.lastName}`.trim();
     const honorific = cfg.gender === "Female" ? "Hanım" : cfg.gender === "Male" ? "Bey" : "";
-    const address = `${prefix}${honorific ? ` ${honorific}` : ""}`.trim();
+    const address = `${cfg.firstName}${honorific ? ` ${honorific}` : ""}`.trim();
 
     if (cfg.interviewType === "HR") {
       return [
         `${address}, hazırsanız başlayalım. Kısaca kendinizden; eğitim hayatınızdan ve iş tecrübelerinizden bahseder misiniz?`,
-        "STAR formatında ekip içinde yaşadığınız bir çatışmayı nasıl yönettiğinizi anlatır mısınız?",
-        "STAR ile baskı altında karar verdiğiniz bir örnek paylaşır mısınız?",
+        "Ekip içinde yaşadığınız bir çatışmayı nasıl yönettiğinizi anlatır mısınız?",
+        "Baskı altında karar verdiğiniz bir örnek paylaşır mısınız?",
         "Geri bildirim alıp yaklaşımınızı değiştirdiğiniz bir örnek verir misiniz?",
         "Bu pozisyon için güçlü yönlerinizi örnekle anlatır mısınız?",
         "İlk 3 ayda nasıl bir gelişim planı izlersiniz?",

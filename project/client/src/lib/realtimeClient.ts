@@ -31,7 +31,7 @@ function getHonorific(gender: SessionConfig["gender"]) {
 
 function buildInterviewRules(config: SessionConfig) {
   const honorific = getHonorific(config.gender);
-  const candidateAddress = `${config.firstName} ${config.lastName} ${honorific}`.trim();
+  const candidateAddress = `${config.firstName}${honorific ? ` ${honorific}` : ""}`.trim();
 
   return {
     interview_flow: {
@@ -50,8 +50,9 @@ function buildInterviewRules(config: SessionConfig) {
         mandatoryFirstQuestion: "Kısaca kendinizden, eğitim hayatınızdan ve iş tecrübelerinizden bahseder misiniz?",
         questionCountRange: "5-6",
         hrMode: {
-          useSTAR: true,
+          avoidMentioningSTARByName: true,
           adaptToPreviousAnswer: true,
+          requireContextualFollowUpsFromCandidateAnswer: true,
         },
         technicalMode: {
           useSetupContext: {
@@ -150,7 +151,7 @@ export async function connectRealtimeInterview(opts: {
         type: "response.create",
         response: {
           modalities: ["audio", "text"],
-          instructions: "Follow interview_flow rules from session.update exactly and start with opening phase.",
+          instructions: "Follow interview_flow rules from session.update exactly. Ask direct interview questions without mentioning STAR by name, and generate follow-up questions from candidate's previous answers.",
         },
       })
     );

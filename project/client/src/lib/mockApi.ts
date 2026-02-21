@@ -15,37 +15,38 @@ function getHonorific(config: SessionConfig) {
   return "";
 }
 
-function buildQuestionPlan(config: SessionConfig): string[] {
-  const fullName = `${config.firstName} ${config.lastName}`.trim();
+function getCandidateAddress(config: SessionConfig) {
   const honorific = getHonorific(config);
-  const candidate = `${fullName}${honorific ? ` ${honorific}` : ""}`.trim();
+  return `${config.firstName}${honorific ? ` ${honorific}` : ""}`.trim();
+}
 
-  const firstQuestion = `${candidate}, hazırsanız başlayalım. Kısaca kendinizden; eğitim hayatınız ve iş tecrübelerinizden bahseder misiniz?`;
+function buildQuestionPlan(config: SessionConfig): string[] {
+  const candidate = getCandidateAddress(config);
 
   if (config.interviewType === "HR") {
     return [
-      firstQuestion,
-      "STAR formatında ekip içinde yaşadığınız bir çatışmayı nasıl çözdüğünüzü anlatır mısınız?",
-      "Zor bir durumda inisiyatif aldığınız bir örneği STAR ile paylaşır mısınız?",
-      "Geri bildirim aldığınız ve davranışınızı değiştirdiğiniz bir durumu STAR ile anlatır mısınız?",
-      "Bu role özel olarak güçlü ve gelişime açık yönlerinizi örnekle açıklar mısınız?",
-      "Son olarak, bu pozisyonda ilk 3 ay hedefinizi nasıl planlarsınız?",
+      `${candidate}, hazırsanız başlayalım. Kısaca kendinizden; eğitim hayatınız ve iş tecrübelerinizden bahseder misiniz?`,
+      "Takım içinde yaşadığınız bir anlaşmazlığı nasıl yönettiğinizi anlatır mısınız?",
+      "Baskı altında önemli bir karar verdiğiniz bir deneyiminizi paylaşır mısınız?",
+      "Aldığınız bir geri bildirimin çalışma biçiminizi nasıl değiştirdiğini anlatır mısınız?",
+      "Bu rol için güçlü yönlerinizi ve geliştirmek istediğiniz bir alanı paylaşır mısınız?",
+      "İlk 3 ay içinde nasıl bir öncelik planı oluşturursunuz?",
     ];
   }
 
   return [
-    firstQuestion,
-    `${config.role} rolünde ${config.domainInterest} tarafında yaptığınız bir çalışmayı anlatır mısınız?`,
+    `${candidate}, hazırsanız başlayalım. Kısaca kendinizden; eğitim hayatınız ve iş tecrübelerinizden bahseder misiniz?`,
+    `${config.role} rolünde ${config.domainInterest} tarafında yürüttüğünüz bir projeyi anlatır mısınız?`,
     `${config.companyOrIndustry} ortamında kritik bir teknik sorun çıktığında nasıl önceliklendirme yaparsınız?`,
-    `${config.domainInterest} konusunda izlediğiniz ölçüm/izleme metriklerinden hangileri kararınızı etkiler?`,
+    `${config.domainInterest} alanında karar verirken en çok hangi metrikleri takip edersiniz?`,
     `${config.role} pozisyonunda üretime alma öncesi riskleri nasıl azaltırsınız?`,
-    "Daha önce anlattığınız örneklerden birini iyileştirmek isteseniz neyi farklı yapardınız?",
+    "Az önce bahsettiğiniz çalışmayı bugün tekrar yapsanız neyi farklı planlarsınız?",
   ];
 }
 
 function estimateRelevance(answer: string, config: SessionConfig) {
   const text = (answer || "").toLowerCase();
-  const keywords = [config.role, config.domainInterest, config.companyOrIndustry, "star", "incident", "monitor", "ölçek"].map((x) => String(x).toLowerCase());
+  const keywords = [config.role, config.domainInterest, config.companyOrIndustry, "incident", "monitor", "ölçek"].map((x) => String(x).toLowerCase());
   const hits = keywords.filter((k) => k && text.includes(k)).length;
   return Math.min(100, 45 + hits * 10);
 }
@@ -106,7 +107,7 @@ export async function endSession(sessionId: string): Promise<FeedbackReport> {
     recommendations: [
       { title: "İlgililik", text: `Cevap ilgililik ortalaması: ${avgRel}. Soruya daha direkt girin.` },
       { title: "Süre yönetimi", text: `Uzayan yanıtlarda ana mesajı 20-30 sn içinde verin (${turnCount} tur işlendi).` },
-      { title: "Yapı", text: "STAR veya Problem-Aksiyon-Sonuç çerçevesini koruyun." },
+      { title: "Yapı", text: "Cevaplarınızda durum, aksiyon ve sonucu net bir akışla paylaşın." },
     ],
     notes: ["Not: Bu değerlendirmeler görüşme sırasında sesli paylaşılmaz, sadece rapora işlenir."],
   };

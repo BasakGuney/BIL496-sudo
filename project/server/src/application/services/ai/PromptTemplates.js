@@ -6,7 +6,6 @@ function honorific(gender) {
 
 export class PromptTemplates {
   buildInterviewerConfig(cfg) {
-    const fullName = `${cfg.firstName} ${cfg.lastName}`.trim();
     return {
       language: "tr",
       interview: {
@@ -20,7 +19,7 @@ export class PromptTemplates {
           firstName: cfg.firstName,
           lastName: cfg.lastName,
           honorific: honorific(cfg.gender),
-          address: `${fullName}${honorific(cfg.gender) ? ` ${honorific(cfg.gender)}` : ""}`.trim(),
+          address: `${cfg.firstName}${honorific(cfg.gender) ? ` ${honorific(cfg.gender)}` : ""}`.trim(),
         },
       },
       flowRules: {
@@ -33,7 +32,8 @@ export class PromptTemplates {
         questionLoop: {
           firstQuestion: "kısaca_kendinizi_anlatın",
           countRange: "5-6",
-          enforceSTARForHR: true,
+          avoidMentioningSTARByName: true,
+          requireContextualFollowUpsFromCandidateAnswer: true,
           technicalUseSetupContext: true,
           keepMemoryAcrossAllAnswers: true,
           perQuestionTimeLimitSec: cfg.interviewType === "HR" ? 120 : 150,

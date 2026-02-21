@@ -78,17 +78,17 @@ export function SessionSetupForm({
 
       <div className="grid gap-2">
         <RequiredLabel>Target role / position</RequiredLabel>
-        <Input className="rounded-xl" value={value.role} placeholder="e.g., DevOps Engineer" onChange={(e) => onChange({ ...value, role: e.target.value })} />
+        <Input className="rounded-xl" value={value.role} placeholder="Example: DevOps Engineer" onChange={(e) => onChange({ ...value, role: e.target.value })} />
       </div>
 
       <div className="grid gap-2">
         <RequiredLabel>Company / industry context</RequiredLabel>
-        <Input className="rounded-xl" value={value.companyOrIndustry} placeholder="e.g., Fintech / Banking" onChange={(e) => onChange({ ...value, companyOrIndustry: e.target.value })} />
+        <Input className="rounded-xl" value={value.companyOrIndustry} placeholder="Example: Fintech / Banking" onChange={(e) => onChange({ ...value, companyOrIndustry: e.target.value })} />
       </div>
 
       <div className="grid gap-2">
         <RequiredLabel>Domain / interest area</RequiredLabel>
-        <Input className="rounded-xl" value={value.domainInterest} placeholder="e.g., Kubernetes / ML" onChange={(e) => onChange({ ...value, domainInterest: e.target.value })} />
+        <Input className="rounded-xl" value={value.domainInterest} placeholder="Example: Kubernetes / ML" onChange={(e) => onChange({ ...value, domainInterest: e.target.value })} />
       </div>
 
       <div className="grid gap-2">

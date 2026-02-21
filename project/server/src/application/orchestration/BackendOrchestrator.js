@@ -15,7 +15,7 @@ export class BackendOrchestrator {
   }
 
   async createSession(cfg) {
-    const preparedQuestions = await this.ai.generateQuestionPlan(cfg, 6);
+    const preparedQuestions = await this.ai.generateQuestionPlan(cfg, 1);
     const session = new InterviewSession({
       id: this.idGenerator.newId("S"),
       config: cfg,
