@@ -15,17 +15,29 @@ export class FileReportArchive {
 
     const safeSessionId = this.sanitizeSessionId(sessionId);
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const transcriptEntries = Array.isArray(transcript) ? transcript : [];
     const filename = `${safeSessionId}-${stamp}.json`;
     const fullPath = path.join(this.baseDir, filename);
+    const transcriptTextPath = path.join(this.baseDir, `${safeSessionId}-${stamp}.transcript.txt`);
+
+    const transcriptText = transcriptEntries
+      .map((item) => {
+        const role = item?.role === "interviewer" ? "Interviewer" : "Candidate";
+        return `[${role}] ${String(item?.text || "").trim()}`;
+      })
+      .filter(Boolean)
+      .join("\n");
 
     const payload = {
       sessionId,
       createdAt: new Date().toISOString(),
-      transcript: Array.isArray(transcript) ? transcript : [],
+      transcript: transcriptEntries,
+      transcriptText,
       report,
     };
 
     await writeFile(fullPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    await writeFile(transcriptTextPath, `${transcriptText}\n`, "utf8");
     return fullPath;
   }
 }
