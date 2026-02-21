@@ -95,8 +95,40 @@ export class AppServer {
   }
 
   listen() {
-    this.app.listen(this.env.port, () => {
-      this.logger.info(`Realtime server listening on http://localhost:${this.env.port}`);
-    });
+    const maxRetries = 10;
+
+    const start = (port, attempt = 0) => {
+      const server = this.app.listen(port, () => {
+        this.logger.info(`Realtime server listening on http://localhost:${port}`);
+      });
+
+      server.on("error", (error) => {
+        if (error?.code === "EADDRINUSE" && attempt < maxRetries) {
+          const nextPort = port + 1;
+          this.logger.warn(
+            `Port ${port} is already in use. Retrying with port ${nextPort}...`,
+            null
+          );
+          setTimeout(() => start(nextPort, attempt + 1), 50);
+          return;
+        }
+
+        if (error?.code === "EADDRINUSE") {
+          this.logger.error(
+            `Failed to start server: ports ${this.env.port}-${this.env.port + maxRetries} are busy.`,
+            error
+          );
+          process.exitCode = 1;
+          return;
+        }
+
+        this.logger.error("Server listen error", error);
+        process.exitCode = 1;
+      });
+
+      return server;
+    };
+
+    return start(this.env.port, 0);
   }
 }
