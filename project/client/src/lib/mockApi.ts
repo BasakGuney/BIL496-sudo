@@ -8,6 +8,7 @@ type MockSessionState = {
 };
 
 const sessions = new Map<string, MockSessionState>();
+const BACKEND_URL = "http://localhost:3001";
 
 function getHonorific(config: SessionConfig) {
   if (config.gender === "Female") return "Hanım";
@@ -53,6 +54,53 @@ function estimateRelevance(answer: string, config: SessionConfig) {
 
 export async function startSession(config: SessionConfig): Promise<{ sessionId: string; previewQuestions: string[] }> {
   const preparedQuestions = buildQuestionPlan(config);
+
+  try {
+    const createResp = await fetch(`${BACKEND_URL}/sessions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        firstName: config.firstName,
+        lastName: config.lastName,
+        gender: config.gender,
+        interviewType: config.interviewType,
+        role: config.role,
+        companyOrIndustry: config.companyOrIndustry,
+        domainInterest: config.domainInterest,
+        difficulty: config.difficulty,
+        mode: config.mode,
+      }),
+    });
+
+    if (createResp.ok) {
+      const created = await createResp.json();
+      const sessionId = created.id;
+
+      await fetch(`${BACKEND_URL}/sessions/${encodeURIComponent(sessionId)}/consent`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          microphone: config.consent.mic,
+          camera: config.consent.camera,
+        }),
+      });
+
+      sessions.set(sessionId, {
+        id: sessionId,
+        config,
+        preparedQuestions: created.preparedQuestions ?? preparedQuestions,
+        turns: [],
+      });
+
+      return {
+        sessionId,
+        previewQuestions: created.previewQuestions ?? preparedQuestions.slice(0, 2),
+      };
+    }
+  } catch {
+    // fallback below keeps local/mock flow available when backend is down
+  }
+
   const sessionId = `S-${Date.now()}`;
 
   sessions.set(sessionId, { id: sessionId, config, preparedQuestions, turns: [] });
