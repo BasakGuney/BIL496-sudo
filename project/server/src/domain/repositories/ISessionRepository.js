@@ -1,13 +1,13 @@
 export class ISessionRepository {
-  create(_session) {
-    throw new Error("Method not implemented: create");
+  async create(_session) {
+    throw new Error("create must be implemented");
   }
 
-  findById(_id) {
-    throw new Error("Method not implemented: findById");
+  async update(_session) {
+    throw new Error("update must be implemented");
   }
 
-  update(_session) {
-    throw new Error("Method not implemented: update");
+  async findById(_id) {
+    throw new Error("findById must be implemented");
   }
 }

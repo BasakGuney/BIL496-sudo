@@ -6,17 +6,15 @@ export class InMemorySessionRepository extends ISessionRepository {
     this.store = new Map();
   }
 
-  create(session) {
+  async create(session) {
     this.store.set(session.id, session);
-    return session;
   }
 
-  findById(id) {
+  async findById(id) {
     return this.store.get(id) || null;
   }
 
-  update(session) {
+  async update(session) {
     this.store.set(session.id, session);
-    return session;
   }
 }
