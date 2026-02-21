@@ -1,4 +1,4 @@
-import { ReportView } from "../responses/views/ReportView.js";
+import { ReportView } from "../../dto/responses/views/ReportView.js";
 
 export class ReportController {
   constructor({ backendOrchestrator }) {

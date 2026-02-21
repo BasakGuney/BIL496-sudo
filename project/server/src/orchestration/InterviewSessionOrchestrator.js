@@ -1,6 +1,6 @@
-import { InterviewSession } from "../../domain/entities/InterviewSession.js";
-import { normalizeSessionMode } from "../../domain/entities/SessionMode.js";
-import { AppError } from "../../domain/errors/AppError.js";
+import { InterviewSession } from "../domain/entities/InterviewSession.js";
+import { normalizeSessionMode } from "../domain/enums/SessionMode.js";
+import { AppError } from "../domain/errors/AppError.js";
 
 export class InterviewSessionOrchestrator {
   constructor({

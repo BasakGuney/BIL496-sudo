@@ -1,5 +1,5 @@
-import { InterviewType } from "../entities/InterviewType.js";
-import { SessionMode, normalizeSessionMode } from "../entities/SessionMode.js";
+import { InterviewType } from "../enums/InterviewType.js";
+import { SessionMode, normalizeSessionMode } from "../enums/SessionMode.js";
 
 export class SessionConfig {
   constructor({

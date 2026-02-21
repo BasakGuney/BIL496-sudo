@@ -1,4 +1,4 @@
-import { IReportRepository } from "../../domain/repositories/IReportRepository.js";
+import { IReportRepository } from "../repositories/IReportRepository.js";
 
 export class InMemoryReportRepository extends IReportRepository {
   constructor() {

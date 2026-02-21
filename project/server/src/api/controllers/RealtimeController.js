@@ -1,5 +1,5 @@
-import { CreateSessionRequest } from "../requests/CreateSessionRequest.js";
-import { SdpAnswerView } from "../responses/views/SdpAnswerView.js";
+import { CreateSessionRequest } from "../../dto/requests/CreateSessionRequest.js";
+import { SdpAnswerView } from "../../dto/responses/views/SdpAnswerView.js";
 
 export class RealtimeController {
   constructor({ backendOrchestrator }) {

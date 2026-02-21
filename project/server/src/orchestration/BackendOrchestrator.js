@@ -1,8 +1,8 @@
-import { InterviewSession } from "../../domain/entities/InterviewSession.js";
-import { SessionState } from "../../domain/entities/SessionState.js";
-import { SessionConfig } from "../../domain/value-objects/SessionConfig.js";
-import { Consent } from "../../domain/value-objects/Consent.js";
-import { AppError } from "../../domain/errors/AppError.js";
+import { InterviewSession } from "../domain/entities/InterviewSession.js";
+import { SessionState } from "../domain/enums/SessionState.js";
+import { SessionConfig } from "../domain/value-objects/SessionConfig.js";
+import { Consent } from "../domain/value-objects/Consent.js";
+import { AppError } from "../domain/errors/AppError.js";
 
 export class BackendOrchestrator {
   constructor({ sessions, reports, ai, analyzer, guardrails, realtimeManager, idGenerator, reportArchive }) {

@@ -1,4 +1,4 @@
-import { ISessionRepository } from "../../domain/repositories/ISessionRepository.js";
+import { ISessionRepository } from "../repositories/ISessionRepository.js";
 
 export class InMemorySessionRepository extends ISessionRepository {
   constructor() {

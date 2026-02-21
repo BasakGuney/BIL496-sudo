@@ -1,5 +1,5 @@
-import { AppError } from "../../domain/errors/AppError.js";
-import { SessionState } from "../../domain/entities/SessionState.js";
+import { AppError } from "../domain/errors/AppError.js";
+import { SessionState } from "../domain/enums/SessionState.js";
 
 export class GuardrailsEngine {
   constructor({ policy }) {

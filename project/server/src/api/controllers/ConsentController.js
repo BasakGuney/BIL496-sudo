@@ -1,5 +1,5 @@
-import { UpdateConsentRequest } from "../requests/UpdateConsentRequest.js";
-import { SessionView } from "../responses/views/SessionView.js";
+import { UpdateConsentRequest } from "../../dto/requests/UpdateConsentRequest.js";
+import { SessionView } from "../../dto/responses/views/SessionView.js";
 
 export class ConsentController {
   constructor({ backendOrchestrator }) {

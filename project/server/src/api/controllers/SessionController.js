@@ -1,8 +1,8 @@
 import { SessionConfig } from "../../domain/value-objects/SessionConfig.js";
-import { CreateSessionRequest } from "../requests/CreateSessionRequest.js";
-import { StartSessionRequest } from "../requests/StartSessionRequest.js";
-import { SessionView } from "../responses/views/SessionView.js";
-import { TurnView } from "../responses/views/TurnView.js";
+import { CreateSessionRequest } from "../../dto/requests/CreateSessionRequest.js";
+import { StartSessionRequest } from "../../dto/requests/StartSessionRequest.js";
+import { SessionView } from "../../dto/responses/views/SessionView.js";
+import { TurnView } from "../../dto/responses/views/TurnView.js";
 
 export class SessionController {
   constructor({ backendOrchestrator }) {

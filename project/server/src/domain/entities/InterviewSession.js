@@ -1,4 +1,4 @@
-import { SessionState } from "./SessionState.js";
+import { SessionState } from "../enums/SessionState.js";
 import { Consent } from "../value-objects/Consent.js";
 
 export class InterviewSession {

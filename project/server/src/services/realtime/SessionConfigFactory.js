@@ -1,4 +1,4 @@
-import { SessionMode } from "../../domain/entities/SessionMode.js";
+import { SessionMode } from "../../domain/enums/SessionMode.js";
 
 export class SessionConfigFactory {
   create({ mode = SessionMode.NEUTRAL } = {}) {
