@@ -8,7 +8,11 @@ import { InMemoryReportRepository } from "../infrastructure/persistence/InMemory
 import { IdGenerator } from "../utils/IdGenerator.js";
 import { Logger } from "../utils/Logger.js";
 import { SessionController } from "../api/controllers/SessionController.js";
+import { ConsentController } from "../api/controllers/ConsentController.js";
+import { RealtimeController } from "../api/controllers/RealtimeController.js";
+import { ReportController } from "../api/controllers/ReportController.js";
 import { createSessionRouter } from "../api/routes/sessionRoutes.js";
+import { ErrorHandlerMiddleware } from "../api/middleware/ErrorHandlerMiddleware.js";
 import { TranscriptEvaluator } from "../application/services/TranscriptEvaluator.js";
 import { FileReportArchive } from "../infrastructure/persistence/FileReportArchive.js";
 import { OpenAIClientAdapter } from "../application/services/ai/OpenAIClientAdapter.js";
@@ -36,10 +40,7 @@ export class AppServer {
     this.app.use(express.json());
 
     const openAiGateway = new OpenAiRealtimeGateway({ apiKey: this.env.openAiApiKey });
-    const openAiClient = new OpenAIClientAdapter({
-      realtimeGateway: openAiGateway,
-      apiKey: this.env.openAiApiKey,
-    });
+    const openAiClient = new OpenAIClientAdapter({ realtimeGateway: openAiGateway, apiKey: this.env.openAiApiKey });
 
     const prompts = new PromptTemplates();
     const ai = new AIServiceGateway({ client: openAiClient, prompts });
@@ -75,8 +76,22 @@ export class AppServer {
       reportArchive,
     });
 
-    const sessionController = new SessionController({ backendOrchestrator, logger: this.logger });
-    this.app.use(createSessionRouter({ sessionController }));
+    const sessionController = new SessionController({ backendOrchestrator });
+    const consentController = new ConsentController({ backendOrchestrator });
+    const realtimeController = new RealtimeController({ backendOrchestrator });
+    const reportController = new ReportController({ backendOrchestrator });
+
+    this.app.use(
+      createSessionRouter({
+        sessionController,
+        consentController,
+        realtimeController,
+        reportController,
+      })
+    );
+
+    const errorHandler = new ErrorHandlerMiddleware({ logger: this.logger });
+    this.app.use(errorHandler.handle);
   }
 
   listen() {

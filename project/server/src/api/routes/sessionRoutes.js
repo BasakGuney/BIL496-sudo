@@ -1,16 +1,27 @@
 import { Router } from "express";
 
-export function createSessionRouter({ sessionController }) {
+export function createSessionRouter({
+  sessionController,
+  consentController,
+  realtimeController,
+  reportController,
+}) {
   const router = Router();
 
+  // Session lifecycle
   router.post("/session", sessionController.createSession);
-  router.patch("/session/:sessionId/consent", sessionController.updateConsent);
   router.post("/session/:sessionId/start", sessionController.startSession);
-  router.post("/session/:sessionId/end", sessionController.endSession);
 
-  // backward-compatible endpoint used by current client
-  router.post("/session/:sessionId/report", sessionController.createReport);
-  router.get("/session/:sessionId/report", sessionController.getReport);
+  // Consent
+  router.patch("/session/:sessionId/consent", consentController.updateConsent);
+
+  // Realtime signaling
+  router.post("/realtime/offer", realtimeController.createOfferAnswer);
+
+  // Report
+  router.post("/session/:sessionId/end", reportController.endSessionAndCreateReport);
+  router.post("/session/:sessionId/report", reportController.endSessionAndCreateReport); // backward compatibility
+  router.get("/session/:sessionId/report", reportController.getReport);
 
   return router;
 }

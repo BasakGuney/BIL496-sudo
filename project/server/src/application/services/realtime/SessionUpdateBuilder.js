@@ -9,12 +9,18 @@ export class SessionUpdateBuilder {
       ? this.promptTemplates.supportiveStyle()
       : this.promptTemplates.neutralStyle();
 
+    const interviewRules = cfg.interviewType === "Technical"
+      ? this.promptTemplates.technicalQuestionRules(cfg)
+      : this.promptTemplates.hrQuestionRules();
+
     return {
       type: "realtime",
       model: "gpt-realtime-mini",
       instructions: [
-        "Sen gerçek bir mülakatçısın ve sadece Türkçe konuşursun.",
+        "Sen gerçek bir mülakatçısın ve sadece TÜRKÇE konuşursun.",
+        "Akış zorunlu: OPENING -> QUESTION LOOP -> CLOSING.",
         this.promptTemplates.turkishInterviewerOpening(cfg),
+        interviewRules,
         style,
       ].join(" "),
       audio: {
