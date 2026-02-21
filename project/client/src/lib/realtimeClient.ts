@@ -54,6 +54,7 @@ function buildInterviewerPrompt(input: {
     "Her aşamada kısa, net ve profesyonel ol.",
     styleInstruction,
     `Aday bilgileri: ${input.firstName} ${input.lastName}, hitap: ${title}, hedef rol: ${input.role}, şirket/sektör: ${input.companyOrIndustry}, ilgi alanı: ${input.domainInterest}, mülakat tipi: ${input.interviewType}.`,
+    `Hitap kuralı zorunlu: adaya her zaman '${input.firstName} ${title}' diye hitap et.`, 
     "OPENING zorunlu akış:",
     `1) Selamlaş: 'Merhaba ${input.firstName} ${title}, bugünkü mülakatınızı ben gerçekleştireceğim.' de.`,
     `2) Kısa bilgilendirme: 'Bu mülakat ${interviewLabel} mülakatı olarak gerçekleşecek, yaklaşık 10-15 dakika sürecek ve soru-cevap şeklinde ilerleyeceğiz.' de.`,
@@ -87,6 +88,9 @@ function extractTextMessage(msg: any): { role: "interviewer" | "candidate"; text
     return { role: "interviewer", text: msg.text };
   }
 
+  if (msg?.type === "response.output_text.delta" && typeof msg?.delta === "string") {
+    return { role: "interviewer", text: msg.delta };
+  }
   return null;
 }
 
@@ -143,14 +147,23 @@ export async function connectRealtimeInterview(opts: {
   await waitForIceGatheringComplete(pc);
 
   const localSdp = pc.localDescription?.sdp || "";
-  const sdpResp = await fetch(
-    `${opts.backendBaseUrl}/session?mode=${encodeURIComponent(opts.mode)}&sessionId=${encodeURIComponent(opts.sessionId)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/sdp" },
-      body: localSdp,
-    }
-  );
+  const query = new URLSearchParams({
+    mode: opts.mode,
+    sessionId: opts.sessionId,
+    interviewType: opts.interviewType,
+    firstName: opts.firstName,
+    lastName: opts.lastName,
+    gender: opts.gender,
+    role: opts.role,
+    domain: opts.domainInterest,
+    companyOrIndustry: opts.companyOrIndustry,
+  });
+
+  const sdpResp = await fetch(`${opts.backendBaseUrl}/session?${query.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/sdp" },
+    body: localSdp,
+  });
 
   if (!sdpResp.ok) {
     const t = await sdpResp.text();

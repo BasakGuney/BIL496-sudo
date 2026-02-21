@@ -9,34 +9,39 @@ export class TranscriptEvaluator {
     const qaPairs = this.buildQAPairs(safeTranscript);
 
     if (qaPairs.length === 0) {
+      const fallbackPairs = this.buildFallbackPairsFromTranscript(safeTranscript);
+      if (fallbackPairs.length > 0) {
+        return this.buildHeuristicReport({ sessionId, qaPairs: fallbackPairs });
+      }
+
       return {
         sessionId,
         qaEvaluations: [],
-        overallScore: 50,
+        overallScore: 55,
         content: [
           {
             key: "relevance",
             label: "İlgililik",
-            score: 50,
-            detail: "Soru-cevap çifti oluşmadığı için detaylı içerik analizi yapılamadı.",
+            score: 55,
+            detail: "Soru-cevap eşlemesi otomatik yapılamadı; ham transcript kayıt altına alındı.",
           },
         ],
         communication: [
           {
             key: "pacing",
             label: "Tempo",
-            score: 50,
-            detail: "Erken sonlandırma nedeniyle iletişim metrikleri sınırlı değerlendirildi.",
+            score: 55,
+            detail: "Mülakat erken sonlandırıldı veya eşleşme sınırlıydı; mevcut konuşma metni üzerinden temel değerlendirme yapıldı.",
           },
         ],
         recommendations: [
           {
-            title: "En az bir soruya tam cevap verin",
-            text: "Raporun daha doğru olması için bitirmeden önce en az bir soruya net örnekli cevap verin.",
+            title: "Kısa bir kapanış cevabı daha verin",
+            text: "Rapor doğruluğunu artırmak için bitirmeden önce son soruya 1-2 cümlelik net bir cevap verin.",
           },
         ],
         notes: [
-          "Mülakat erken sonlandırıldığı için soru-cevap çifti yakalanamadı; rapor minimum veriyle üretildi.",
+          "Transcript saklandı. Soru-cevap eşleşmesi oluşmadığı için özet değerlendirme üretildi.",
         ],
       };
     }
@@ -119,6 +124,54 @@ export class TranscriptEvaluator {
         pendingQuestion = null;
         pendingQuestionTs = null;
       }
+    }
+
+    return pairs;
+  }
+
+  buildFallbackPairsFromTranscript(transcript) {
+    const normalized = transcript
+      .filter((item) => item?.role === "interviewer" || item?.role === "candidate")
+      .map((item) => ({
+        role: item.role,
+        text: String(item.text || "").trim(),
+        ts: Number(item.ts || Date.now()),
+      }))
+      .filter((item) => item.text.length > 0)
+      .sort((a, b) => a.ts - b.ts);
+
+    const interviewerTurns = normalized.filter((turn) => turn.role === "interviewer");
+    const candidateTurns = normalized.filter((turn) => turn.role === "candidate");
+
+    if (candidateTurns.length === 0) return [];
+
+    if (interviewerTurns.length === 0) {
+      return candidateTurns.map((turn, index) => ({
+        question: `Soru ${index + 1}`,
+        answer: turn.text,
+        questionTs: Math.max(0, turn.ts - 1000),
+        answerTs: turn.ts,
+      }));
+    }
+
+    const pairs = [];
+    let qIndex = 0;
+
+    for (const answer of candidateTurns) {
+      while (
+        qIndex + 1 < interviewerTurns.length &&
+        interviewerTurns[qIndex + 1].ts <= answer.ts
+      ) {
+        qIndex += 1;
+      }
+
+      const question = interviewerTurns[qIndex];
+      pairs.push({
+        question: question?.text || `Soru ${pairs.length + 1}`,
+        answer: answer.text,
+        questionTs: question?.ts || Math.max(0, answer.ts - 1000),
+        answerTs: answer.ts,
+      });
     }
 
     return pairs;
