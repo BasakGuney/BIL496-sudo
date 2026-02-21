@@ -78,6 +78,7 @@ export function InterviewPage({
 
         const conn = await connectRealtimeInterview({
           backendBaseUrl: BACKEND_URL,
+          sessionId,
           mode: config.mode,
           interviewType: config.interviewType,
           firstName: config.firstName,
@@ -162,8 +163,9 @@ export function InterviewPage({
   }
 
   async function finish() {
+    const transcript = connRef.current?.getTranscript() || [];
     stopMedia();
-    const rep = await endSession(sessionId);
+    const rep = await endSession(sessionId, transcript);
     onFinish(rep);
   }
 

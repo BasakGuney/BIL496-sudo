@@ -3,6 +3,8 @@ export type Mode = "Supportive" | "Neutral";
 type InterviewType = "HR" | "Technical";
 type CandidateGender = "Kadın" | "Erkek";
 
+type TranscriptEntry = { role: "interviewer" | "candidate"; text: string; ts: number };
+
 export type RealtimeConnection = {
   pc: RTCPeerConnection;
   dc: RTCDataChannel;
@@ -10,8 +12,17 @@ export type RealtimeConnection = {
   analyser: AnalyserNode;
   audioEl: HTMLAudioElement;
   audioCtx: AudioContext;
+  getTranscript: () => TranscriptEntry[];
   close: () => void;
 };
+
+function safeCleanup(fn: () => void) {
+  try {
+    fn();
+  } catch (error) {
+    console.debug("[RTC] cleanup skipped", error);
+  }
+}
 
 function buildInterviewerPrompt(input: {
   mode: Mode;
@@ -49,12 +60,29 @@ function buildInterviewerPrompt(input: {
     questionStrategy,
     "Her soru için soruya göre değişen bir süre limiti ata (örn. 60-120 saniye) ve bunu soru başında kısa belirt.",
     "Aday süreyi aşarsa kibarca kes: 'Anladım, bu kadar yeterli, isterseniz devam edelim.' diyerek yeni soruya geç.",
-    "Her aday cevabından sonra sessizce iç değerlendirme yap: kısa puanlama/not üret (relevancy dahil) ama bunu adaya sesli söyleme.",
-    "Değerlendirme sonuçlarını backend'e döndürülecek iç metaveri gibi üret; konuşma akışında sadece mülakatı sürdür.",
+    "Her aday cevabından sonra sessizce iç değerlendirme yap: relevancy başta olmak üzere kısa puan/not üret.",
+    "Bu değerlendirmeleri konuşma sırasında adayla paylaşma; sadece mülakat akışını sürdür.",
     "CLOSING zorunlu akış:",
     `Tanışma memnuniyeti bildir, ${input.firstName} ${title} için kısa değerlendirme süreci ve geri dönüş süresi bilgisini ver.`,
     "Kapanıştan sonra adayın 'iyi günler/görüşmek üzere' benzeri vedasını bekle, sonra mülakatı sonlandır.",
   ].join(" ");
+}
+
+function extractTextMessage(msg: any): { role: "interviewer" | "candidate"; text: string } | null {
+  const candidateText = msg?.transcript || msg?.text;
+  if (msg?.type === "conversation.item.input_audio_transcription.completed" && typeof candidateText === "string") {
+    return { role: "candidate", text: candidateText };
+  }
+
+  if (msg?.type === "response.audio_transcript.done" && typeof msg?.transcript === "string") {
+    return { role: "interviewer", text: msg.transcript };
+  }
+
+  if (msg?.type === "response.output_text.done" && typeof msg?.text === "string") {
+    return { role: "interviewer", text: msg.text };
+  }
+
+  return null;
 }
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
@@ -72,6 +100,7 @@ async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
 
 export async function connectRealtimeInterview(opts: {
   backendBaseUrl: string;
+  sessionId: string;
   mode: Mode;
   interviewType: InterviewType;
   firstName: string;
@@ -81,14 +110,14 @@ export async function connectRealtimeInterview(opts: {
   companyOrIndustry: string;
   domainInterest: string;
 }): Promise<RealtimeConnection> {
+  const transcript: TranscriptEntry[] = [];
+
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
   });
 
-  pc.onconnectionstatechange = () =>
-    console.log("[RTC] connectionState:", pc.connectionState);
-  pc.oniceconnectionstatechange = () =>
-    console.log("[RTC] iceConnectionState:", pc.iceConnectionState);
+  pc.onconnectionstatechange = () => console.log("[RTC] connectionState:", pc.connectionState);
+  pc.oniceconnectionstatechange = () => console.log("[RTC] iceConnectionState:", pc.iceConnectionState);
   pc.onicecandidateerror = (e) => console.log("[RTC] icecandidateerror:", e);
 
   pc.addTransceiver("audio", { direction: "recvonly" });
@@ -98,7 +127,6 @@ export async function connectRealtimeInterview(opts: {
 
   const remoteStream = new MediaStream();
   pc.ontrack = (e) => {
-    console.log("[RTC] ontrack:", e.track.kind);
     remoteStream.addTrack(e.track);
   };
 
@@ -111,7 +139,7 @@ export async function connectRealtimeInterview(opts: {
 
   const localSdp = pc.localDescription?.sdp || "";
   const sdpResp = await fetch(
-    `${opts.backendBaseUrl}/session?mode=${encodeURIComponent(opts.mode)}`,
+    `${opts.backendBaseUrl}/session?mode=${encodeURIComponent(opts.mode)}&sessionId=${encodeURIComponent(opts.sessionId)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/sdp" },
@@ -129,17 +157,17 @@ export async function connectRealtimeInterview(opts: {
 
   const existing = document.getElementById("realtime-remote-audio") as HTMLAudioElement | null;
   if (existing) {
-    try {
-      existing.pause();
+    safeCleanup(() => existing.pause());
+    safeCleanup(() => {
       existing.srcObject = null;
       existing.remove();
-    } catch {}
+    });
   }
 
   const audioEl = document.createElement("audio");
   audioEl.id = "realtime-remote-audio";
   audioEl.autoplay = true;
-  audioEl.playsInline = true;
+  (audioEl as any).playsInline = true;
   audioEl.style.display = "none";
   audioEl.srcObject = remoteStream;
   document.body.appendChild(audioEl);
@@ -151,22 +179,20 @@ export async function connectRealtimeInterview(opts: {
   source.connect(analyser);
 
   dc.onmessage = (e) => {
+    let msg: any;
     try {
-      const msg = JSON.parse(e.data);
-      if (
-        msg.type?.startsWith("input_audio_buffer.") ||
-        msg.type?.startsWith("response.") ||
-        msg.type?.startsWith("session.") ||
-        msg.type === "error"
-      ) {
-        console.log("[Realtime event]", msg.type, msg);
-      }
-    } catch {}
+      msg = JSON.parse(e.data);
+    } catch (error) {
+      return;
+    }
+
+    const entry = extractTextMessage(msg);
+    if (entry?.text?.trim()) {
+      transcript.push({ ...entry, text: entry.text.trim(), ts: Date.now() });
+    }
   };
 
   dc.onopen = () => {
-    console.log("[RTC] datachannel open → configuring + starting interview");
-
     dc.send(
       JSON.stringify({
         type: "session.update",
@@ -206,21 +232,24 @@ export async function connectRealtimeInterview(opts: {
   };
 
   const close = () => {
-    try {
-      micStream.getTracks().forEach((t) => t.stop());
-    } catch {}
-    try {
-      pc.close();
-    } catch {}
-    try {
-      audioCtx.close();
-    } catch {}
-    try {
-      audioEl.pause();
+    safeCleanup(() => micStream.getTracks().forEach((t) => t.stop()));
+    safeCleanup(() => pc.close());
+    safeCleanup(() => audioCtx.close());
+    safeCleanup(() => audioEl.pause());
+    safeCleanup(() => {
       audioEl.srcObject = null;
       audioEl.remove();
-    } catch {}
+    });
   };
 
-  return { pc, dc, remoteStream, analyser, audioEl, audioCtx, close };
+  return {
+    pc,
+    dc,
+    remoteStream,
+    analyser,
+    audioEl,
+    audioCtx,
+    getTranscript: () => [...transcript],
+    close,
+  };
 }

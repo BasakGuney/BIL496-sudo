@@ -10,4 +10,13 @@ export class InMemorySessionRepository extends ISessionRepository {
     this.store.set(session.id, session);
     return session;
   }
+
+  findById(id) {
+    return this.store.get(id) || null;
+  }
+
+  update(session) {
+    this.store.set(session.id, session);
+    return session;
+  }
 }

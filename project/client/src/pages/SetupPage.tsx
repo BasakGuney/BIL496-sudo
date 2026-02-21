@@ -25,15 +25,15 @@ export function SetupPage({
 
   const [starting, setStarting] = useState(false);
 
-  async function handlePrepare() {
-    const canStart = config.consent.mic && config.consent.camera;
+  async function handlePrepare(nextConfig: SessionConfig) {
+    const canStart = nextConfig.consent.mic && nextConfig.consent.camera;
     if (!canStart) return;
 
     setStarting(true);
-    const res = await startSession(config);
+    const res = await startSession(nextConfig);
     setStarting(false);
 
-    onPrepared(config, res.sessionId, res.previewQuestions);
+    onPrepared(nextConfig, res.sessionId, res.previewQuestions);
   }
 
   return (

@@ -24,7 +24,7 @@ export function SessionSetupForm({
 }: {
   value: SessionConfig;                 // parent'tan gelen config (placeholder kaynağı)
   onChange: (v: SessionConfig) => void; // parent state güncelleme
-  onStart: () => void;
+  onStart: (config: SessionConfig) => void;
   starting: boolean;
 }) {
   // Kullanıcının gerçekten yazdığı değerler (input içini dolduran şey)
@@ -65,7 +65,7 @@ export function SessionSetupForm({
     };
 
     onChange(merged);
-    onStart();
+    onStart(merged);
   };
 
   return (
