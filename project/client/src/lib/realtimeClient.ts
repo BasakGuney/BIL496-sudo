@@ -5,6 +5,15 @@ type CandidateGender = "Kadın" | "Erkek";
 
 type TranscriptEntry = { role: "interviewer" | "candidate"; text: string; ts: number };
 
+type RealtimeEvent = {
+  type?: string;
+  transcript?: string;
+  text?: string;
+  delta?: string;
+  response_id?: string;
+  item_id?: string;
+};
+
 export type RealtimeConnection = {
   pc: RTCPeerConnection;
   dc: RTCDataChannel;
@@ -74,10 +83,14 @@ function buildInterviewerPrompt(input: {
   ].join(" ");
 }
 
-function extractTextMessage(msg: any): { role: "interviewer" | "candidate"; text: string } | null {
+function extractTextMessage(msg: RealtimeEvent): { role: "interviewer" | "candidate"; text: string } | null {
   const candidateText = msg?.transcript || msg?.text;
   if (msg?.type === "conversation.item.input_audio_transcription.completed" && typeof candidateText === "string") {
     return { role: "candidate", text: candidateText };
+  }
+
+  if (msg?.type === "conversation.item.input_audio_transcription.delta" && typeof msg?.delta === "string") {
+    return { role: "candidate", text: msg.delta };
   }
 
   if (msg?.type === "response.audio_transcript.done" && typeof msg?.transcript === "string") {
@@ -91,7 +104,30 @@ function extractTextMessage(msg: any): { role: "interviewer" | "candidate"; text
   if (msg?.type === "response.output_text.delta" && typeof msg?.delta === "string") {
     return { role: "interviewer", text: msg.delta };
   }
+
+  if (msg?.type === "response.audio_transcript.delta" && typeof msg?.delta === "string") {
+    return { role: "interviewer", text: msg.delta };
+  }
   return null;
+}
+
+function pushTranscript(
+  transcript: TranscriptEntry[],
+  role: "interviewer" | "candidate",
+  text: string,
+  ts: number = Date.now()
+) {
+  const clean = String(text || "").trim();
+  if (!clean) return;
+
+  const last = transcript[transcript.length - 1];
+  if (last && last.role === role && ts - last.ts < 1800) {
+    last.text = `${last.text} ${clean}`.trim();
+    last.ts = ts;
+    return;
+  }
+
+  transcript.push({ role, text: clean, ts });
 }
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
@@ -120,6 +156,7 @@ export async function connectRealtimeInterview(opts: {
   domainInterest: string;
 }): Promise<RealtimeConnection> {
   const transcript: TranscriptEntry[] = [];
+  const deltaBuffers = new Map<string, { role: "interviewer" | "candidate"; text: string; ts: number }>();
 
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -197,16 +234,49 @@ export async function connectRealtimeInterview(opts: {
   source.connect(analyser);
 
   dc.onmessage = (e) => {
-    let msg: any;
+    let msg: RealtimeEvent;
     try {
       msg = JSON.parse(e.data);
     } catch (error) {
       return;
     }
 
+    const isDelta =
+      msg?.type === "response.output_text.delta" ||
+      msg?.type === "response.audio_transcript.delta" ||
+      msg?.type === "conversation.item.input_audio_transcription.delta";
+    const isDone =
+      msg?.type === "response.output_text.done" ||
+      msg?.type === "response.audio_transcript.done" ||
+      msg?.type === "conversation.item.input_audio_transcription.completed";
+
+    if (isDelta) {
+      const id = msg.response_id || msg.item_id || `${msg.type}-fallback`;
+      const extracted = extractTextMessage(msg);
+      if (!extracted?.text) return;
+
+      const prev = deltaBuffers.get(id);
+      if (prev) {
+        prev.text = `${prev.text}${extracted.text}`;
+        prev.ts = Date.now();
+      } else {
+        deltaBuffers.set(id, { role: extracted.role, text: extracted.text, ts: Date.now() });
+      }
+      return;
+    }
+
+    if (isDone) {
+      const id = msg.response_id || msg.item_id || `${msg.type}-fallback`;
+      const buffered = deltaBuffers.get(id);
+      if (buffered && buffered.text.trim()) {
+        pushTranscript(transcript, buffered.role, buffered.text, buffered.ts);
+      }
+      deltaBuffers.delete(id);
+    }
+
     const entry = extractTextMessage(msg);
     if (entry?.text?.trim()) {
-      transcript.push({ ...entry, text: entry.text.trim(), ts: Date.now() });
+      pushTranscript(transcript, entry.role, entry.text, Date.now());
     }
   };
 
@@ -217,6 +287,9 @@ export async function connectRealtimeInterview(opts: {
         session: {
           audio: {
             input: {
+              input_audio_transcription: {
+                model: "gpt-4o-mini-transcribe",
+              },
               turn_detection: {
                 type: "server_vad",
                 create_response: true,
