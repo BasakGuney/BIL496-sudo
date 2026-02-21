@@ -1,5 +1,3 @@
-import { AppError } from "../../domain/errors/AppError.js";
-
 export class TranscriptEvaluator {
   constructor({ apiKey, fetchImpl = fetch }) {
     this.apiKey = apiKey;
@@ -7,11 +5,18 @@ export class TranscriptEvaluator {
   }
 
   async evaluate({ sessionId, transcript }) {
-    if (!Array.isArray(transcript) || transcript.length === 0) {
-      throw new AppError("Transcript is required", { code: "INVALID_TRANSCRIPT", status: 400 });
-    }
+    const safeTranscript = Array.isArray(transcript) ? transcript : [];
+    const fallback = this.buildFallbackReport({ sessionId, transcript: safeTranscript });
 
-    const fallback = this.buildFallbackReport({ sessionId, transcript });
+    if (safeTranscript.length === 0) {
+      return {
+        ...fallback,
+        notes: [
+          ...(fallback.notes || []),
+          "Mülakat erken sonlandırıldığı için transcript boş geldi; rapor sınırlı veriyle üretildi.",
+        ],
+      };
+    }
     if (!this.apiKey) return fallback;
 
     try {
@@ -31,7 +36,7 @@ export class TranscriptEvaluator {
             },
             {
               role: "user",
-              content: JSON.stringify({ transcript }),
+              content: JSON.stringify({ transcript: safeTranscript }),
             },
           ],
           text: { format: { type: "json_object" } },

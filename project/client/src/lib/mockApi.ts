@@ -42,7 +42,7 @@ export async function endSession(
     const response = await fetch(`${BACKEND_URL}/session/${encodeURIComponent(sessionId)}/report`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcript }),
+      body: JSON.stringify({ transcript: Array.isArray(transcript) ? transcript : [] }),
     });
 
     if (response.ok) {
