@@ -1,5 +1,10 @@
 export type Mode = "Supportive" | "Neutral";
 
+type InterviewType = "HR" | "Technical";
+type CandidateGender = "Kadın" | "Erkek";
+
+type TranscriptEntry = { role: "interviewer" | "candidate"; text: string; ts: number };
+
 export type RealtimeConnection = {
   pc: RTCPeerConnection;
   dc: RTCDataChannel;
@@ -7,8 +12,34 @@ export type RealtimeConnection = {
   analyser: AnalyserNode;
   audioEl: HTMLAudioElement;
   audioCtx: AudioContext;
+  getTranscript: () => TranscriptEntry[];
   close: () => void;
 };
+
+function safeCleanup(fn: () => void) {
+  try {
+    fn();
+  } catch (error) {
+    console.debug("[RTC] cleanup skipped", error);
+  }
+}
+
+function extractTextMessage(msg: any): { role: "interviewer" | "candidate"; text: string } | null {
+  const candidateText = msg?.transcript || msg?.text;
+  if (msg?.type === "conversation.item.input_audio_transcription.completed" && typeof candidateText === "string") {
+    return { role: "candidate", text: candidateText };
+  }
+
+  if (msg?.type === "response.audio_transcript.done" && typeof msg?.transcript === "string") {
+    return { role: "interviewer", text: msg.transcript };
+  }
+
+  if (msg?.type === "response.output_text.done" && typeof msg?.text === "string") {
+    return { role: "interviewer", text: msg.text };
+  }
+
+  return null;
+}
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === "complete") return;
@@ -25,19 +56,26 @@ async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
 
 export async function connectRealtimeInterview(opts: {
   backendBaseUrl: string;
+  sessionId: string;
   mode: Mode;
+  interviewType: InterviewType;
+  firstName: string;
+  lastName: string;
+  gender: CandidateGender;
+  role: string;
+  companyOrIndustry: string;
+  domainInterest: string;
 }): Promise<RealtimeConnection> {
+  const transcript: TranscriptEntry[] = [];
+
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
   });
 
-  pc.onconnectionstatechange = () =>
-    console.log("[RTC] connectionState:", pc.connectionState);
-  pc.oniceconnectionstatechange = () =>
-    console.log("[RTC] iceConnectionState:", pc.iceConnectionState);
+  pc.onconnectionstatechange = () => console.log("[RTC] connectionState:", pc.connectionState);
+  pc.oniceconnectionstatechange = () => console.log("[RTC] iceConnectionState:", pc.iceConnectionState);
   pc.onicecandidateerror = (e) => console.log("[RTC] icecandidateerror:", e);
 
-  // Remote audio garanti
   pc.addTransceiver("audio", { direction: "recvonly" });
 
   const dc = pc.createDataChannel("oai-events");
@@ -45,28 +83,34 @@ export async function connectRealtimeInterview(opts: {
 
   const remoteStream = new MediaStream();
   pc.ontrack = (e) => {
-    console.log("[RTC] ontrack:", e.track.kind);
     remoteStream.addTrack(e.track);
   };
 
-  // mic
   const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   pc.addTrack(micStream.getTracks()[0], micStream);
 
-  // offer
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
   await waitForIceGatheringComplete(pc);
 
   const localSdp = pc.localDescription?.sdp || "";
-  const sdpResp = await fetch(
-    `${opts.backendBaseUrl}/session?mode=${encodeURIComponent(opts.mode)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/sdp" },
-      body: localSdp,
-    }
-  );
+  const params = new URLSearchParams({
+    mode: opts.mode,
+    sessionId: opts.sessionId,
+    interviewType: opts.interviewType,
+    firstName: opts.firstName,
+    lastName: opts.lastName,
+    gender: opts.gender,
+    role: opts.role,
+    companyOrIndustry: opts.companyOrIndustry,
+    domainInterest: opts.domainInterest,
+  });
+
+  const sdpResp = await fetch(`${opts.backendBaseUrl}/session?${params.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/sdp" },
+    body: localSdp,
+  });
 
   if (!sdpResp.ok) {
     const t = await sdpResp.text();
@@ -76,51 +120,44 @@ export async function connectRealtimeInterview(opts: {
   const answerSdp = await sdpResp.text();
   await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
 
-  // ✅ audio element tek olsun
   const existing = document.getElementById("realtime-remote-audio") as HTMLAudioElement | null;
   if (existing) {
-    try {
-      existing.pause();
+    safeCleanup(() => existing.pause());
+    safeCleanup(() => {
       existing.srcObject = null;
       existing.remove();
-    } catch {}
+    });
   }
 
   const audioEl = document.createElement("audio");
   audioEl.id = "realtime-remote-audio";
   audioEl.autoplay = true;
-  audioEl.playsInline = true;
+  (audioEl as any).playsInline = true;
   audioEl.style.display = "none";
   audioEl.srcObject = remoteStream;
   document.body.appendChild(audioEl);
 
-  // analyser
   const audioCtx = new AudioContext();
   const source = audioCtx.createMediaStreamSource(remoteStream);
   const analyser = audioCtx.createAnalyser();
   analyser.fftSize = 1024;
   source.connect(analyser);
 
-  // Event log
   dc.onmessage = (e) => {
+    let msg: any;
     try {
-      const msg = JSON.parse(e.data);
-      if (
-        msg.type?.startsWith("input_audio_buffer.") ||
-        msg.type?.startsWith("response.") ||
-        msg.type?.startsWith("session.") ||
-        msg.type === "error"
-      ) {
-        console.log("[Realtime event]", msg.type, msg);
-      }
-    } catch {}
+      msg = JSON.parse(e.data);
+    } catch (_error) {
+      return;
+    }
+
+    const entry = extractTextMessage(msg);
+    if (entry?.text?.trim()) {
+      transcript.push({ ...entry, text: entry.text.trim(), ts: Date.now() });
+    }
   };
 
-  // ✅ VAD + “HEMEN KONUŞ” (conversation.item.create yok, direkt response.create)
   dc.onopen = () => {
-    console.log("[RTC] datachannel open → configuring + starting interview");
-
-    // VAD (doğru path)
     dc.send(
       JSON.stringify({
         type: "session.update",
@@ -139,36 +176,36 @@ export async function connectRealtimeInterview(opts: {
       })
     );
 
-    // ✅ İlk konuşmayı garanti: response.create + modalities + instructions
+    // AI yönlendirmesi backend session instructions üzerinden tek noktadan yapılır.
     dc.send(
       JSON.stringify({
         type: "response.create",
         response: {
           modalities: ["audio", "text"],
-          instructions:
-            "Şimdi Türkçe bir mülakat başlat. 1 cümle selamla, 1 cümle süreci söyle ve hemen ilk soruyu sor. " +
-            "Mülakatçı gibi kısa ve net ol. Kullanıcının cevabını bekle.",
         },
       })
     );
   };
 
   const close = () => {
-    try {
-      micStream.getTracks().forEach((t) => t.stop());
-    } catch {}
-    try {
-      pc.close();
-    } catch {}
-    try {
-      audioCtx.close();
-    } catch {}
-    try {
-      audioEl.pause();
+    safeCleanup(() => micStream.getTracks().forEach((t) => t.stop()));
+    safeCleanup(() => pc.close());
+    safeCleanup(() => audioCtx.close());
+    safeCleanup(() => audioEl.pause());
+    safeCleanup(() => {
       audioEl.srcObject = null;
       audioEl.remove();
-    } catch {}
+    });
   };
 
-  return { pc, dc, remoteStream, analyser, audioEl, audioCtx, close };
+  return {
+    pc,
+    dc,
+    remoteStream,
+    analyser,
+    audioEl,
+    audioCtx,
+    getTranscript: () => [...transcript],
+    close,
+  };
 }

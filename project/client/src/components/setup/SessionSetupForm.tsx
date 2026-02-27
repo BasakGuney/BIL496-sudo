@@ -24,11 +24,13 @@ export function SessionSetupForm({
 }: {
   value: SessionConfig;                 // parent'tan gelen config (placeholder kaynağı)
   onChange: (v: SessionConfig) => void; // parent state güncelleme
-  onStart: () => void;
+  onStart: (config: SessionConfig) => void;
   starting: boolean;
 }) {
   // Kullanıcının gerçekten yazdığı değerler (input içini dolduran şey)
   const [draft, setDraft] = React.useState({
+    firstName: "",
+    lastName: "",
     role: "",
     companyOrIndustry: "",
     domainInterest: "",
@@ -39,6 +41,9 @@ export function SessionSetupForm({
     !!value.interviewType &&
     !!value.difficulty &&
     !!value.mode &&
+    !!value.gender &&
+    draft.firstName.trim().length > 0 &&
+    draft.lastName.trim().length > 0 &&
     draft.role.trim().length > 0 &&
     draft.companyOrIndustry.trim().length > 0 &&
     draft.domainInterest.trim().length > 0;
@@ -52,17 +57,53 @@ export function SessionSetupForm({
     // Zorunlu olduğu için draft boş olamaz; yine de güvenli olsun:
     const merged: SessionConfig = {
       ...value,
+      firstName: draft.firstName.trim(),
+      lastName: draft.lastName.trim(),
       role: draft.role.trim(),
       companyOrIndustry: draft.companyOrIndustry.trim(),
       domainInterest: draft.domainInterest.trim(),
     };
 
     onChange(merged);
-    onStart();
+    onStart(merged);
   };
 
   return (
     <div className="grid gap-4">
+      <div className="grid gap-2 md:grid-cols-2 md:gap-4">
+        <div className="grid gap-2">
+          <RequiredLabel>Ad</RequiredLabel>
+          <Input
+            className="rounded-xl"
+            value={draft.firstName}
+            placeholder="Örn: Ayşe"
+            onChange={(e) => setDraft((p) => ({ ...p, firstName: e.target.value }))}
+          />
+        </div>
+        <div className="grid gap-2">
+          <RequiredLabel>Soyad</RequiredLabel>
+          <Input
+            className="rounded-xl"
+            value={draft.lastName}
+            placeholder="Örn: Yılmaz"
+            onChange={(e) => setDraft((p) => ({ ...p, lastName: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        <RequiredLabel>Cinsiyet</RequiredLabel>
+        <Select value={value.gender} onValueChange={(v) => onChange({ ...value, gender: v as any })}>
+          <SelectTrigger className="rounded-xl">
+            <SelectValue placeholder="Cinsiyet seçin" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Kadın">Kadın</SelectItem>
+            <SelectItem value="Erkek">Erkek</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid gap-2">
         <RequiredLabel>Interview Type</RequiredLabel>
         <Select

@@ -1,5 +1,9 @@
 import type { FeedbackReport, InterviewTurn, SessionConfig } from "./types";
 
+const BACKEND_URL = "http://localhost:3001";
+
+type TranscriptEntry = { role: "interviewer" | "candidate"; text: string; ts: number };
+
 export async function startSession(
   config: SessionConfig
 ): Promise<{ sessionId: string; previewQuestions: string[] }> {
@@ -30,7 +34,24 @@ export async function getNextTurn(
   };
 }
 
-export async function endSession(sessionId: string): Promise<FeedbackReport> {
+export async function endSession(
+  sessionId: string,
+  transcript: TranscriptEntry[]
+): Promise<FeedbackReport> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/session/${encodeURIComponent(sessionId)}/report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcript: Array.isArray(transcript) ? transcript : [] }),
+    });
+
+    if (response.ok) {
+      return (await response.json()) as FeedbackReport;
+    }
+  } catch (error) {
+    console.error("[endSession] backend report failed", error);
+  }
+
   return {
     sessionId,
     overallScore: 82,

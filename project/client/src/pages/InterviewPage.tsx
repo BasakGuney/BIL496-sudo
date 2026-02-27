@@ -78,7 +78,15 @@ export function InterviewPage({
 
         const conn = await connectRealtimeInterview({
           backendBaseUrl: BACKEND_URL,
+          sessionId,
           mode: config.mode,
+          interviewType: config.interviewType,
+          firstName: config.firstName,
+          lastName: config.lastName,
+          gender: config.gender,
+          role: config.role,
+          companyOrIndustry: config.companyOrIndustry,
+          domainInterest: config.domainInterest,
         });
 
         if (!mounted) {
@@ -155,8 +163,11 @@ export function InterviewPage({
   }
 
   async function finish() {
+    // Erken bitirme anında son transkript event'lerinin düşmesi için kısa bir pencere bırak
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    const transcript = connRef.current?.getTranscript() || [];
     stopMedia();
-    const rep = await endSession(sessionId);
+    const rep = await endSession(sessionId, transcript);
     onFinish(rep);
   }
 
