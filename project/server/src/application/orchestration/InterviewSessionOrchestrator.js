@@ -55,13 +55,47 @@ export class InterviewSessionOrchestrator {
       .sort((a, b) => a.ts - b.ts);
   }
 
+
+  normalizeEntry(entry) {
+    const normalized = this.normalizeDialogue([entry]);
+    return normalized[0] || null;
+  }
+
+  async appendDialogueEntry({ sessionId, entry }) {
+    const session = this.sessionRepository.findById(sessionId);
+    if (!session) {
+      throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", status: 404 });
+    }
+
+    const normalized = this.normalizeEntry(entry);
+    if (!normalized) return session.report || { sessionId, createdAt: new Date().toISOString(), dialogue: [] };
+
+    const report = session.report || { sessionId, createdAt: new Date().toISOString(), dialogue: [] };
+    const dialogue = Array.isArray(report.dialogue) ? report.dialogue : [];
+    const last = dialogue[dialogue.length - 1];
+    if (!last || last.role !== normalized.role || last.text !== normalized.text) {
+      dialogue.push(normalized);
+    }
+
+    session.report = { ...report, dialogue };
+    this.sessionRepository.update(session);
+
+    if (this.reportArchive?.save) {
+      await this.reportArchive.save({ sessionId, dialogue });
+    }
+
+    return session.report;
+  }
+
   async createReport({ sessionId, transcript }) {
     const session = this.sessionRepository.findById(sessionId);
     if (!session) {
       throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", status: 404 });
     }
 
-    const dialogue = this.normalizeDialogue(transcript);
+    const incomingDialogue = this.normalizeDialogue(transcript);
+    const existingDialogue = Array.isArray(session.report?.dialogue) ? session.report.dialogue : [];
+    const dialogue = incomingDialogue.length > 0 ? incomingDialogue : existingDialogue;
     const report = {
       sessionId,
       createdAt: new Date().toISOString(),

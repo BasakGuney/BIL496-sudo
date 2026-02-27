@@ -84,6 +84,19 @@ function pushIfNew(transcript: TranscriptEntry[], entry: TranscriptEntry) {
   transcript.push(entry);
 }
 
+
+async function publishTranscriptEntry(opts: { backendBaseUrl: string; sessionId: string; entry: TranscriptEntry }) {
+  try {
+    await fetch(`${opts.backendBaseUrl}/session/${encodeURIComponent(opts.sessionId)}/transcript-entry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(opts.entry),
+    });
+  } catch (_error) {
+    // Ağ hatasında realtime akışı kesilmesin
+  }
+}
+
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === "complete") return;
   await new Promise<void>((resolve) => {
@@ -196,7 +209,12 @@ export async function connectRealtimeInterview(opts: {
 
     const entry = extractTextMessage(msg);
     if (entry?.text?.trim()) {
-      pushIfNew(transcript, { ...entry, text: entry.text.trim(), ts: Date.now() });
+      const normalized = { ...entry, text: entry.text.trim(), ts: Date.now() };
+      const before = transcript.length;
+      pushIfNew(transcript, normalized);
+      if (transcript.length > before) {
+        void publishTranscriptEntry({ backendBaseUrl: opts.backendBaseUrl, sessionId: opts.sessionId, entry: normalized });
+      }
     }
   };
 

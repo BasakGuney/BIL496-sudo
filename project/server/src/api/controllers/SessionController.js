@@ -8,6 +8,7 @@ export class SessionController {
     this.logger = logger;
     this.createSession = this.createSession.bind(this);
     this.createReport = this.createReport.bind(this);
+    this.appendTranscriptEntry = this.appendTranscriptEntry.bind(this);
   }
 
   async createSession(req, res) {
@@ -22,6 +23,18 @@ export class SessionController {
 
       const session = await this.interviewSessionOrchestrator.createInterviewSession(createSessionRequest);
       res.type("application/sdp").send(SessionCreatedResponse.toSdp(session));
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+
+  async appendTranscriptEntry(req, res) {
+    try {
+      const sessionId = req.params.sessionId;
+      const entry = req.body;
+      const report = await this.interviewSessionOrchestrator.appendDialogueEntry({ sessionId, entry });
+      res.json(report);
     } catch (error) {
       this.handleError(error, res);
     }
