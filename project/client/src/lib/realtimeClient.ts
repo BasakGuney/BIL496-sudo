@@ -27,6 +27,22 @@ function safeCleanup(fn: () => void) {
 function normalizeRole(role: string) {
   if (role === "assistant") return "interviewer" as const;
   if (role === "user") return "candidate" as const;
+
+  const itemRole = normalizeRole(msg?.item?.role);
+  if (itemRole) {
+    const itemText =
+      (typeof msg?.item?.transcript === "string" && msg.item.transcript) ||
+      (typeof msg?.item?.text === "string" && msg.item.text) ||
+      readContentText(msg?.item?.content);
+    if (itemText) return { role: itemRole, text: itemText };
+  }
+
+  const msgRole = normalizeRole(msg?.role);
+  const msgText =
+    (typeof msg?.transcript === "string" && msg.transcript) ||
+    (typeof msg?.text === "string" && msg.text);
+  if (msgRole && msgText) return { role: msgRole, text: msgText };
+
   return null;
 }
 
@@ -37,6 +53,7 @@ function readContentText(content: any[] | undefined): string {
   for (const part of content) {
     if (typeof part?.transcript === "string") parts.push(part.transcript);
     else if (typeof part?.text === "string") parts.push(part.text);
+    else if (typeof part?.input_text === "string") parts.push(part.input_text);
     else if (typeof part === "string") parts.push(part);
   }
 
@@ -68,6 +85,22 @@ function extractTextMessage(msg: any): { role: "interviewer" | "candidate"; text
     const text = readContentText(msg?.item?.content);
     if (role && text) return { role, text };
   }
+
+
+  const itemRole = normalizeRole(msg?.item?.role);
+  if (itemRole) {
+    const itemText =
+      (typeof msg?.item?.transcript === "string" && msg.item.transcript) ||
+      (typeof msg?.item?.text === "string" && msg.item.text) ||
+      readContentText(msg?.item?.content);
+    if (itemText) return { role: itemRole, text: itemText };
+  }
+
+  const msgRole = normalizeRole(msg?.role);
+  const msgText =
+    (typeof msg?.transcript === "string" && msg.transcript) ||
+    (typeof msg?.text === "string" && msg.text);
+  if (msgRole && msgText) return { role: msgRole, text: msgText };
 
   return null;
 }

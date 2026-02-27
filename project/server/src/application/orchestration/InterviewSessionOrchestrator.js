@@ -40,9 +40,14 @@ export class InterviewSessionOrchestrator {
     const safeTranscript = Array.isArray(transcript) ? transcript : [];
 
     return safeTranscript
-      .filter((item) => item?.role === "interviewer" || item?.role === "candidate")
+      .filter((item) => ["interviewer", "candidate", "assistant", "user"].includes(item?.role))
       .map((item) => ({
-        role: item.role,
+        role:
+          item.role === "assistant"
+            ? "interviewer"
+            : item.role === "user"
+            ? "candidate"
+            : item.role,
         text: String(item.text || "").trim(),
         ts: Number(item.ts || Date.now()),
       }))
