@@ -3,6 +3,44 @@ import type { FeedbackReport, InterviewTurn, SessionConfig } from "./types";
 const BACKEND_URL = "http://localhost:3001";
 
 type TranscriptEntry = { role: "interviewer" | "candidate"; text: string; ts: number };
+type DialogueReport = { sessionId: string; createdAt: string; dialogue: TranscriptEntry[] };
+
+function toFeedbackReportFromDialogue(dialogueReport: DialogueReport): FeedbackReport {
+  const dialogue = Array.isArray(dialogueReport.dialogue) ? dialogueReport.dialogue : [];
+  const candidateTurns = dialogue.filter((d) => d.role === "candidate");
+  const interviewerTurns = dialogue.filter((d) => d.role === "interviewer");
+
+  const hasEnough = candidateTurns.length > 0 && interviewerTurns.length > 0;
+  const base = hasEnough ? 72 : 58;
+
+  return {
+    sessionId: dialogueReport.sessionId,
+    overallScore: base,
+    content: [
+      {
+        key: "relevance",
+        label: "İlgililik",
+        score: base,
+        detail: `${candidateTurns.length} aday yanıtı ve ${interviewerTurns.length} mülakatçı kaydı transcript'e işlendi.`,
+      },
+    ],
+    communication: [
+      {
+        key: "pacing",
+        label: "Tempo",
+        score: Math.max(50, base - 4),
+        detail: "Detaylı skor yerine transcript kayıtlarının varlığına göre özet metrik gösteriliyor.",
+      },
+    ],
+    recommendations: [
+      {
+        title: "Transcript incele",
+        text: "Bu rapor değerlendirme değil, yalnızca diyalog kayıt özetidir. Arşivdeki transcript dosyasını inceleyin.",
+      },
+    ],
+    notes: dialogue.map((d) => `${d.role === "interviewer" ? "Interviewer" : "Aday"}: ${d.text}`),
+  };
+}
 
 export async function startSession(
   config: SessionConfig
@@ -46,7 +84,13 @@ export async function endSession(
     });
 
     if (response.ok) {
-      return (await response.json()) as FeedbackReport;
+      const report = (await response.json()) as Partial<FeedbackReport> & Partial<DialogueReport>;
+      if (Array.isArray((report as DialogueReport).dialogue)) {
+        return toFeedbackReportFromDialogue(report as DialogueReport);
+      }
+      if (typeof report.overallScore === "number") {
+        return report as FeedbackReport;
+      }
     }
   } catch (error) {
     console.error("[endSession] backend report failed", error);

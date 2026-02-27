@@ -24,6 +24,25 @@ function safeCleanup(fn: () => void) {
   }
 }
 
+function normalizeRole(role: string) {
+  if (role === "assistant") return "interviewer" as const;
+  if (role === "user") return "candidate" as const;
+  return null;
+}
+
+function readContentText(content: any[] | undefined): string {
+  if (!Array.isArray(content)) return "";
+
+  const parts: string[] = [];
+  for (const part of content) {
+    if (typeof part?.transcript === "string") parts.push(part.transcript);
+    else if (typeof part?.text === "string") parts.push(part.text);
+    else if (typeof part === "string") parts.push(part);
+  }
+
+  return parts.join(" ").trim();
+}
+
 function extractTextMessage(msg: any): { role: "interviewer" | "candidate"; text: string } | null {
   const candidateText = msg?.transcript || msg?.text;
   if (msg?.type === "conversation.item.input_audio_transcription.completed" && typeof candidateText === "string") {
@@ -36,6 +55,18 @@ function extractTextMessage(msg: any): { role: "interviewer" | "candidate"; text
 
   if (msg?.type === "response.output_text.done" && typeof msg?.text === "string") {
     return { role: "interviewer", text: msg.text };
+  }
+
+  if (msg?.type === "conversation.item.created") {
+    const role = normalizeRole(msg?.item?.role);
+    const text = readContentText(msg?.item?.content);
+    if (role && text) return { role, text };
+  }
+
+  if (msg?.type === "response.output_item.done") {
+    const role = normalizeRole(msg?.item?.role);
+    const text = readContentText(msg?.item?.content);
+    if (role && text) return { role, text };
   }
 
   return null;
@@ -162,6 +193,9 @@ export async function connectRealtimeInterview(opts: {
       JSON.stringify({
         type: "session.update",
         session: {
+          input_audio_transcription: {
+            model: "gpt-4o-mini-transcribe",
+          },
           audio: {
             input: {
               turn_detection: {
@@ -176,7 +210,6 @@ export async function connectRealtimeInterview(opts: {
       })
     );
 
-    // AI yönlendirmesi backend session instructions üzerinden tek noktadan yapılır.
     dc.send(
       JSON.stringify({
         type: "response.create",
