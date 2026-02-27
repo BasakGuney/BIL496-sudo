@@ -1,7 +1,10 @@
+import { PromptTemplates } from "../ai/PromptTemplates.js";
+
 export class TranscriptEvaluator {
-  constructor({ apiKey, fetchImpl = fetch }) {
+  constructor({ apiKey, fetchImpl = fetch, promptTemplates = new PromptTemplates() }) {
     this.apiKey = apiKey;
     this.fetchImpl = fetchImpl;
+    this.promptTemplates = promptTemplates;
   }
 
   async evaluate({ sessionId, transcript }) {
@@ -61,8 +64,7 @@ export class TranscriptEvaluator {
           input: [
             {
               role: "system",
-              content:
-                "Türkçe mülakat değerlendirme uzmanısın. Verilen soru-cevap çiftleri için sadece geçerli JSON döndür. Şema: {overallScore:number, content:[{key,label,score,detail}], communication:[{key,label,score,detail}], recommendations:[{title,text}], notes:string[], qaEvaluations:[{index:number,question:string,answer:string,relevance:number,clarity:number,durationSec:number,timeLimitSec:number,exceededTimeLimit:boolean,summary:string}] }",
+              content: this.promptTemplates.transcriptEvaluationSystemPrompt(),
             },
             {
               role: "user",

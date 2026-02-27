@@ -49,7 +49,10 @@ export class AppServer {
     const sessionBuilder = new SessionUpdateBuilder({ turnPolicy, promptTemplates: prompts });
     const realtimeManager = new RealtimeSessionManager({ openai: openAiClient, builder: sessionBuilder });
 
-    const transcriptEvaluator = new TranscriptEvaluator({ apiKey: this.env.openAiApiKey });
+    const transcriptEvaluator = new TranscriptEvaluator({
+      apiKey: this.env.openAiApiKey,
+      promptTemplates: prompts,
+    });
     const analyzer = new BehaviorAnalyzer({
       audioSignalProcessor: new AudioSignalProcessor(),
       visionSignalProcessor: new VisionSignalProcessor(),

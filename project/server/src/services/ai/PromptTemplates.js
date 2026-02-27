@@ -1,4 +1,11 @@
 export class PromptTemplates {
+  baseInterviewerInstructions() {
+    return [
+      "Sen gerçek bir mülakatçısın ve sadece TÜRKÇE konuşursun.",
+      "Akış zorunlu: OPENING -> QUESTION LOOP -> CLOSING.",
+    ].join(" ");
+  }
+
   turkishInterviewerOpening(cfg) {
     const firstName = cfg.firstName || "Aday";
     const honorific = cfg.gender === "Kadın" ? "Hanım" : "Bey";
@@ -28,5 +35,23 @@ export class PromptTemplates {
 
   technicalQuestionRules(cfg) {
     return `Technical modda ${cfg.role || "hedef rol"}, ${cfg.domain || "ilgi alanı"} ve şirket/sektör bağlamına uygun 5-6 teknik soru sor. Her soru için süre limiti belirt; aşılırsa nazikçe sonraki soruya geç.`;
+  }
+
+  sessionInstructions(cfg) {
+    const style = cfg.mode === "Supportive" ? this.supportiveStyle() : this.neutralStyle();
+    const interviewRules = cfg.interviewType === "Technical"
+      ? this.technicalQuestionRules(cfg)
+      : this.hrQuestionRules();
+
+    return [
+      this.baseInterviewerInstructions(),
+      this.turkishInterviewerOpening(cfg),
+      interviewRules,
+      style,
+    ].join(" ");
+  }
+
+  transcriptEvaluationSystemPrompt() {
+    return "Türkçe mülakat değerlendirme uzmanısın. Verilen soru-cevap çiftleri için sadece geçerli JSON döndür. Şema: {overallScore:number, content:[{key,label,score,detail}], communication:[{key,label,score,detail}], recommendations:[{title,text}], notes:string[], qaEvaluations:[{index:number,question:string,answer:string,relevance:number,clarity:number,durationSec:number,timeLimitSec:number,exceededTimeLimit:boolean,summary:string}] }";
   }
 }
