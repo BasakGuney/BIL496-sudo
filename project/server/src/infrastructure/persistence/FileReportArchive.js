@@ -14,13 +14,13 @@ export class FileReportArchive {
     await mkdir(this.baseDir, { recursive: true });
 
     const safeSessionId = this.sanitizeSessionId(sessionId);
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `${safeSessionId}-${stamp}.json`;
+    const filename = `${safeSessionId}.json`;
     const fullPath = path.join(this.baseDir, filename);
 
     const payload = {
       sessionId,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       dialogue: Array.isArray(dialogue) ? dialogue : [],
     };
 

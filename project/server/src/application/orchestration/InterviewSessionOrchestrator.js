@@ -95,10 +95,14 @@ export class InterviewSessionOrchestrator {
 
     const incomingDialogue = this.normalizeDialogue(transcript);
     const existingDialogue = Array.isArray(session.report?.dialogue) ? session.report.dialogue : [];
-    const dialogue = incomingDialogue.length > 0 ? incomingDialogue : existingDialogue;
+    const dialogue = [...existingDialogue];
+    for (const entry of incomingDialogue) {
+      const last = dialogue[dialogue.length - 1];
+      if (!last || last.role !== entry.role || last.text !== entry.text) dialogue.push(entry);
+    }
     const report = {
       sessionId,
-      createdAt: new Date().toISOString(),
+      createdAt: session.report?.createdAt || new Date().toISOString(),
       dialogue,
     };
 

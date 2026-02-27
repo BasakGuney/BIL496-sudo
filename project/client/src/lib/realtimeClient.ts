@@ -50,6 +50,11 @@ function extractTextMessage(msg: any): { role: "interviewer" | "candidate"; text
     return { role: "candidate", text: candidateText };
   }
 
+
+  if (msg?.type === "conversation.item.input_audio_transcription.done" && typeof msg?.transcript === "string") {
+    return { role: "candidate", text: msg.transcript };
+  }
+
   if (msg?.type === "response.audio_transcript.done" && typeof msg?.transcript === "string") {
     return { role: "interviewer", text: msg.transcript };
   }
