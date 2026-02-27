@@ -24,25 +24,9 @@ function safeCleanup(fn: () => void) {
   }
 }
 
-function normalizeRole(role: string) {
-  if (role === "assistant") return "interviewer" as const;
-  if (role === "user") return "candidate" as const;
-
-  const itemRole = normalizeRole(msg?.item?.role);
-  if (itemRole) {
-    const itemText =
-      (typeof msg?.item?.transcript === "string" && msg.item.transcript) ||
-      (typeof msg?.item?.text === "string" && msg.item.text) ||
-      readContentText(msg?.item?.content);
-    if (itemText) return { role: itemRole, text: itemText };
-  }
-
-  const msgRole = normalizeRole(msg?.role);
-  const msgText =
-    (typeof msg?.transcript === "string" && msg.transcript) ||
-    (typeof msg?.text === "string" && msg.text);
-  if (msgRole && msgText) return { role: msgRole, text: msgText };
-
+function normalizeRole(role: string | undefined | null): "interviewer" | "candidate" | null {
+  if (role === "assistant" || role === "interviewer") return "interviewer";
+  if (role === "user" || role === "candidate") return "candidate";
   return null;
 }
 
@@ -74,19 +58,6 @@ function extractTextMessage(msg: any): { role: "interviewer" | "candidate"; text
     return { role: "interviewer", text: msg.text };
   }
 
-  if (msg?.type === "conversation.item.created") {
-    const role = normalizeRole(msg?.item?.role);
-    const text = readContentText(msg?.item?.content);
-    if (role && text) return { role, text };
-  }
-
-  if (msg?.type === "response.output_item.done") {
-    const role = normalizeRole(msg?.item?.role);
-    const text = readContentText(msg?.item?.content);
-    if (role && text) return { role, text };
-  }
-
-
   const itemRole = normalizeRole(msg?.item?.role);
   if (itemRole) {
     const itemText =
@@ -103,6 +74,14 @@ function extractTextMessage(msg: any): { role: "interviewer" | "candidate"; text
   if (msgRole && msgText) return { role: msgRole, text: msgText };
 
   return null;
+}
+
+function pushIfNew(transcript: TranscriptEntry[], entry: TranscriptEntry) {
+  const last = transcript[transcript.length - 1];
+  if (last && last.role === entry.role && last.text === entry.text) {
+    return;
+  }
+  transcript.push(entry);
 }
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
@@ -217,7 +196,7 @@ export async function connectRealtimeInterview(opts: {
 
     const entry = extractTextMessage(msg);
     if (entry?.text?.trim()) {
-      transcript.push({ ...entry, text: entry.text.trim(), ts: Date.now() });
+      pushIfNew(transcript, { ...entry, text: entry.text.trim(), ts: Date.now() });
     }
   };
 
