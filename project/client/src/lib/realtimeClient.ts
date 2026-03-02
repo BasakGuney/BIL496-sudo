@@ -55,56 +55,6 @@ function safeCleanup(fn: () => void) {
   }
 }
 
-function buildInterviewerPrompt(input: {
-  mode: Mode;
-  interviewType: InterviewType;
-  firstName: string;
-  lastName: string;
-  gender: CandidateGender;
-  role: string;
-  companyOrIndustry: string;
-  domainInterest: string;
-}) {
-  const title = input.gender === "Kadın" ? "Hanım" : "Bey";
-  const interviewLabel = input.interviewType === "HR" ? "insan kaynakları" : "teknik";
-  const styleInstruction =
-    input.mode === "Supportive"
-      ? "Supportive moddasın: daha neşeli, pozitif ve rahatlatıcı bir ton kullan. Aday takılırsa (örn. 'ııı', 'bilmiyorum') kısa ipucu ver veya nazikçe bir sonraki soruya geç."
-      : "Neutral moddasın: resmi, dengeli ve tarafsız ilerle. Gereksiz ipucu verme.";
-
-  const questionStrategy =
-    input.interviewType === "HR"
-      ? "Soru döngüsünde STAR yaklaşımına uygun toplam 5-6 soru sor. Her yeni soruyu adayın önceki cevaplarına göre şekillendir ve cevapları unutma."
-      : "Soru döngüsünde toplam 5-6 teknik soru sor. Sorular adayın hedef rolü, ilgi alanı ve çalışmak istediği sektörle uyumlu olsun. Soruların birbirine çok sıkı bağlı olması zorunlu değil.";
-
-  return [
-    "Sen gerçek bir mülakatçısın ve sadece TÜRKÇE konuşursun.",
-    "Türkçen doğal ve anlaşılır olsun; hızlı konuşma. Kısa cümlelerle ve sakin tempoda konuş.",
-    "Sesli konuşmada dakikada yaklaşık 100-120 kelime temposunu geçme.",
-    "Rule-based akış zorunlu: OPENING -> QUESTION LOOP -> CLOSING sırası dışına çıkma.",
-    "Her aşamada kısa, net ve profesyonel ol.",
-    styleInstruction,
-    `Aday bilgileri: ${input.firstName} ${input.lastName}, hitap: ${title}, hedef rol: ${input.role}, şirket/sektör: ${input.companyOrIndustry}, ilgi alanı: ${input.domainInterest}, mülakat tipi: ${input.interviewType}.`,
-    `Hitap kuralı zorunlu: adaya her zaman '${input.firstName} ${title}' diye hitap et.`, 
-    "OPENING zorunlu akış:",
-    `1) Selamlaş: 'Merhaba ${input.firstName} ${title}, bugünkü mülakatınızı ben gerçekleştireceğim.' de.`,
-    `2) Kısa bilgilendirme: 'Bu mülakat ${interviewLabel} mülakatı olarak gerçekleşecek, yaklaşık 10-15 dakika sürecek ve soru-cevap şeklinde ilerleyeceğiz.' de.`,
-    "3) 'Hazırsanız başlayalım mı?' diye sor ve adaydan açık bir onay bekle.",
-    "4) Onay geldikten sonra ilk soruyu sor: 'İlk soru olarak kısaca kendinizden bahsedebilir misiniz?'.",
-    "QUESTION LOOP zorunlu kurallar:",
-    questionStrategy,
-    "Her soru için soruya göre değişen bir süre limiti ata (örn. 60-120 saniye) ve bunu soru başında kısa belirt.",
-    "Aday süreyi aşarsa kibarca kes: 'Anladım, bu kadar yeterli, isterseniz devam edelim.' diyerek yeni soruya geç.",
-    "HR akışında teknik derinlikli sorular sorma; davranışsal ve deneyim odaklı 5-6 soru sor.",
-    "Technical akışta adayın rol, şirket/sektör ve ilgi alanına göre 5-6 teknik soru sor.",
-    "Her aday cevabından sonra sessizce iç değerlendirme yap: relevancy başta olmak üzere kısa puan/not üret.",
-    "Bu değerlendirmeleri konuşma sırasında adayla paylaşma; sadece mülakat akışını sürdür.",
-    "CLOSING zorunlu akış:",
-    `Tanışma memnuniyeti bildir, ${input.firstName} ${title} için kısa değerlendirme süreci ve geri dönüş süresi bilgisini ver.`,
-    "Kapanıştan sonra adayın 'iyi günler/görüşmek üzere' benzeri vedasını bekle, sonra mülakatı sonlandır.",
-  ].join(" ");
-}
-
 function extractTextMessage(msg: RealtimeEvent): { role: "interviewer" | "candidate"; text: string } | null {
   const nestedCandidateText = Array.isArray(msg?.item?.content)
     ? msg.item.content
@@ -522,24 +472,8 @@ export async function connectRealtimeInterview(opts: {
       })
     );
 
-    dc.send(
-      JSON.stringify({
-        type: "response.create",
-        response: {
-          modalities: ["audio", "text"],
-          instructions: buildInterviewerPrompt({
-            mode: opts.mode,
-            interviewType: opts.interviewType,
-            firstName: opts.firstName,
-            lastName: opts.lastName,
-            gender: opts.gender,
-            role: opts.role,
-            companyOrIndustry: opts.companyOrIndustry,
-            domainInterest: opts.domainInterest,
-          }),
-        },
-      })
-    );
+    // Interviewer instructions are managed on the server via PromptTemplates.
+    // Client only updates transcription/turn-detection settings here.
   };
 
   const close = () => {
