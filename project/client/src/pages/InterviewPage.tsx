@@ -166,8 +166,9 @@ export function InterviewPage({
     // Erken bitirme anında son transkript event'lerinin düşmesi için kısa bir pencere bırak
     await new Promise((resolve) => setTimeout(resolve, 900));
     const transcript = connRef.current?.getTranscript() || [];
+    const candidateAnswerAudios = (await connRef.current?.getCandidateAnswerAudios?.()) || [];
     stopMedia();
-    const rep = await endSession(sessionId, transcript);
+    const rep = await endSession(sessionId, transcript, candidateAnswerAudios);
     onFinish(rep);
   }
 

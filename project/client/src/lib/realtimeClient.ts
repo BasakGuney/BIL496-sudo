@@ -4,6 +4,13 @@ type InterviewType = "HR" | "Technical";
 type CandidateGender = "Kadın" | "Erkek";
 
 type TranscriptEntry = { role: "interviewer" | "candidate"; text: string; ts: number };
+export type CandidateAnswerAudio = {
+  questionIndex: number;
+  mimeType: string;
+  startedAt: number;
+  endedAt: number;
+  audioBase64: string;
+};
 
 type RealtimeEvent = {
   type?: string;
@@ -23,8 +30,22 @@ export type RealtimeConnection = {
   audioEl: HTMLAudioElement;
   audioCtx: AudioContext;
   getTranscript: () => TranscriptEntry[];
+  getCandidateAnswerAudios: () => Promise<CandidateAnswerAudio[]>;
   close: () => void;
 };
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = String(reader.result || "");
+      const parts = result.split(",");
+      resolve(parts[1] || "");
+    };
+    reader.onerror = () => reject(reader.error || new Error("blob read failed"));
+    reader.readAsDataURL(blob);
+  });
+}
 
 function safeCleanup(fn: () => void) {
   try {
@@ -214,6 +235,8 @@ export async function connectRealtimeInterview(opts: {
   domainInterest: string;
 }): Promise<RealtimeConnection> {
   const transcript: TranscriptEntry[] = [];
+  const candidateAnswerAudios: CandidateAnswerAudio[] = [];
+  const pendingAudioConversions: Promise<void>[] = [];
   const deltaBuffers = new Map<string, { role: "interviewer" | "candidate"; text: string; ts: number }>();
 
   const pc = new RTCPeerConnection({
@@ -236,6 +259,73 @@ export async function connectRealtimeInterview(opts: {
 
   const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   pc.addTrack(micStream.getTracks()[0], micStream);
+
+  let interviewerTurnCount = 0;
+  let isCandidateSegmentActive = false;
+  let activeQuestionIndex = 1;
+  let activeSegmentStartedAt = 0;
+  let mediaRecorder: MediaRecorder | null = null;
+  let segmentChunks: Blob[] = [];
+
+  const buildMediaRecorder = () => {
+    const recorder = new MediaRecorder(micStream);
+    recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        segmentChunks.push(event.data);
+      }
+    };
+    recorder.onstop = () => {
+      if (!segmentChunks.length) return;
+      const blob = new Blob(segmentChunks, { type: recorder.mimeType || "audio/webm" });
+      const questionIndex = Math.max(1, activeQuestionIndex || interviewerTurnCount || 1);
+      const startedAt = activeSegmentStartedAt || Date.now();
+      const endedAt = Date.now();
+      segmentChunks = [];
+
+      const conversion = blobToBase64(blob)
+        .then((audioBase64) => {
+          if (!audioBase64) return;
+          candidateAnswerAudios.push({
+            questionIndex,
+            mimeType: recorder.mimeType || "audio/webm",
+            startedAt,
+            endedAt,
+            audioBase64,
+          });
+        })
+        .catch(() => undefined);
+      pendingAudioConversions.push(conversion);
+    };
+    return recorder;
+  };
+
+  const startCandidateSegment = () => {
+    if (isCandidateSegmentActive) return;
+    isCandidateSegmentActive = true;
+    activeQuestionIndex = Math.max(1, interviewerTurnCount || 1);
+    activeSegmentStartedAt = Date.now();
+    segmentChunks = [];
+    mediaRecorder = buildMediaRecorder();
+    try {
+      mediaRecorder.start();
+    } catch (_error) {
+      isCandidateSegmentActive = false;
+    }
+  };
+
+  const stopCandidateSegment = () => {
+    if (!isCandidateSegmentActive) return;
+    isCandidateSegmentActive = false;
+    const recorder = mediaRecorder;
+    mediaRecorder = null;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch (_error) {
+        // ignored
+      }
+    }
+  };
 
   const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const localSpeechRecognition = SpeechRecognitionCtor ? new SpeechRecognitionCtor() : null;
@@ -353,6 +443,7 @@ export async function connectRealtimeInterview(opts: {
       } else {
         deltaBuffers.set(id, { role: extracted.role, text: extracted.text, ts: Date.now() });
       }
+      if (extracted.role === "candidate") startCandidateSegment();
       return;
     }
 
@@ -368,6 +459,12 @@ export async function connectRealtimeInterview(opts: {
     const entry = extractTextMessage(msg);
     if (entry?.text?.trim()) {
       pushTranscript(transcript, entry.role, entry.text, Date.now());
+      if (entry.role === "interviewer") {
+        interviewerTurnCount += 1;
+        stopCandidateSegment();
+      } else {
+        startCandidateSegment();
+      }
     }
   };
 
@@ -416,6 +513,7 @@ export async function connectRealtimeInterview(opts: {
   const close = () => {
     recognitionStopped = true;
     safeCleanup(() => localSpeechRecognition?.stop());
+    stopCandidateSegment();
     safeCleanup(() => micStream.getTracks().forEach((t) => t.stop()));
     safeCleanup(() => pc.close());
     safeCleanup(() => audioCtx.close());
@@ -445,6 +543,10 @@ export async function connectRealtimeInterview(opts: {
     getTranscript: () => {
       flushBufferedTranscript();
       return [...transcript];
+    },
+    getCandidateAnswerAudios: async () => {
+      await Promise.allSettled(pendingAudioConversions);
+      return [...candidateAnswerAudios];
     },
     close,
   };

@@ -10,6 +10,62 @@ export class FileReportArchive {
     return String(sessionId || "unknown-session").replace(/[^a-zA-Z0-9-_]/g, "_");
   }
 
+  extensionFromMimeType(mimeType = "") {
+    const clean = String(mimeType || "").toLowerCase();
+    if (clean.includes("ogg")) return "ogg";
+    if (clean.includes("mpeg") || clean.includes("mp3")) return "mp3";
+    if (clean.includes("wav")) return "wav";
+    if (clean.includes("mp4") || clean.includes("m4a")) return "m4a";
+    return "webm";
+  }
+
+  normalizeCandidateAnswerAudios(candidateAnswerAudios = []) {
+    return (Array.isArray(candidateAnswerAudios) ? candidateAnswerAudios : [])
+      .map((item) => ({
+        questionIndex: Number(item?.questionIndex || 0),
+        mimeType: String(item?.mimeType || "audio/webm"),
+        startedAt: Number(item?.startedAt || Date.now()),
+        endedAt: Number(item?.endedAt || Date.now()),
+        audioBase64: String(item?.audioBase64 || ""),
+      }))
+      .filter((item) => item.questionIndex > 0 && item.audioBase64.length > 0);
+  }
+
+  async saveCandidateAnswerAudioFiles({ sessionDir, candidateAnswerAudios }) {
+    const normalized = this.normalizeCandidateAnswerAudios(candidateAnswerAudios);
+    if (normalized.length === 0) return [];
+
+    const answersDir = path.join(sessionDir, "candidate-answers");
+    await mkdir(answersDir, { recursive: true });
+
+    const sorted = [...normalized].sort((a, b) => a.startedAt - b.startedAt);
+    const counters = new Map();
+    const saved = [];
+
+    for (const answer of sorted) {
+      const ext = this.extensionFromMimeType(answer.mimeType);
+      const index = answer.questionIndex;
+      const seq = (counters.get(index) || 0) + 1;
+      counters.set(index, seq);
+      const fileName = `q${String(index).padStart(2, "0")}-answer-${String(seq).padStart(2, "0")}.${ext}`;
+      const fullPath = path.join(answersDir, fileName);
+
+      const audioBuffer = Buffer.from(answer.audioBase64, "base64");
+      if (audioBuffer.length === 0) continue;
+      await writeFile(fullPath, audioBuffer);
+      saved.push({
+        questionIndex: index,
+        mimeType: answer.mimeType,
+        startedAt: answer.startedAt,
+        endedAt: answer.endedAt,
+        fileName,
+        relativePath: path.join("candidate-answers", fileName),
+      });
+    }
+
+    return saved;
+  }
+
   buildTranscriptEntries({ transcript, report }) {
     const direct = Array.isArray(transcript) ? transcript : [];
     const cleanedDirect = direct
@@ -35,15 +91,17 @@ export class FileReportArchive {
   }
 
 
-  async save({ sessionId, transcript, report }) {
+  async save({ sessionId, transcript, report, candidateAnswerAudios = [] }) {
     await mkdir(this.baseDir, { recursive: true });
 
     const safeSessionId = this.sanitizeSessionId(sessionId);
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const sessionDir = path.join(this.baseDir, `${safeSessionId}-${stamp}`);
+    await mkdir(sessionDir, { recursive: true });
     const transcriptEntries = this.buildTranscriptEntries({ transcript, report });
-    const filename = `${safeSessionId}-${stamp}.json`;
-    const fullPath = path.join(this.baseDir, filename);
-    const transcriptTextPath = path.join(this.baseDir, `${safeSessionId}-${stamp}.transcript.txt`);
+    const filename = `report.json`;
+    const fullPath = path.join(sessionDir, filename);
+    const transcriptTextPath = path.join(sessionDir, `transcript.txt`);
 
     const transcriptText = transcriptEntries
       .map((item) => {
@@ -53,11 +111,17 @@ export class FileReportArchive {
       .filter(Boolean)
       .join("\n");
 
+    const savedCandidateAnswerAudioFiles = await this.saveCandidateAnswerAudioFiles({
+      sessionDir,
+      candidateAnswerAudios,
+    });
+
     const payload = {
       sessionId,
       createdAt: new Date().toISOString(),
       transcript: transcriptEntries,
       transcriptText,
+      candidateAnswerAudioFiles: savedCandidateAnswerAudioFiles,
       report,
     };
 

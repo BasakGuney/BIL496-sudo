@@ -21,7 +21,8 @@ export class ReportController {
       const report = await this.backendOrchestrator.endSession(
         req.params.sessionId,
         req.body?.reason || null,
-        req.body?.transcript || []
+        req.body?.transcript || [],
+        req.body?.candidateAnswerAudios || []
       );
       res.json(ReportView.fromReport(report));
     } catch (error) {
