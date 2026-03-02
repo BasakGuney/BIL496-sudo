@@ -266,6 +266,8 @@ export async function connectRealtimeInterview(opts: {
   let activeSegmentStartedAt = 0;
   let mediaRecorder: MediaRecorder | null = null;
   let segmentChunks: Blob[] = [];
+  let activeSegmentStopPromise: Promise<void> | null = null;
+  let resolveActiveSegmentStopPromise: (() => void) | null = null;
 
   const buildMediaRecorder = () => {
     const recorder = new MediaRecorder(micStream);
@@ -295,6 +297,10 @@ export async function connectRealtimeInterview(opts: {
         })
         .catch(() => undefined);
       pendingAudioConversions.push(conversion);
+      if (resolveActiveSegmentStopPromise) {
+        resolveActiveSegmentStopPromise();
+        resolveActiveSegmentStopPromise = null;
+      }
     };
     return recorder;
   };
@@ -319,9 +325,16 @@ export async function connectRealtimeInterview(opts: {
     const recorder = mediaRecorder;
     mediaRecorder = null;
     if (recorder && recorder.state !== "inactive") {
+      activeSegmentStopPromise = new Promise((resolve) => {
+        resolveActiveSegmentStopPromise = resolve;
+      });
       try {
         recorder.stop();
       } catch (_error) {
+        if (resolveActiveSegmentStopPromise) {
+          resolveActiveSegmentStopPromise();
+          resolveActiveSegmentStopPromise = null;
+        }
         // ignored
       }
     }
@@ -545,6 +558,13 @@ export async function connectRealtimeInterview(opts: {
       return [...transcript];
     },
     getCandidateAnswerAudios: async () => {
+      if (isCandidateSegmentActive) {
+        stopCandidateSegment();
+      }
+      if (activeSegmentStopPromise) {
+        await activeSegmentStopPromise;
+        activeSegmentStopPromise = null;
+      }
       await Promise.allSettled(pendingAudioConversions);
       return [...candidateAnswerAudios];
     },
