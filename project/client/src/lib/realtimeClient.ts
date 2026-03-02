@@ -277,26 +277,28 @@ export async function connectRealtimeInterview(opts: {
       }
     };
     recorder.onstop = () => {
-      if (!segmentChunks.length) return;
-      const blob = new Blob(segmentChunks, { type: recorder.mimeType || "audio/webm" });
-      const questionIndex = Math.max(1, activeQuestionIndex || interviewerTurnCount || 1);
-      const startedAt = activeSegmentStartedAt || Date.now();
-      const endedAt = Date.now();
-      segmentChunks = [];
+      if (segmentChunks.length) {
+        const blob = new Blob(segmentChunks, { type: recorder.mimeType || "audio/webm" });
+        const questionIndex = Math.max(1, activeQuestionIndex || interviewerTurnCount || 1);
+        const startedAt = activeSegmentStartedAt || Date.now();
+        const endedAt = Date.now();
+        segmentChunks = [];
 
-      const conversion = blobToBase64(blob)
-        .then((audioBase64) => {
-          if (!audioBase64) return;
-          candidateAnswerAudios.push({
-            questionIndex,
-            mimeType: recorder.mimeType || "audio/webm",
-            startedAt,
-            endedAt,
-            audioBase64,
-          });
-        })
-        .catch(() => undefined);
-      pendingAudioConversions.push(conversion);
+        const conversion = blobToBase64(blob)
+          .then((audioBase64) => {
+            if (!audioBase64) return;
+            candidateAnswerAudios.push({
+              questionIndex,
+              mimeType: recorder.mimeType || "audio/webm",
+              startedAt,
+              endedAt,
+              audioBase64,
+            });
+          })
+          .catch(() => undefined);
+        pendingAudioConversions.push(conversion);
+      }
+
       if (resolveActiveSegmentStopPromise) {
         resolveActiveSegmentStopPromise();
         resolveActiveSegmentStopPromise = null;
@@ -352,6 +354,7 @@ export async function connectRealtimeInterview(opts: {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i];
         if (result?.isFinal && result[0]?.transcript) {
+          startCandidateSegment();
           pushTranscript(transcript, "candidate", String(result[0].transcript), Date.now());
         }
       }
