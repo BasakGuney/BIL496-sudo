@@ -268,6 +268,7 @@ export async function connectRealtimeInterview(opts: {
   let segmentChunks: Blob[] = [];
   let activeSegmentStopPromise: Promise<void> | null = null;
   let resolveActiveSegmentStopPromise: (() => void) | null = null;
+  let isAwaitingCandidateAnswer = false;
 
   const buildMediaRecorder = () => {
     const recorder = new MediaRecorder(micStream);
@@ -308,14 +309,14 @@ export async function connectRealtimeInterview(opts: {
   };
 
   const startCandidateSegment = () => {
-    if (isCandidateSegmentActive) return;
+    if (isCandidateSegmentActive || !isAwaitingCandidateAnswer) return;
     isCandidateSegmentActive = true;
     activeQuestionIndex = Math.max(1, interviewerTurnCount || 1);
     activeSegmentStartedAt = Date.now();
     segmentChunks = [];
     mediaRecorder = buildMediaRecorder();
     try {
-      mediaRecorder.start();
+      mediaRecorder.start(250);
     } catch (_error) {
       isCandidateSegmentActive = false;
     }
@@ -331,6 +332,7 @@ export async function connectRealtimeInterview(opts: {
         resolveActiveSegmentStopPromise = resolve;
       });
       try {
+        recorder.requestData();
         recorder.stop();
       } catch (_error) {
         if (resolveActiveSegmentStopPromise) {
@@ -344,6 +346,57 @@ export async function connectRealtimeInterview(opts: {
 
   const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const localSpeechRecognition = SpeechRecognitionCtor ? new SpeechRecognitionCtor() : null;
+
+  const micAudioCtx = new AudioContext();
+  const micSource = micAudioCtx.createMediaStreamSource(micStream);
+  const micAnalyser = micAudioCtx.createAnalyser();
+  micAnalyser.fftSize = 1024;
+  micSource.connect(micAnalyser);
+  const micData = new Uint8Array(micAnalyser.fftSize);
+  let micLoopRaf = 0;
+  let lastMicTick = performance.now();
+  let speakingMs = 0;
+  let silenceMs = 0;
+
+  const micLoop = () => {
+    micAnalyser.getByteTimeDomainData(micData);
+    let sum = 0;
+    for (let i = 0; i < micData.length; i += 1) {
+      const sample = (micData[i] - 128) / 128;
+      sum += sample * sample;
+    }
+    const rms = Math.sqrt(sum / micData.length);
+    const now = performance.now();
+    const dt = Math.min(120, Math.max(0, now - lastMicTick));
+    lastMicTick = now;
+
+    if (isAwaitingCandidateAnswer) {
+      if (rms > 0.025) {
+        speakingMs += dt;
+        silenceMs = 0;
+        if (!isCandidateSegmentActive && speakingMs >= 150) {
+          startCandidateSegment();
+        }
+      } else {
+        speakingMs = 0;
+        if (isCandidateSegmentActive) {
+          silenceMs += dt;
+          if (silenceMs >= 1100) {
+            stopCandidateSegment();
+            silenceMs = 0;
+            isAwaitingCandidateAnswer = false;
+          }
+        }
+      }
+    } else {
+      speakingMs = 0;
+      silenceMs = 0;
+    }
+
+    micLoopRaf = requestAnimationFrame(micLoop);
+  };
+  micLoopRaf = requestAnimationFrame(micLoop);
+
   let recognitionStopped = false;
   if (localSpeechRecognition) {
     localSpeechRecognition.continuous = true;
@@ -354,7 +407,6 @@ export async function connectRealtimeInterview(opts: {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i];
         if (result?.isFinal && result[0]?.transcript) {
-          startCandidateSegment();
           pushTranscript(transcript, "candidate", String(result[0].transcript), Date.now());
         }
       }
@@ -459,7 +511,6 @@ export async function connectRealtimeInterview(opts: {
       } else {
         deltaBuffers.set(id, { role: extracted.role, text: extracted.text, ts: Date.now() });
       }
-      if (extracted.role === "candidate") startCandidateSegment();
       return;
     }
 
@@ -477,9 +528,13 @@ export async function connectRealtimeInterview(opts: {
       pushTranscript(transcript, entry.role, entry.text, Date.now());
       if (entry.role === "interviewer") {
         interviewerTurnCount += 1;
+        isAwaitingCandidateAnswer = true;
         stopCandidateSegment();
       } else {
-        startCandidateSegment();
+        if (isCandidateSegmentActive) {
+          stopCandidateSegment();
+        }
+        isAwaitingCandidateAnswer = false;
       }
     }
   };
@@ -529,8 +584,10 @@ export async function connectRealtimeInterview(opts: {
   const close = () => {
     recognitionStopped = true;
     safeCleanup(() => localSpeechRecognition?.stop());
+    safeCleanup(() => cancelAnimationFrame(micLoopRaf));
     stopCandidateSegment();
     safeCleanup(() => micStream.getTracks().forEach((t) => t.stop()));
+    safeCleanup(() => micAudioCtx.close());
     safeCleanup(() => pc.close());
     safeCleanup(() => audioCtx.close());
     safeCleanup(() => audioEl.pause());
