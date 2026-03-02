@@ -207,6 +207,20 @@ export async function connectRealtimeInterview(opts: {
 
   const dc = pc.createDataChannel("oai-events");
   dc.onerror = (e) => console.log("[RTC] datachannel error:", e);
+  let initialResponseRequested = false;
+
+  const requestInitialInterviewerResponse = () => {
+    if (initialResponseRequested || dc.readyState !== "open") return;
+    initialResponseRequested = true;
+    dc.send(
+      JSON.stringify({
+        type: "response.create",
+        response: {
+          modalities: ["audio", "text"],
+        },
+      })
+    );
+  };
 
   const remoteStream = new MediaStream();
   pc.ontrack = (e) => {
@@ -397,6 +411,10 @@ export async function connectRealtimeInterview(opts: {
       return;
     }
 
+    if (msg?.type === "session.created" || msg?.type === "session.updated") {
+      requestInitialInterviewerResponse();
+    }
+
     const isCandidateDelta = msg?.type === "conversation.item.input_audio_transcription.delta";
     const isCandidateDone = msg?.type === "conversation.item.input_audio_transcription.completed";
     const isInterviewerDelta =
@@ -480,17 +498,10 @@ export async function connectRealtimeInterview(opts: {
 
     // Interviewer instructions are managed on the server via PromptTemplates.
     // Client only updates transcription/turn-detection settings here.
-
-    // Kick off the first assistant turn immediately so the interviewer starts
-    // speaking without waiting for candidate audio.
-    dc.send(
-      JSON.stringify({
-        type: "response.create",
-        response: {
-          modalities: ["audio", "text"],
-        },
-      })
-    );
+    // Trigger first interviewer turn after session ack; keep timeout fallback.
+    window.setTimeout(() => {
+      requestInitialInterviewerResponse();
+    }, 1200);
   };
 
   const close = () => {
