@@ -268,6 +268,8 @@ export async function connectRealtimeInterview(opts: {
   let segmentChunks: Blob[] = [];
   let activeSegmentStopPromise: Promise<void> | null = null;
   let resolveActiveSegmentStopPromise: (() => void) | null = null;
+  let interviewerSpeaking = false;
+  let interviewerHasSpoken = false;
 
   const buildMediaRecorder = () => {
     const recorder = new MediaRecorder(micStream);
@@ -439,14 +441,31 @@ export async function connectRealtimeInterview(opts: {
       return;
     }
 
-    const isDelta =
+    const isCandidateDelta = msg?.type === "conversation.item.input_audio_transcription.delta";
+    const isCandidateDone = msg?.type === "conversation.item.input_audio_transcription.completed";
+    const isInterviewerDelta =
       msg?.type === "response.output_text.delta" ||
-      msg?.type === "response.audio_transcript.delta" ||
-      msg?.type === "conversation.item.input_audio_transcription.delta";
-    const isDone =
+      msg?.type === "response.audio_transcript.delta";
+    const isInterviewerDone =
       msg?.type === "response.output_text.done" ||
       msg?.type === "response.audio_transcript.done" ||
-      msg?.type === "conversation.item.input_audio_transcription.completed";
+      msg?.type === "response.done";
+    const isDelta = isInterviewerDelta || isCandidateDelta;
+    const isDone = isInterviewerDone || isCandidateDone;
+
+    if (isInterviewerDelta && !interviewerSpeaking) {
+      interviewerSpeaking = true;
+      if (isCandidateSegmentActive) {
+        stopCandidateSegment();
+      }
+    }
+
+    if (isInterviewerDone) {
+      interviewerSpeaking = false;
+      interviewerHasSpoken = true;
+      interviewerTurnCount += 1;
+      startCandidateSegment();
+    }
 
     if (isDelta) {
       const id = msg.response_id || msg.item_id || `${msg.type}-fallback`;
@@ -475,11 +494,7 @@ export async function connectRealtimeInterview(opts: {
     const entry = extractTextMessage(msg);
     if (entry?.text?.trim()) {
       pushTranscript(transcript, entry.role, entry.text, Date.now());
-      if (entry.role === "interviewer") {
-        if (isCandidateSegmentActive) {
-          stopCandidateSegment();
-        }
-        interviewerTurnCount += 1;
+      if (entry.role === "candidate" && !interviewerHasSpoken && !isCandidateSegmentActive) {
         startCandidateSegment();
       }
     }
