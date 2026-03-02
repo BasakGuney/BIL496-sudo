@@ -162,8 +162,14 @@ function extractFromResponseDone(msg: any): { role: "interviewer"; text: string 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === "complete") return;
   await new Promise<void>((resolve) => {
+    const timeout = window.setTimeout(() => {
+      pc.removeEventListener("icegatheringstatechange", onState);
+      resolve();
+    }, 1500);
+
     const onState = () => {
       if (pc.iceGatheringState === "complete") {
+        window.clearTimeout(timeout);
         pc.removeEventListener("icegatheringstatechange", onState);
         resolve();
       }
@@ -474,6 +480,17 @@ export async function connectRealtimeInterview(opts: {
 
     // Interviewer instructions are managed on the server via PromptTemplates.
     // Client only updates transcription/turn-detection settings here.
+
+    // Kick off the first assistant turn immediately so the interviewer starts
+    // speaking without waiting for candidate audio.
+    dc.send(
+      JSON.stringify({
+        type: "response.create",
+        response: {
+          modalities: ["audio", "text"],
+        },
+      })
+    );
   };
 
   const close = () => {
