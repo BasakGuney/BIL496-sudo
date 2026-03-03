@@ -25,12 +25,14 @@ export function InterviewPage({
   const [errorText, setErrorText] = useState("");
   const [level, setLevel] = useState(0);
   const [aiSpeaking, setAiSpeaking] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
 
   const connRef = useRef<Awaited<ReturnType<typeof connectRealtimeInterview>> | null>(null);
   const connectingRef = useRef(false); // ✅ double connect guard
+  const finishingRef = useRef(false); // ✅ double click guard for finish
 
   // Kamera PiP
   useEffect(() => {
@@ -130,10 +132,13 @@ export function InterviewPage({
       mounted = false;
       cancelAnimationFrame(raf);
 
-      // ✅ cleanup kesin kapat
-      connRef.current?.close();
-      connRef.current = null;
-      connectingRef.current = false;
+      // Sadece unmount oluyorsa ve finish çağrılmadıysa temizle.
+      // finish çağrıldıysa stopMedia zaten işini yaptı.
+      if (!finishingRef.current) {
+        connRef.current?.close();
+        connRef.current = null;
+        connectingRef.current = false;
+      }
     };
   }, [config.mode]);
 
@@ -163,10 +168,20 @@ export function InterviewPage({
   }
 
   async function finish() {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
+    setIsFinishing(true);
+
     // Erken bitirme anında son transkript event'lerinin düşmesi için kısa bir pencere bırak
     await new Promise((resolve) => setTimeout(resolve, 900));
+
+    // Güvenli kopyaları al, stopMedia her şeyi temizliyor.
     const transcript = connRef.current?.getTranscript() || [];
-    const candidateAnswerAudios = (await connRef.current?.getCandidateAnswerAudios?.()) || [];
+    let candidateAnswerAudios: any[] = [];
+    if (connRef.current?.getCandidateAnswerAudios) {
+      candidateAnswerAudios = await connRef.current.getCandidateAnswerAudios();
+    }
+
     stopMedia();
     const rep = await endSession(sessionId, transcript, candidateAnswerAudios);
     onFinish(rep);
@@ -212,13 +227,21 @@ export function InterviewPage({
                   ? "AI konuşuyor..."
                   : "Sıra sende — konuş."
                 : status === "connecting"
-                ? "Bağlanıyor..."
-                : "Bağlantı hatası"}
+                  ? "Bağlanıyor..."
+                  : "Bağlantı hatası"}
             </div>
           </div>
 
-          <div className="h-[300px] md:h-[360px] w-full rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-4">
-            <VoiceWaveCanvas speaking={aiSpeaking} level={level} />
+          <div className="h-[300px] md:h-[360px] w-full rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-4 flex flex-col items-center justify-center">
+            {isFinishing ? (
+              <div className="flex flex-col items-center gap-4 animate-in fade-in duration-500">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+                <div className="text-xl font-medium text-white/90">Mülakat Bitiriliyor...</div>
+                <div className="text-sm text-white/50">Lütfen bekleyin, raporunuz hazırlanıyor.</div>
+              </div>
+            ) : (
+              <VoiceWaveCanvas speaking={aiSpeaking} level={level} />
+            )}
           </div>
 
           {needsUserGesture && (

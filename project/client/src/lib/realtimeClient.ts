@@ -20,6 +20,9 @@ type RealtimeEvent = {
   response_id?: string;
   item_id?: string;
   item?: any;
+  name?: string;
+  arguments?: string;
+  call_id?: string;
 };
 
 export type RealtimeConnection = {
@@ -58,9 +61,9 @@ function safeCleanup(fn: () => void) {
 function extractTextMessage(msg: RealtimeEvent): { role: "interviewer" | "candidate"; text: string } | null {
   const nestedCandidateText = Array.isArray(msg?.item?.content)
     ? msg.item.content
-        .map((c: any) => c?.transcript || c?.text || "")
-        .filter(Boolean)
-        .join(" ")
+      .map((c: any) => c?.transcript || c?.text || "")
+      .filter(Boolean)
+      .join(" ")
     : "";
 
   const candidateText = msg?.transcript || msg?.text || nestedCandidateText;
@@ -201,7 +204,7 @@ export async function connectRealtimeInterview(opts: {
 
   pc.onconnectionstatechange = () => console.log("[RTC] connectionState:", pc.connectionState);
   pc.oniceconnectionstatechange = () => console.log("[RTC] iceConnectionState:", pc.iceConnectionState);
-  pc.onicecandidateerror = (e) => console.log("[RTC] icecandidateerror:", e);
+  pc.onicecandidateerror = () => { /* ignored to avoid console spam */ };
 
   pc.addTransceiver("audio", { direction: "recvonly" });
 
@@ -420,10 +423,7 @@ export async function connectRealtimeInterview(opts: {
     const isInterviewerDelta =
       msg?.type === "response.output_text.delta" ||
       msg?.type === "response.audio_transcript.delta";
-    const isInterviewerDone =
-      msg?.type === "response.output_text.done" ||
-      msg?.type === "response.audio_transcript.done" ||
-      msg?.type === "response.done";
+    const isInterviewerDone = msg?.type === "response.done";
     const isDelta = isInterviewerDelta || isCandidateDelta;
     const isDone = isInterviewerDone || isCandidateDone;
 
@@ -438,7 +438,17 @@ export async function connectRealtimeInterview(opts: {
       interviewerSpeaking = false;
       interviewerHasSpoken = true;
       interviewerTurnCount += 1;
+    }
+
+    const isSpeechStarted = msg?.type === "input_audio_buffer.speech_started";
+    const isSpeechStopped = msg?.type === "input_audio_buffer.speech_stopped";
+
+    if (isSpeechStarted) {
       startCandidateSegment();
+    }
+
+    if (isSpeechStopped) {
+      stopCandidateSegment();
     }
 
     if (isDelta) {

@@ -39,15 +39,13 @@ export class FileReportArchive {
     await mkdir(answersDir, { recursive: true });
 
     const sorted = [...normalized].sort((a, b) => a.startedAt - b.startedAt);
-    const counters = new Map();
     const saved = [];
+    let seq = 1;
 
     for (const answer of sorted) {
       const ext = this.extensionFromMimeType(answer.mimeType);
       const index = answer.questionIndex;
-      const seq = (counters.get(index) || 0) + 1;
-      counters.set(index, seq);
-      const fileName = `q${String(index).padStart(2, "0")}-answer-${String(seq).padStart(2, "0")}.${ext}`;
+      const fileName = `answer_${String(seq).padStart(2, "0")}.${ext}`;
       const fullPath = path.join(answersDir, fileName);
 
       const audioBuffer = Buffer.from(answer.audioBase64, "base64");
@@ -61,6 +59,7 @@ export class FileReportArchive {
         fileName,
         relativePath: path.join("candidate-answers", fileName),
       });
+      seq++;
     }
 
     return saved;
@@ -94,9 +93,10 @@ export class FileReportArchive {
   async save({ sessionId, transcript, report, candidateAnswerAudios = [] }) {
     await mkdir(this.baseDir, { recursive: true });
 
+    // Cleaned up debugging logger
+
     const safeSessionId = this.sanitizeSessionId(sessionId);
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const sessionDir = path.join(this.baseDir, `${safeSessionId}-${stamp}`);
+    const sessionDir = path.join(this.baseDir, safeSessionId);
     await mkdir(sessionDir, { recursive: true });
     const transcriptEntries = this.buildTranscriptEntries({ transcript, report });
     const filename = `report.json`;

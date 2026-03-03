@@ -39,6 +39,11 @@ export class AppServer {
     this.app.use(express.text({ type: ["application/sdp", "text/plain"] }));
     this.app.use(express.json({ limit: "50mb" }));
 
+    this.app.use((req, res, next) => {
+      this.logger.info(`[API] ${req.method} ${req.url}`);
+      next();
+    });
+
     const openAiGateway = new OpenAiRealtimeGateway({ apiKey: this.env.openAiApiKey });
     const openAiClient = new OpenAIClientAdapter({ realtimeGateway: openAiGateway, apiKey: this.env.openAiApiKey });
 

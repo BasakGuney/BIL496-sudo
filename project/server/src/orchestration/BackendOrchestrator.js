@@ -62,6 +62,10 @@ export class BackendOrchestrator {
     const session = await this.sessions.findById(sessionId);
     if (!session) throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", statusCode: 404 });
 
+    if (session.state === SessionState.COMPLETED || session.state === SessionState.ABORTED) {
+      if (session.report) return session.report;
+    }
+
     session.end();
     const report = await this.analyzer.generateReport(session, transcript);
     const transcriptEntries = Array.isArray(transcript) ? transcript : [];
