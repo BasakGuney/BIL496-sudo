@@ -71,7 +71,35 @@ const INTERVIEWER_TRANSCRIPT_MODEL = "gpt-4o-realtime";
 type TranscriptSource =
   | "openai-realtime-input_audio_transcription"
   | "openai-realtime-response_audio_transcript"
-  | "openai-realtime-response_output_text_fallback";
+  | "openai-realtime-response_output_text_fallback"
+  | "openai-realtime-response_done_fallback";
+
+
+function extractInterviewerFromResponseDone(msg: RealtimeEvent): string {
+  const outputs = Array.isArray(msg?.response?.output) ? msg.response.output : [];
+  const chunks: string[] = [];
+
+  for (const out of outputs) {
+    const contents = Array.isArray(out?.content) ? out.content : [];
+    for (const c of contents) {
+      if (typeof c?.transcript === "string" && c.transcript.trim()) chunks.push(c.transcript.trim());
+      else if (typeof c?.text === "string" && c.text.trim()) chunks.push(c.text.trim());
+    }
+  }
+
+  return chunks.join(" ").trim();
+}
+
+function normalizeCandidateTranscriptText(raw: string): string {
+  const clean = String(raw || "").trim();
+  if (!clean) return "";
+
+  // Force default display language to Turkish (Latin script) for common accidental Arabic-script greeting outputs.
+  const arabicHelloVariants = new Set(["مرحبا", "مرحباً"]);
+  if (arabicHelloVariants.has(clean)) return "Merhaba";
+
+  return clean;
+}
 
 function extractStableTranscriptMessage(
   msg: RealtimeEvent
@@ -91,7 +119,7 @@ function extractStableTranscriptMessage(
   if (msg?.type === "conversation.item.input_audio_transcription.completed" && candidateText.trim()) {
     return {
       role: "candidate",
-      text: candidateText,
+      text: normalizeCandidateTranscriptText(candidateText),
       source: "openai-realtime-input_audio_transcription",
       model: CANDIDATE_TRANSCRIPTION_MODEL,
     };
@@ -113,6 +141,18 @@ function extractStableTranscriptMessage(
       source: "openai-realtime-response_output_text_fallback",
       model: INTERVIEWER_TRANSCRIPT_MODEL,
     };
+  }
+
+  if (msg?.type === "response.done") {
+    const text = extractInterviewerFromResponseDone(msg);
+    if (text) {
+      return {
+        role: "interviewer",
+        text,
+        source: "openai-realtime-response_done_fallback",
+        model: INTERVIEWER_TRANSCRIPT_MODEL,
+      };
+    }
   }
 
   return null;
@@ -403,7 +443,7 @@ export async function connectRealtimeInterview(opts: {
           input_audio_transcription: {
             model,
             language: "tr",
-            prompt: "Türkçe konuşmayı yazarken teknik İngilizce terimleri (ör: Jenkins, Kubernetes, Docker, GitHub, CI/CD) orijinal yazımıyla koru.",
+            prompt: "Varsayılan dil TÜRKÇE olmalı ve Latin alfabesi kullanılmalı. Türkçe konuşmayı yazarken teknik İngilizce terimleri (ör: Jenkins, Kubernetes, Docker, GitHub, CI/CD) orijinal yazımıyla koru.",
           },
           audio: {
             input: {
@@ -411,7 +451,7 @@ export async function connectRealtimeInterview(opts: {
               transcription: {
                 model,
                 language: "tr",
-                prompt: "Türkçe konuşmada geçen teknik İngilizce terimleri doğru yaz.",
+                prompt: "Varsayılan dil Türkçe (Latin alfabesi) olsun. Türkçe konuşmada geçen teknik İngilizce terimleri doğru yaz.",
               },
               turn_detection: {
                 type: "server_vad",
@@ -481,7 +521,10 @@ export async function connectRealtimeInterview(opts: {
       interviewerResponseIdsWithTranscript.add(messageResponseId);
     }
 
-    if (entry.source === "openai-realtime-response_output_text_fallback") {
+    if (
+      entry.source === "openai-realtime-response_output_text_fallback" ||
+      entry.source === "openai-realtime-response_done_fallback"
+    ) {
       if (interviewerResponseIdsWithTranscript.has(messageResponseId)) return;
       interviewerResponseIdsWithTranscript.add(messageResponseId);
     }
