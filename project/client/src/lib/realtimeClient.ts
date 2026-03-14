@@ -352,6 +352,11 @@ export async function connectRealtimeInterview(opts: {
         if (event.data && event.data.size > 0) fullSessionChunks.push(event.data);
       };
       fullSessionRecorder.onstop = () => {
+        if (fullSessionRecordStream) {
+          safeCleanup(() => fullSessionRecordStream?.getTracks().forEach((t) => t.stop()));
+          fullSessionRecordStream = null;
+        }
+
         if (resolveFullSessionStopPromise) {
           resolveFullSessionStopPromise();
           resolveFullSessionStopPromise = null;
@@ -383,10 +388,6 @@ export async function connectRealtimeInterview(opts: {
       }
     }
 
-    if (fullSessionRecordStream) {
-      safeCleanup(() => fullSessionRecordStream?.getTracks().forEach((t) => t.stop()));
-      fullSessionRecordStream = null;
-    }
   };
 
   startFullSessionRecorder();
@@ -529,7 +530,7 @@ export async function connectRealtimeInterview(opts: {
         type: "session.update",
         session: {
           input_audio_transcription: {
-            model: "whisper-1",
+            model: "gpt-4o-mini-transcribe",
           },
           audio: {
             input: {
