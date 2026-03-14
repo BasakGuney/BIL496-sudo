@@ -266,7 +266,6 @@ export async function connectRealtimeInterview(opts: {
   let activeSegmentStopPromise: Promise<void> | null = null;
   let resolveActiveSegmentStopPromise: (() => void) | null = null;
   let interviewerSpeaking = false;
-  let interviewerHasSpoken = false;
   const recentlyPushedFingerprints = new Map<string, number>();
   const interviewerResponseIdsWithTranscript = new Set<string>();
 
@@ -483,6 +482,10 @@ export async function connectRealtimeInterview(opts: {
       msg?.type === "response.output_text.delta" ||
       msg?.type === "response.audio_transcript.delta";
     const isInterviewerDone = msg?.type === "response.done";
+    const isInterviewerAudioDone =
+      msg?.type === "response.audio.done" ||
+      msg?.type === "response.audio_transcript.done" ||
+      msg?.type === "response.output_text.done";
 
     if (isInterviewerDelta && !interviewerSpeaking) {
       interviewerSpeaking = true;
@@ -491,16 +494,19 @@ export async function connectRealtimeInterview(opts: {
       }
     }
 
+    if (isInterviewerAudioDone) {
+      interviewerSpeaking = false;
+    }
+
     if (isInterviewerDone) {
       interviewerSpeaking = false;
-      interviewerHasSpoken = true;
       interviewerTurnCount += 1;
     }
 
     const isSpeechStarted = msg?.type === "input_audio_buffer.speech_started";
     const isSpeechStopped = msg?.type === "input_audio_buffer.speech_stopped";
 
-    if (isSpeechStarted) {
+    if (isSpeechStarted && !interviewerSpeaking) {
       startCandidateSegment();
     }
 
@@ -532,9 +538,6 @@ export async function connectRealtimeInterview(opts: {
 
     pushTranscriptDeduped(entry.role, entry.text, Date.now(), entry.source, entry.model);
 
-    if (entry.role === "candidate" && !interviewerHasSpoken && !isCandidateSegmentActive) {
-      startCandidateSegment();
-    }
   };
 
   dc.onopen = () => {
