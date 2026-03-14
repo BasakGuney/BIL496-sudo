@@ -254,16 +254,6 @@ export async function connectRealtimeInterview(opts: {
   let interviewerSpeaking = false;
   let interviewerHasSpoken = false;
 
-  // Fallback recorder: captures the full mic stream in case segment-based
-  // answer audios cannot be produced (e.g. missing speech_started/stopped events).
-  let fullSessionRecorder: MediaRecorder | null = null;
-  let fullSessionRecordStream: MediaStream | null = null;
-  let fullSessionMimeType = "audio/webm";
-  let fullSessionChunks: Blob[] = [];
-  let fullSessionStartedAt = Date.now();
-  let fullSessionStopPromise: Promise<void> | null = null;
-  let resolveFullSessionStopPromise: (() => void) | null = null;
-
   const buildMediaRecorder = () => {
     const recorder = new MediaRecorder(micStream);
     recorder.ondataavailable = (event) => {
@@ -341,57 +331,6 @@ export async function connectRealtimeInterview(opts: {
   // Browser SpeechRecognition is intentionally disabled.
   // Candidate transcript is sourced from OpenAI Realtime input_audio_transcription events
   // so both interviewer + candidate text come from the same backend model pipeline.
-
-  const startFullSessionRecorder = () => {
-    try {
-      fullSessionRecordStream = micStream.clone();
-      fullSessionRecorder = new MediaRecorder(fullSessionRecordStream);
-      fullSessionMimeType = fullSessionRecorder.mimeType || "audio/webm";
-      fullSessionStartedAt = Date.now();
-      fullSessionChunks = [];
-      fullSessionRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) fullSessionChunks.push(event.data);
-      };
-      fullSessionRecorder.onstop = () => {
-        if (fullSessionRecordStream) {
-          safeCleanup(() => fullSessionRecordStream?.getTracks().forEach((t) => t.stop()));
-          fullSessionRecordStream = null;
-        }
-
-        if (resolveFullSessionStopPromise) {
-          resolveFullSessionStopPromise();
-          resolveFullSessionStopPromise = null;
-        }
-      };
-      fullSessionRecorder.start(500);
-    } catch (_error) {
-      fullSessionRecorder = null;
-      fullSessionRecordStream = null;
-      fullSessionChunks = [];
-    }
-  };
-
-  const stopFullSessionRecorder = () => {
-    const recorder = fullSessionRecorder;
-    fullSessionRecorder = null;
-    if (recorder && recorder.state !== "inactive") {
-      fullSessionStopPromise = new Promise((resolve) => {
-        resolveFullSessionStopPromise = resolve;
-      });
-      try {
-        recorder.requestData();
-        recorder.stop();
-      } catch (_error) {
-        if (resolveFullSessionStopPromise) {
-          resolveFullSessionStopPromise();
-          resolveFullSessionStopPromise = null;
-        }
-      }
-    }
-
-  };
-
-  startFullSessionRecorder();
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
@@ -546,6 +485,8 @@ export async function connectRealtimeInterview(opts: {
       if (buffered && buffered.text.trim()) {
         pushTranscript(transcript, buffered.role, buffered.text, buffered.ts);
         if (buffered.role === "candidate") candidateTranscriptSeen = true;
+        deltaBuffers.delete(id);
+        return;
       }
       deltaBuffers.delete(id);
     }
@@ -576,7 +517,6 @@ export async function connectRealtimeInterview(opts: {
 
   const close = () => {
     stopCandidateSegment();
-    stopFullSessionRecorder();
     safeCleanup(() => micStream.getTracks().forEach((t) => t.stop()));
     safeCleanup(() => pc.close());
     safeCleanup(() => audioCtx.close());
@@ -616,31 +556,7 @@ export async function connectRealtimeInterview(opts: {
         activeSegmentStopPromise = null;
       }
 
-      stopFullSessionRecorder();
-      if (fullSessionStopPromise) {
-        await fullSessionStopPromise;
-        fullSessionStopPromise = null;
-      }
-
       await Promise.allSettled(pendingAudioConversions);
-
-      if (candidateAnswerAudios.length === 0 && fullSessionChunks.length > 0) {
-        const recorderMimeType = fullSessionMimeType || "audio/webm";
-        const fullBlob = new Blob(fullSessionChunks, { type: recorderMimeType });
-        if (fullBlob.size > 0) {
-          const audioBase64 = await blobToBase64(fullBlob).catch(() => "");
-          if (audioBase64) {
-            candidateAnswerAudios.push({
-              questionIndex: 1,
-              mimeType: recorderMimeType,
-              startedAt: fullSessionStartedAt,
-              endedAt: Date.now(),
-              audioBase64,
-            });
-          }
-        }
-      }
-
       return [...candidateAnswerAudios];
     },
     close,
