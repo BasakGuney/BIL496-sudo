@@ -128,6 +128,13 @@ function pushTranscript(
   transcript.push({ role, text: clean, ts });
 }
 
+function normalizeTranscriptFingerprint(role: "interviewer" | "candidate", text: string) {
+  return `${role}:${String(text || "")
+    .toLocaleLowerCase("tr")
+    .replace(/\s+/g, " ")
+    .trim()}`;
+}
+
 
 function extractFromConversationItem(msg: any): { role: "interviewer" | "candidate"; text: string } | null {
   const item = msg?.item;
@@ -220,7 +227,6 @@ export async function connectRealtimeInterview(opts: {
   const dc = pc.createDataChannel("oai-events");
   dc.onerror = (e) => console.log("[RTC] datachannel error:", e);
   let initialResponseRequested = false;
-  let candidateTranscriptSeen = false;
 
   const requestInitialInterviewerResponse = () => {
     if (initialResponseRequested || dc.readyState !== "open") return;
@@ -253,6 +259,32 @@ export async function connectRealtimeInterview(opts: {
   let resolveActiveSegmentStopPromise: (() => void) | null = null;
   let interviewerSpeaking = false;
   let interviewerHasSpoken = false;
+  const recentlyPushedFingerprints = new Map<string, number>();
+
+  const pushTranscriptDeduped = (role: "interviewer" | "candidate", text: string, ts: number = Date.now()) => {
+    const clean = String(text || "").trim();
+    if (!clean) return;
+
+    const key = normalizeTranscriptFingerprint(role, clean);
+    const lastSeenAt = recentlyPushedFingerprints.get(key);
+    // Some realtime schemas emit the same final transcript from multiple event families.
+    // Ignore very recent duplicates while still allowing the same phrase later in the interview.
+    if (typeof lastSeenAt === "number" && ts - lastSeenAt < 4000) {
+      return;
+    }
+
+    recentlyPushedFingerprints.set(key, ts);
+    if (recentlyPushedFingerprints.size > 80) {
+      const threshold = ts - 15000;
+      for (const [fingerprint, seenAt] of recentlyPushedFingerprints) {
+        if (seenAt < threshold) {
+          recentlyPushedFingerprints.delete(fingerprint);
+        }
+      }
+    }
+
+    pushTranscript(transcript, role, clean, ts);
+  };
 
   const buildMediaRecorder = () => {
     const recorder = new MediaRecorder(micStream);
@@ -483,8 +515,7 @@ export async function connectRealtimeInterview(opts: {
       const id = msg.response_id || msg.item_id || `${msg.type}-fallback`;
       const buffered = deltaBuffers.get(id);
       if (buffered && buffered.text.trim()) {
-        pushTranscript(transcript, buffered.role, buffered.text, buffered.ts);
-        if (buffered.role === "candidate") candidateTranscriptSeen = true;
+        pushTranscriptDeduped(buffered.role, buffered.text, buffered.ts);
         deltaBuffers.delete(id);
         return;
       }
@@ -493,10 +524,7 @@ export async function connectRealtimeInterview(opts: {
 
     const entry = extractTextMessage(msg);
     if (entry?.text?.trim()) {
-      pushTranscript(transcript, entry.role, entry.text, Date.now());
-      if (entry.role === "candidate") {
-        candidateTranscriptSeen = true;
-      }
+      pushTranscriptDeduped(entry.role, entry.text, Date.now());
       if (entry.role === "candidate" && !interviewerHasSpoken && !isCandidateSegmentActive) {
         startCandidateSegment();
       }
@@ -530,7 +558,7 @@ export async function connectRealtimeInterview(opts: {
   const flushBufferedTranscript = () => {
     deltaBuffers.forEach((buffered) => {
       if (buffered?.text?.trim()) {
-        pushTranscript(transcript, buffered.role, buffered.text, buffered.ts);
+        pushTranscriptDeduped(buffered.role, buffered.text, buffered.ts);
       }
     });
     deltaBuffers.clear();
