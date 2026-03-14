@@ -29,7 +29,7 @@ export class OpenAiRealtimeGateway {
       throw new AppError("OpenAI realtime endpoint is unreachable", {
         code: "OPENAI_REALTIME_UNREACHABLE",
         status: 502,
-        cause: networkError,
+        details: networkError instanceof Error ? networkError.message : String(networkError),
       });
     }
 
@@ -37,8 +37,8 @@ export class OpenAiRealtimeGateway {
     if (!response.ok) {
       throw new AppError("OpenAI realtime call failed", {
         code: "OPENAI_REALTIME_CALL_FAILED",
-        status: 502,
-        cause: bodyText,
+        status: response.status,
+        details: `status=${response.status} body=${bodyText}`,
       });
     }
 
