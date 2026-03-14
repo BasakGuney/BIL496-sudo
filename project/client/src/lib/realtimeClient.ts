@@ -221,7 +221,6 @@ export async function connectRealtimeInterview(opts: {
   dc.onerror = (e) => console.log("[RTC] datachannel error:", e);
   let initialResponseRequested = false;
   let candidateTranscriptSeen = false;
-  let localSpeechFallbackStarted = false;
 
   const requestInitialInterviewerResponse = () => {
     if (initialResponseRequested || dc.readyState !== "open") return;
@@ -394,50 +393,6 @@ export async function connectRealtimeInterview(opts: {
 
   startFullSessionRecorder();
 
-  const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  const localSpeechRecognition = SpeechRecognitionCtor ? new SpeechRecognitionCtor() : null;
-  let recognitionStopped = false;
-
-  const startLocalSpeechFallback = () => {
-    if (!localSpeechRecognition || localSpeechFallbackStarted || candidateTranscriptSeen) return;
-    localSpeechFallbackStarted = true;
-    localSpeechRecognition.continuous = true;
-    localSpeechRecognition.interimResults = false;
-    localSpeechRecognition.maxAlternatives = 1;
-    localSpeechRecognition.lang = "tr-TR";
-    localSpeechRecognition.onresult = (event: any) => {
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const result = event.results[i];
-        if (result?.isFinal && result[0]?.transcript) {
-          const text = String(result[0].transcript || "").trim();
-          if (!text) continue;
-          candidateTranscriptSeen = true;
-          pushTranscript(transcript, "candidate", text, Date.now());
-        }
-      }
-    };
-    localSpeechRecognition.onerror = () => undefined;
-    localSpeechRecognition.onend = () => {
-      if (recognitionStopped || candidateTranscriptSeen) return;
-      try {
-        localSpeechRecognition.start();
-      } catch (_error) {
-        // ignored
-      }
-    };
-
-    try {
-      localSpeechRecognition.start();
-    } catch (_error) {
-      // ignored
-    }
-  };
-
-  const stopLocalSpeechFallback = () => {
-    recognitionStopped = true;
-    safeCleanup(() => localSpeechRecognition?.stop());
-  };
-
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
   await waitForIceGatheringComplete(pc);
@@ -501,12 +456,16 @@ export async function connectRealtimeInterview(opts: {
           // Preferred field for newer realtime schemas.
           input_audio_transcription: {
             model,
+            language: "tr",
+            prompt: "Türkçe konuşmayı yazarken teknik İngilizce terimleri (ör: Jenkins, Kubernetes, Docker, GitHub, CI/CD) orijinal yazımıyla koru.",
           },
           audio: {
             input: {
               // Compatibility field for older schema variants.
               transcription: {
                 model,
+                language: "tr",
+                prompt: "Türkçe konuşmada geçen teknik İngilizce terimleri doğru yaz.",
               },
               turn_detection: {
                 type: "server_vad",
@@ -607,22 +566,6 @@ export async function connectRealtimeInterview(opts: {
     // First try with mini-transcribe.
     sendTranscriptionSessionUpdate("gpt-4o-mini-transcribe");
 
-    // Fallback: if candidate transcript still not observed shortly after start,
-    // retry with whisper model for compatibility with some realtime deployments.
-    window.setTimeout(() => {
-      if (!candidateTranscriptSeen) {
-        sendTranscriptionSessionUpdate("whisper-1");
-      }
-    }, 2200);
-
-    // Last-resort fallback: if realtime still yields no candidate transcript,
-    // start browser STT so transcript is guaranteed to contain candidate speech.
-    window.setTimeout(() => {
-      if (!candidateTranscriptSeen) {
-        startLocalSpeechFallback();
-      }
-    }, 4200);
-
     // Interviewer instructions are managed on the server via PromptTemplates.
     // Client only updates transcription/turn-detection settings here.
     // Trigger first interviewer turn after session ack; keep timeout fallback.
@@ -634,7 +577,6 @@ export async function connectRealtimeInterview(opts: {
   const close = () => {
     stopCandidateSegment();
     stopFullSessionRecorder();
-    stopLocalSpeechFallback();
     safeCleanup(() => micStream.getTracks().forEach((t) => t.stop()));
     safeCleanup(() => pc.close());
     safeCleanup(() => audioCtx.close());
