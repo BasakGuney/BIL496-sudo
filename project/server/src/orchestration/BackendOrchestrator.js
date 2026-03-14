@@ -98,10 +98,7 @@ export class BackendOrchestrator {
     const transcriptText = transcriptEntries
       .map((item) => {
         const role = item?.role === "interviewer" ? "Interviewer" : "Candidate";
-        const sttSource = String(item?.source || "").trim();
-        const sttModel = String(item?.model || "").trim();
-        const sttMeta = sttSource || sttModel ? ` [stt-source:${sttSource || "unknown"}; model:${sttModel || "unknown"}]` : "";
-        return `[${role}] ${String(item?.text || "").trim()}${sttMeta}`;
+        return `[${role}] ${String(item?.text || "").trim()}`;
       })
       .filter(Boolean)
       .join("\n");

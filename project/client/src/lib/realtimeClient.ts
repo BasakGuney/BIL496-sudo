@@ -506,7 +506,10 @@ export async function connectRealtimeInterview(opts: {
     const isSpeechStarted = msg?.type === "input_audio_buffer.speech_started";
     const isSpeechStopped = msg?.type === "input_audio_buffer.speech_stopped";
 
-    if (isSpeechStarted && !interviewerSpeaking) {
+    if (isSpeechStarted) {
+      // Candidate speech-start is the most reliable boundary for answer recording.
+      // Reset interviewer speaking flag here to avoid late segment starts.
+      interviewerSpeaking = false;
       startCandidateSegment();
     }
 
