@@ -72,6 +72,8 @@ export class FileReportArchive {
         role: item?.role === "interviewer" ? "interviewer" : "candidate",
         text: String(item?.text || "").trim(),
         ts: Number(item?.ts || Date.now()),
+        source: String(item?.source || "").trim(),
+        model: String(item?.model || "").trim(),
       }))
       .filter((item) => item.text.length > 0);
 
@@ -106,7 +108,10 @@ export class FileReportArchive {
     const transcriptText = transcriptEntries
       .map((item) => {
         const role = item?.role === "interviewer" ? "Interviewer" : "Candidate";
-        return `[${role}] ${String(item?.text || "").trim()}`;
+        const sttSource = String(item?.source || "").trim();
+        const sttModel = String(item?.model || "").trim();
+        const sttMeta = sttSource || sttModel ? ` [stt-source:${sttSource || "unknown"}; model:${sttModel || "unknown"}]` : "";
+        return `[${role}] ${String(item?.text || "").trim()}${sttMeta}`;
       })
       .filter(Boolean)
       .join("\n");

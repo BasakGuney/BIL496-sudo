@@ -3,7 +3,13 @@ export type Mode = "Supportive" | "Neutral";
 type InterviewType = "HR" | "Technical";
 type CandidateGender = "Kadın" | "Erkek";
 
-type TranscriptEntry = { role: "interviewer" | "candidate"; text: string; ts: number };
+type TranscriptEntry = {
+  role: "interviewer" | "candidate";
+  text: string;
+  ts: number;
+  source?: string;
+  model?: string;
+};
 export type CandidateAnswerAudio = {
   questionIndex: number;
   mimeType: string;
@@ -20,6 +26,7 @@ type RealtimeEvent = {
   response_id?: string;
   item_id?: string;
   item?: any;
+  response?: any;
   name?: string;
   arguments?: string;
   call_id?: string;
@@ -58,52 +65,54 @@ function safeCleanup(fn: () => void) {
   }
 }
 
-function extractTextMessage(msg: RealtimeEvent): { role: "interviewer" | "candidate"; text: string } | null {
-  const nestedCandidateText = Array.isArray(msg?.item?.content)
+const CANDIDATE_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
+const INTERVIEWER_TRANSCRIPT_MODEL = "gpt-4o-realtime";
+
+type TranscriptSource =
+  | "openai-realtime-input_audio_transcription"
+  | "openai-realtime-response_audio_transcript"
+  | "openai-realtime-response_output_text_fallback";
+
+function extractStableTranscriptMessage(
+  msg: RealtimeEvent
+): { role: "interviewer" | "candidate"; text: string; source: TranscriptSource; model: string } | null {
+  const candidateContentText = Array.isArray(msg?.item?.content)
     ? msg.item.content
-      .map((c: any) => c?.transcript || c?.text || c?.value || c?.input_text || "")
+      .map((c: any) => c?.transcript || "")
       .filter(Boolean)
       .join(" ")
     : "";
 
-  const formattedText = msg?.item?.formatted?.transcript || msg?.item?.formatted?.text || "";
-  const candidateText = msg?.transcript || msg?.text || formattedText || nestedCandidateText;
-  if (msg?.type === "conversation.item.input_audio_transcription.completed" && typeof candidateText === "string") {
-    return { role: "candidate", text: candidateText };
+  const candidateText =
+    msg?.item?.formatted?.transcript ||
+    candidateContentText ||
+    (typeof msg?.transcript === "string" ? msg.transcript : "");
+
+  if (msg?.type === "conversation.item.input_audio_transcription.completed" && candidateText.trim()) {
+    return {
+      role: "candidate",
+      text: candidateText,
+      source: "openai-realtime-input_audio_transcription",
+      model: CANDIDATE_TRANSCRIPTION_MODEL,
+    };
   }
 
-  if (msg?.type === "conversation.item.input_audio_transcription.delta" && typeof msg?.delta === "string") {
-    return { role: "candidate", text: msg.delta };
+  if (msg?.type === "response.audio_transcript.done" && typeof msg?.transcript === "string" && msg.transcript.trim()) {
+    return {
+      role: "interviewer",
+      text: msg.transcript,
+      source: "openai-realtime-response_audio_transcript",
+      model: INTERVIEWER_TRANSCRIPT_MODEL,
+    };
   }
 
-  if (msg?.type === "conversation.item.completed" && msg?.item?.role === "user" && candidateText) {
-    return { role: "candidate", text: candidateText };
-  }
-
-  if (msg?.type === "response.audio_transcript.done" && typeof msg?.transcript === "string") {
-    return { role: "interviewer", text: msg.transcript };
-  }
-
-  if (msg?.type === "response.output_text.done" && typeof msg?.text === "string") {
-    return { role: "interviewer", text: msg.text };
-  }
-
-  if (msg?.type === "response.output_text.delta" && typeof msg?.delta === "string") {
-    return { role: "interviewer", text: msg.delta };
-  }
-
-  if (msg?.type === "response.audio_transcript.delta" && typeof msg?.delta === "string") {
-    return { role: "interviewer", text: msg.delta };
-  }
-
-  if (msg?.type === "response.done") {
-    const merged = extractFromResponseDone(msg);
-    if (merged) return merged;
-  }
-
-  if (msg?.type === "conversation.item.created" || msg?.type === "conversation.item.updated") {
-    const conversationText = extractFromConversationItem(msg);
-    if (conversationText) return conversationText;
+  if (msg?.type === "response.output_text.done" && typeof msg?.text === "string" && msg.text.trim()) {
+    return {
+      role: "interviewer",
+      text: msg.text,
+      source: "openai-realtime-response_output_text_fallback",
+      model: INTERVIEWER_TRANSCRIPT_MODEL,
+    };
   }
 
   return null;
@@ -113,7 +122,9 @@ function pushTranscript(
   transcript: TranscriptEntry[],
   role: "interviewer" | "candidate",
   text: string,
-  ts: number = Date.now()
+  ts: number = Date.now(),
+  source?: string,
+  model?: string
 ) {
   const clean = String(text || "").trim();
   if (!clean) return;
@@ -125,7 +136,7 @@ function pushTranscript(
     return;
   }
 
-  transcript.push({ role, text: clean, ts });
+  transcript.push({ role, text: clean, ts, source, model });
 }
 
 function normalizeTranscriptFingerprint(role: "interviewer" | "candidate", text: string) {
@@ -135,48 +146,6 @@ function normalizeTranscriptFingerprint(role: "interviewer" | "candidate", text:
     .trim()}`;
 }
 
-
-function extractFromConversationItem(msg: any): { role: "interviewer" | "candidate"; text: string } | null {
-  const item = msg?.item;
-  if (!item) return null;
-
-  const role = item?.role === "assistant" ? "interviewer" : item?.role === "user" ? "candidate" : null;
-  if (!role) return null;
-
-  const contents = Array.isArray(item?.content) ? item.content : [];
-  const chunks: string[] = [];
-  for (const c of contents) {
-    if (typeof c?.transcript === "string" && c.transcript.trim()) chunks.push(c.transcript.trim());
-    else if (typeof c?.text === "string" && c.text.trim()) chunks.push(c.text.trim());
-    else if (typeof c?.value === "string" && c.value.trim()) chunks.push(c.value.trim());
-    else if (typeof c?.input_text === "string" && c.input_text.trim()) chunks.push(c.input_text.trim());
-  }
-
-  if (chunks.length === 0) {
-    const formatted = item?.formatted?.transcript || item?.formatted?.text;
-    if (typeof formatted === "string" && formatted.trim()) {
-      return { role, text: formatted.trim() };
-    }
-    return null;
-  }
-  return { role, text: chunks.join(" ") };
-}
-
-function extractFromResponseDone(msg: any): { role: "interviewer"; text: string } | null {
-  const outputs = Array.isArray(msg?.response?.output) ? msg.response.output : [];
-  const chunks: string[] = [];
-
-  for (const out of outputs) {
-    const contents = Array.isArray(out?.content) ? out.content : [];
-    for (const c of contents) {
-      if (typeof c?.transcript === "string" && c.transcript.trim()) chunks.push(c.transcript.trim());
-      else if (typeof c?.text === "string" && c.text.trim()) chunks.push(c.text.trim());
-    }
-  }
-
-  if (chunks.length === 0) return null;
-  return { role: "interviewer", text: chunks.join(" ") };
-}
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === "complete") return;
@@ -212,7 +181,6 @@ export async function connectRealtimeInterview(opts: {
   const transcript: TranscriptEntry[] = [];
   const candidateAnswerAudios: CandidateAnswerAudio[] = [];
   const pendingAudioConversions: Promise<void>[] = [];
-  const deltaBuffers = new Map<string, { role: "interviewer" | "candidate"; text: string; ts: number }>();
 
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -260,8 +228,15 @@ export async function connectRealtimeInterview(opts: {
   let interviewerSpeaking = false;
   let interviewerHasSpoken = false;
   const recentlyPushedFingerprints = new Map<string, number>();
+  const interviewerResponseIdsWithTranscript = new Set<string>();
 
-  const pushTranscriptDeduped = (role: "interviewer" | "candidate", text: string, ts: number = Date.now()) => {
+  const pushTranscriptDeduped = (
+    role: "interviewer" | "candidate",
+    text: string,
+    ts: number = Date.now(),
+    source?: string,
+    model?: string
+  ) => {
     const clean = String(text || "").trim();
     if (!clean) return;
 
@@ -283,7 +258,7 @@ export async function connectRealtimeInterview(opts: {
       }
     }
 
-    pushTranscript(transcript, role, clean, ts);
+    pushTranscript(transcript, role, clean, ts, source, model);
   };
 
   const buildMediaRecorder = () => {
@@ -463,14 +438,10 @@ export async function connectRealtimeInterview(opts: {
       requestInitialInterviewerResponse();
     }
 
-    const isCandidateDelta = msg?.type === "conversation.item.input_audio_transcription.delta";
-    const isCandidateDone = msg?.type === "conversation.item.input_audio_transcription.completed";
     const isInterviewerDelta =
       msg?.type === "response.output_text.delta" ||
       msg?.type === "response.audio_transcript.delta";
     const isInterviewerDone = msg?.type === "response.done";
-    const isDelta = isInterviewerDelta || isCandidateDelta;
-    const isDone = isInterviewerDone || isCandidateDone;
 
     if (isInterviewerDelta && !interviewerSpeaking) {
       interviewerSpeaking = true;
@@ -496,44 +467,35 @@ export async function connectRealtimeInterview(opts: {
       stopCandidateSegment();
     }
 
-    if (isDelta) {
-      const id = msg.response_id || msg.item_id || `${msg.type}-fallback`;
-      const extracted = extractTextMessage(msg);
-      if (!extracted?.text) return;
+    const entry = extractStableTranscriptMessage(msg);
+    if (!entry?.text?.trim()) return;
 
-      const prev = deltaBuffers.get(id);
-      if (prev) {
-        prev.text = `${prev.text}${extracted.text}`;
-        prev.ts = Date.now();
-      } else {
-        deltaBuffers.set(id, { role: extracted.role, text: extracted.text, ts: Date.now() });
-      }
-      return;
+    const messageResponseId =
+      msg?.response_id ||
+      msg?.response?.id ||
+      msg?.item?.id ||
+      msg?.item_id ||
+      `${msg.type}-${entry.role}`;
+
+    if (entry.source === "openai-realtime-response_audio_transcript") {
+      interviewerResponseIdsWithTranscript.add(messageResponseId);
     }
 
-    if (isDone) {
-      const id = msg.response_id || msg.item_id || `${msg.type}-fallback`;
-      const buffered = deltaBuffers.get(id);
-      if (buffered && buffered.text.trim()) {
-        pushTranscriptDeduped(buffered.role, buffered.text, buffered.ts);
-        deltaBuffers.delete(id);
-        return;
-      }
-      deltaBuffers.delete(id);
+    if (entry.source === "openai-realtime-response_output_text_fallback") {
+      if (interviewerResponseIdsWithTranscript.has(messageResponseId)) return;
+      interviewerResponseIdsWithTranscript.add(messageResponseId);
     }
 
-    const entry = extractTextMessage(msg);
-    if (entry?.text?.trim()) {
-      pushTranscriptDeduped(entry.role, entry.text, Date.now());
-      if (entry.role === "candidate" && !interviewerHasSpoken && !isCandidateSegmentActive) {
-        startCandidateSegment();
-      }
+    pushTranscriptDeduped(entry.role, entry.text, Date.now(), entry.source, entry.model);
+
+    if (entry.role === "candidate" && !interviewerHasSpoken && !isCandidateSegmentActive) {
+      startCandidateSegment();
     }
   };
 
   dc.onopen = () => {
     // First try with mini-transcribe.
-    sendTranscriptionSessionUpdate("gpt-4o-mini-transcribe");
+    sendTranscriptionSessionUpdate(CANDIDATE_TRANSCRIPTION_MODEL);
 
     // Interviewer instructions are managed on the server via PromptTemplates.
     // Client only updates transcription/turn-detection settings here.
@@ -555,15 +517,6 @@ export async function connectRealtimeInterview(opts: {
     });
   };
 
-  const flushBufferedTranscript = () => {
-    deltaBuffers.forEach((buffered) => {
-      if (buffered?.text?.trim()) {
-        pushTranscriptDeduped(buffered.role, buffered.text, buffered.ts);
-      }
-    });
-    deltaBuffers.clear();
-  };
-
   return {
     pc,
     dc,
@@ -571,10 +524,7 @@ export async function connectRealtimeInterview(opts: {
     analyser,
     audioEl,
     audioCtx,
-    getTranscript: () => {
-      flushBufferedTranscript();
-      return [...transcript];
-    },
+    getTranscript: () => [...transcript],
     getCandidateAnswerAudios: async () => {
       if (isCandidateSegmentActive) {
         stopCandidateSegment();
