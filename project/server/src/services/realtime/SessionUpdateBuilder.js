@@ -10,7 +10,10 @@ export class SessionUpdateBuilder {
       model: "gpt-realtime-mini",
       instructions: this.promptTemplates.sessionInstructions(cfg),
       audio: {
-        input: { turn_detection: this.turnPolicy.serverVad() },
+        input: {
+          transcription: { model: "gpt-4o-mini-transcribe" },
+          turn_detection: this.turnPolicy.serverVad(),
+        },
         output: { voice: "marin" },
       },
     };
