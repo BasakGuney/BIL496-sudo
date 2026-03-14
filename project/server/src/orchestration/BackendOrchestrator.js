@@ -5,7 +5,7 @@ import { Consent } from "../domain/value-objects/Consent.js";
 import { AppError } from "../domain/errors/AppError.js";
 
 export class BackendOrchestrator {
-  constructor({ sessions, reports, ai, analyzer, guardrails, realtimeManager, idGenerator, reportArchive }) {
+  constructor({ sessions, reports, ai, analyzer, guardrails, realtimeManager, idGenerator, reportArchive, candidateAudioTranscriber = null }) {
     this.sessions = sessions;
     this.reports = reports;
     this.ai = ai;
@@ -14,6 +14,7 @@ export class BackendOrchestrator {
     this.realtimeManager = realtimeManager;
     this.idGenerator = idGenerator;
     this.reportArchive = reportArchive;
+    this.candidateAudioTranscriber = candidateAudioTranscriber;
   }
 
   async createSession(cfgInput, offerSdp = "", sessionId = null) {
@@ -58,6 +59,24 @@ export class BackendOrchestrator {
     return { turnIndex: 1, questionText: firstQuestion, sessionId };
   }
 
+
+  hasCandidateTranscript(transcript = []) {
+    return (Array.isArray(transcript) ? transcript : []).some(
+      (item) => item?.role === "candidate" && String(item?.text || "").trim().length > 0
+    );
+  }
+
+  async enrichTranscriptWithCandidateAudio(transcript = [], candidateAnswerAudios = []) {
+    const base = Array.isArray(transcript) ? [...transcript] : [];
+    if (this.hasCandidateTranscript(base)) return base;
+    if (!this.candidateAudioTranscriber?.transcribeCandidateAnswerAudios) return base;
+
+    const transcribed = await this.candidateAudioTranscriber.transcribeCandidateAnswerAudios(candidateAnswerAudios);
+    if (!Array.isArray(transcribed) || transcribed.length === 0) return base;
+
+    return [...base, ...transcribed].sort((a, b) => Number(a?.ts || 0) - Number(b?.ts || 0));
+  }
+
   async endSession(sessionId, reason = null, transcript = [], candidateAnswerAudios = []) {
     const existingSession = await this.sessions.findById(sessionId);
     const session = existingSession || {
@@ -74,8 +93,8 @@ export class BackendOrchestrator {
     }
 
     session.end();
-    const report = await this.analyzer.generateReport(session, transcript);
-    const transcriptEntries = Array.isArray(transcript) ? transcript : [];
+    const transcriptEntries = await this.enrichTranscriptWithCandidateAudio(transcript, candidateAnswerAudios);
+    const report = await this.analyzer.generateReport(session, transcriptEntries);
     const transcriptText = transcriptEntries
       .map((item) => {
         const role = item?.role === "interviewer" ? "Interviewer" : "Candidate";

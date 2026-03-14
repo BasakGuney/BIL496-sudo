@@ -25,6 +25,7 @@ import { AudioSignalProcessor } from "../services/analysis/AudioSignalProcessor.
 import { VisionSignalProcessor } from "../services/analysis/VisionSignalProcessor.js";
 import { SignalAggregator } from "../services/analysis/SignalAggregator.js";
 import { BehaviorAnalyzer } from "../services/analysis/BehaviorAnalyzer.js";
+import { CandidateAudioTranscriber } from "../services/analysis/CandidateAudioTranscriber.js";
 import { InterviewFlowPolicy } from "../orchestration/InterviewFlowPolicy.js";
 import { GuardrailsEngine } from "../orchestration/GuardrailsEngine.js";
 import { BackendOrchestrator } from "../orchestration/BackendOrchestrator.js";
@@ -79,6 +80,9 @@ export class AppServer {
     const reportArchive = new FileReportArchive({
       baseDir: this.env.reportsDir || path.resolve(process.cwd(), "reports"),
     });
+    const candidateAudioTranscriber = new CandidateAudioTranscriber({
+      apiKey: this.env.openAiApiKey,
+    });
 
     const backendOrchestrator = new BackendOrchestrator({
       sessions,
@@ -89,6 +93,7 @@ export class AppServer {
       realtimeManager,
       idGenerator,
       reportArchive,
+      candidateAudioTranscriber,
     });
 
     const sessionController = new SessionController({ backendOrchestrator });
