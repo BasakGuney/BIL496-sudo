@@ -318,39 +318,9 @@ export async function connectRealtimeInterview(opts: {
     }
   };
 
-  const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  const localSpeechRecognition = SpeechRecognitionCtor ? new SpeechRecognitionCtor() : null;
-
-  let recognitionStopped = false;
-  if (localSpeechRecognition) {
-    localSpeechRecognition.continuous = true;
-    localSpeechRecognition.interimResults = false;
-    localSpeechRecognition.maxAlternatives = 1;
-    localSpeechRecognition.lang = "tr-TR";
-    localSpeechRecognition.onresult = (event: any) => {
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const result = event.results[i];
-        if (result?.isFinal && result[0]?.transcript) {
-          pushTranscript(transcript, "candidate", String(result[0].transcript), Date.now());
-        }
-      }
-    };
-    localSpeechRecognition.onerror = () => undefined;
-    localSpeechRecognition.onend = () => {
-      if (recognitionStopped) return;
-      try {
-        localSpeechRecognition.start();
-      } catch (_error) {
-        // ignored
-      }
-    };
-
-    try {
-      localSpeechRecognition.start();
-    } catch (_error) {
-      // ignored
-    }
-  }
+  // Browser SpeechRecognition is intentionally disabled.
+  // Candidate transcript is sourced from OpenAI Realtime input_audio_transcription events
+  // so both interviewer + candidate text come from the same backend model pipeline.
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
@@ -489,11 +459,11 @@ export async function connectRealtimeInterview(opts: {
       JSON.stringify({
         type: "session.update",
         session: {
+          input_audio_transcription: {
+            model: "gpt-4o-mini-transcribe",
+          },
           audio: {
             input: {
-              input_audio_transcription: {
-                model: "gpt-4o-mini-transcribe",
-              },
               turn_detection: {
                 type: "server_vad",
                 create_response: true,
@@ -515,8 +485,6 @@ export async function connectRealtimeInterview(opts: {
   };
 
   const close = () => {
-    recognitionStopped = true;
-    safeCleanup(() => localSpeechRecognition?.stop());
     stopCandidateSegment();
     safeCleanup(() => micStream.getTracks().forEach((t) => t.stop()));
     safeCleanup(() => pc.close());
