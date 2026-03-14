@@ -256,6 +256,8 @@ export async function connectRealtimeInterview(opts: {
   // Fallback recorder: captures the full mic stream in case segment-based
   // answer audios cannot be produced (e.g. missing speech_started/stopped events).
   let fullSessionRecorder: MediaRecorder | null = null;
+  let fullSessionRecordStream: MediaStream | null = null;
+  let fullSessionMimeType = "audio/webm";
   let fullSessionChunks: Blob[] = [];
   let fullSessionStartedAt = Date.now();
   let fullSessionStopPromise: Promise<void> | null = null;
@@ -341,7 +343,9 @@ export async function connectRealtimeInterview(opts: {
 
   const startFullSessionRecorder = () => {
     try {
-      fullSessionRecorder = new MediaRecorder(micStream);
+      fullSessionRecordStream = micStream.clone();
+      fullSessionRecorder = new MediaRecorder(fullSessionRecordStream);
+      fullSessionMimeType = fullSessionRecorder.mimeType || "audio/webm";
       fullSessionStartedAt = Date.now();
       fullSessionChunks = [];
       fullSessionRecorder.ondataavailable = (event) => {
@@ -356,6 +360,7 @@ export async function connectRealtimeInterview(opts: {
       fullSessionRecorder.start(500);
     } catch (_error) {
       fullSessionRecorder = null;
+      fullSessionRecordStream = null;
       fullSessionChunks = [];
     }
   };
@@ -376,6 +381,11 @@ export async function connectRealtimeInterview(opts: {
           resolveFullSessionStopPromise = null;
         }
       }
+    }
+
+    if (fullSessionRecordStream) {
+      safeCleanup(() => fullSessionRecordStream?.getTracks().forEach((t) => t.stop()));
+      fullSessionRecordStream = null;
     }
   };
 
@@ -519,7 +529,7 @@ export async function connectRealtimeInterview(opts: {
         type: "session.update",
         session: {
           input_audio_transcription: {
-            model: "gpt-4o-mini-transcribe",
+            model: "whisper-1",
           },
           audio: {
             input: {
@@ -594,7 +604,7 @@ export async function connectRealtimeInterview(opts: {
       await Promise.allSettled(pendingAudioConversions);
 
       if (candidateAnswerAudios.length === 0 && fullSessionChunks.length > 0) {
-        const recorderMimeType = fullSessionRecorder?.mimeType || "audio/webm";
+        const recorderMimeType = fullSessionMimeType || "audio/webm";
         const fullBlob = new Blob(fullSessionChunks, { type: recorderMimeType });
         if (fullBlob.size > 0) {
           const audioBase64 = await blobToBase64(fullBlob).catch(() => "");
