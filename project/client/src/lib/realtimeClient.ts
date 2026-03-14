@@ -341,6 +341,10 @@ export async function connectRealtimeInterview(opts: {
 
   const startCandidateSegment = () => {
     if (isCandidateSegmentActive) return;
+    // Do not open candidate recording while interviewer is actively speaking
+    // (prevents interviewer speech / long silence tails in saved candidate audio).
+    if (interviewerSpeaking) return;
+
     isCandidateSegmentActive = true;
     activeQuestionIndex = Math.max(1, interviewerTurnCount || 1);
     activeSegmentStartedAt = Date.now();
@@ -499,7 +503,7 @@ export async function connectRealtimeInterview(opts: {
     const isSpeechStarted = msg?.type === "input_audio_buffer.speech_started";
     const isSpeechStopped = msg?.type === "input_audio_buffer.speech_stopped";
 
-    if (isSpeechStarted) {
+    if (isSpeechStarted && !interviewerSpeaking) {
       startCandidateSegment();
     }
 
