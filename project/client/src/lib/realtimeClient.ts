@@ -220,6 +220,7 @@ export async function connectRealtimeInterview(opts: {
   const dc = pc.createDataChannel("oai-events");
   dc.onerror = (e) => console.log("[RTC] datachannel error:", e);
   let initialResponseRequested = false;
+  let candidateTranscriptSeen = false;
 
   const requestInitialInterviewerResponse = () => {
     if (initialResponseRequested || dc.readyState !== "open") return;
@@ -446,6 +447,35 @@ export async function connectRealtimeInterview(opts: {
   analyser.fftSize = 1024;
   source.connect(analyser);
 
+  const sendTranscriptionSessionUpdate = (model: string) => {
+    if (dc.readyState !== "open") return;
+    dc.send(
+      JSON.stringify({
+        type: "session.update",
+        session: {
+          // Preferred field for newer realtime schemas.
+          input_audio_transcription: {
+            model,
+          },
+          audio: {
+            input: {
+              // Compatibility field for older schema variants.
+              transcription: {
+                model,
+              },
+              turn_detection: {
+                type: "server_vad",
+                create_response: true,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 700,
+              },
+            },
+          },
+        },
+      })
+    );
+  };
+
   dc.onmessage = (e) => {
     let msg: RealtimeEvent;
     try {
@@ -511,6 +541,7 @@ export async function connectRealtimeInterview(opts: {
       const buffered = deltaBuffers.get(id);
       if (buffered && buffered.text.trim()) {
         pushTranscript(transcript, buffered.role, buffered.text, buffered.ts);
+        if (buffered.role === "candidate") candidateTranscriptSeen = true;
       }
       deltaBuffers.delete(id);
     }
@@ -518,6 +549,9 @@ export async function connectRealtimeInterview(opts: {
     const entry = extractTextMessage(msg);
     if (entry?.text?.trim()) {
       pushTranscript(transcript, entry.role, entry.text, Date.now());
+      if (entry.role === "candidate") {
+        candidateTranscriptSeen = true;
+      }
       if (entry.role === "candidate" && !interviewerHasSpoken && !isCandidateSegmentActive) {
         startCandidateSegment();
       }
@@ -525,26 +559,16 @@ export async function connectRealtimeInterview(opts: {
   };
 
   dc.onopen = () => {
-    dc.send(
-      JSON.stringify({
-        type: "session.update",
-        session: {
-          input_audio_transcription: {
-            model: "gpt-4o-mini-transcribe",
-          },
-          audio: {
-            input: {
-              turn_detection: {
-                type: "server_vad",
-                create_response: true,
-                prefix_padding_ms: 300,
-                silence_duration_ms: 700,
-              },
-            },
-          },
-        },
-      })
-    );
+    // First try with mini-transcribe.
+    sendTranscriptionSessionUpdate("gpt-4o-mini-transcribe");
+
+    // Fallback: if candidate transcript still not observed shortly after start,
+    // retry with whisper model for compatibility with some realtime deployments.
+    window.setTimeout(() => {
+      if (!candidateTranscriptSeen) {
+        sendTranscriptionSessionUpdate("whisper-1");
+      }
+    }, 2200);
 
     // Interviewer instructions are managed on the server via PromptTemplates.
     // Client only updates transcription/turn-detection settings here.
