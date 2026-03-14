@@ -59,10 +59,17 @@ export class BackendOrchestrator {
   }
 
   async endSession(sessionId, reason = null, transcript = [], candidateAnswerAudios = []) {
-    const session = await this.sessions.findById(sessionId);
-    if (!session) throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", statusCode: 404 });
+    const existingSession = await this.sessions.findById(sessionId);
+    const session = existingSession || {
+      id: sessionId,
+      state: SessionState.IN_PROGRESS,
+      report: null,
+      end() {
+        this.state = SessionState.ENDING;
+      },
+    };
 
-    if (session.state === SessionState.COMPLETED || session.state === SessionState.ABORTED) {
+    if (existingSession && (session.state === SessionState.COMPLETED || session.state === SessionState.ABORTED)) {
       if (session.report) return session.report;
     }
 
@@ -83,7 +90,9 @@ export class BackendOrchestrator {
     session.report = report;
     session.state = reason ? SessionState.ABORTED : SessionState.COMPLETED;
 
-    await this.sessions.update(session);
+    if (existingSession) {
+      await this.sessions.update(session);
+    }
     await this.reports.save(report);
 
     if (this.reportArchive?.save) {

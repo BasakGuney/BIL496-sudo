@@ -44,6 +44,13 @@ export class AppServer {
       next();
     });
 
+    // Backward-compatible client log endpoint.
+    // Some clients may still post transient RTC/debug events to /log.
+    this.app.post("/log", (req, res) => {
+      this.logger.info("[CLIENT_LOG]", req.body ?? null);
+      res.status(204).send();
+    });
+
     const openAiGateway = new OpenAiRealtimeGateway({ apiKey: this.env.openAiApiKey });
     const openAiClient = new OpenAIClientAdapter({ realtimeGateway: openAiGateway, apiKey: this.env.openAiApiKey });
 
