@@ -1,0 +1,41 @@
+{
+  "qaEvaluations": [
+    {
+      "index": 1,
+      "question": "Merhaba Başak Hanım, bugünki mülakatınızı ben gerçekleştireceğim. Bu mülakat insan kaynakları mülakatı olarak gerçekleşecek, yaklaşık 10-15 dakika sürecek ve soru-cevap şeklinde ilerleyeceğiz. Hazırsanız başlayalım mı?",
+      "answer": "Başlayalım lütfen.",
+      "relevance": 100,
+      "clarity": 100,
+      "summary": "Mülakata giriş sorusu."
+    },
+    {
+      "index": 2,
+      "question": "Harika, o zaman ilk soru olarak kısaca kendinizden bahsedebilir misiniz?",
+      "answer": "Tabii, ben Başak Güney, bilgisayar mühendisliği dördüncü sınıf öğrencisiyim, DevOps'la ilgileniyorum.",
+      "relevance": 100,
+      "clarity": 80,
+      "summary": "Cevap ilgili ancak ifade netliği geliştirilebilir."
+    }
+  ],
+  "overallScore": 82.5,
+  "content": [
+    {
+      "key": "relevance",
+      "label": "İlgililik (Metin)",
+      "score": 91.25,
+      "detail": "Sorulara verdiğin cevapların konularla uyumu."
+    },
+    {
+      "key": "clarity",
+      "label": "Netlik (Metin)",
+      "score": 80,
+      "detail": "Sözcük dağarcığı ve dolgu kelime kullanımın."
+    }
+  ],
+  "recommendations": [
+    {
+      "title": "Mülakata Giriş Sorularına Odaklanma",
+      "text": "İlgililik puanlarındaki yüksek değerler göz önüne alındığında, özellikle ilk iki soruya daha odaklı ve net cevaplar vermeyi hedeflemen gerekir. Dolgu kelimelerini azaltmak ve cümleleri daha kısa ve etkili kılmak için çalışılmalıdır."
+    }
+  ]
+}

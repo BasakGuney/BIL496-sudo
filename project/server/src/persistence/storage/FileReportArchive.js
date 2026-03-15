@@ -130,6 +130,11 @@ export class FileReportArchive {
     await writeFile(fullPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
     const safeTranscriptText = transcriptText || "[Interviewer] (metin kaydı alınamadı)";
     await writeFile(transcriptTextPath, `${safeTranscriptText}\n`, "utf8");
-    return fullPath;
+    return {
+      fullPath,
+      savedCandidateAnswerAudioFiles,
+      sessionDir,
+      transcriptText
+    };
   }
 }

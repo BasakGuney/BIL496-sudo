@@ -1,0 +1,24 @@
+## 🤖 Kariyer Koçu Analiz Raporu
+
+### 🔋 Genel Duruş ve Karakter Analizi
+- Mülakat boyunca, sert bir tonun hakimiyeti göze çarpmaktadır. Bu durum, profesyonellik imajının önemli bir engeli haline gelmektedir.
+- Sert tona ek olarak özgüven de dikkat çekicidir. Bu dengesizlik iletişimi zorlaştırabilir.
+
+### ⚖️ Duygusal Dengeler ve Stres Yönetimi
+- Mülakat sırasında, yüksek bir özgüven seviyesi yakalanmıştır. Ancak bu özgüvenin altındaki gerçek ise, mülakat heyecanı altında geride kalmıştır.
+- overall olarak, mümkünse dengeli bir seyir izlenmiştir.
+
+### ⚡ İletişim Enerjisi ve Üslubu
+- Yüksek motivasyon ve ikna edici enerji ile konuşulmuştur. Bu, konunun iyi aktarılması için faydalı bir unsur olagelmiştir.
+
+### 📈 Mülakatın Zaman Çizelgesi ve Gelişimi
+- Mülakatta, ilk 1.38 saniye boyunca sert tonun hakimiyeti görülmektedir. Bu durum, profesyonellik imajının önemli bir engeli haline gelmektedir.
+- 6.18 saniyeden itibaren ise özgüvenin dalgasını yakalamış ve mülakat heyecanı altında geride kalmıştır.
+
+## 💻 KESİN RAPOR VERİSİ:
+### 🔊 Ses Netliği (Clarity): `%88.1 / 100`
+### 🎭 Duygu Profili
+- **Sert ton:** `%49.1`
+- **Özgüven:** `%40.8`
+- **Coşku:** `%7.6`
+- **Gerginlik:** `%2.5`

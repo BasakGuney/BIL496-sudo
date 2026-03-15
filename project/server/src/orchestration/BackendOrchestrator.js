@@ -5,7 +5,7 @@ import { Consent } from "../domain/value-objects/Consent.js";
 import { AppError } from "../domain/errors/AppError.js";
 
 export class BackendOrchestrator {
-  constructor({ sessions, reports, ai, analyzer, guardrails, realtimeManager, idGenerator, reportArchive, candidateAudioTranscriber = null }) {
+  constructor({ sessions, reports, ai, analyzer, guardrails, realtimeManager, idGenerator, reportArchive, candidateAudioTranscriber = null, pythonAnalysisClient = null }) {
     this.sessions = sessions;
     this.reports = reports;
     this.ai = ai;
@@ -15,6 +15,7 @@ export class BackendOrchestrator {
     this.idGenerator = idGenerator;
     this.reportArchive = reportArchive;
     this.candidateAudioTranscriber = candidateAudioTranscriber;
+    this.pythonAnalysisClient = pythonAnalysisClient;
   }
 
   async createSession(cfgInput, offerSdp = "", sessionId = null) {
@@ -115,12 +116,23 @@ export class BackendOrchestrator {
     await this.reports.save(report);
 
     if (this.reportArchive?.save) {
-      await this.reportArchive.save({
+      const archiveResult = await this.reportArchive.save({
         sessionId,
         transcript: transcriptEntries,
         report,
         candidateAnswerAudios,
       });
+
+      if (this.pythonAnalysisClient && archiveResult) {
+        // Fire and forget
+        this.pythonAnalysisClient.analyzeSessionAndTranscript({
+          sessionId,
+          baseDir: this.reportArchive.baseDir,
+          candidateAnswerAudioFiles: archiveResult.savedCandidateAnswerAudioFiles || [],
+          transcriptText: archiveResult.transcriptText || transcriptText,
+          report: report
+        }).catch(err => console.error("[BackendOrchestrator] PythonAnalysisClient Error:", err));
+      }
     }
 
     return report;

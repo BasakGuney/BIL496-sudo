@@ -57,22 +57,61 @@ Projeyi kendi ortamınızda (lokalde) çalıştırmak için izlemeniz gereken ad
 
 ### Gereksinimler
 *   **Node.js**: (Tavsiye edilen v18 veya v20 LTS)
-*   Geçerli bir **OpenAI API Key** (Realtime API yetkisi açık olmalı).
+*   **Python**: (v3.10 veya üzeri tavsiye edilir)
+*   **Ollama**: Yerel yapay zeka analizleri için (Llama3 modeli kullanımı için). [ollama.com](https://ollama.com/) adresinden indirin.
+*   **Geçerli bir OpenAI API Key** (Realtime API yetkisi açık olmalı).
 
-### Ortam (Environment) Ayarları
+---
+
+### 1. Ortam (Environment) Ayarları
 `server/` dizini içinde bir `.env` dosyası oluşturmalısınız:
 ```env
 PORT=3001
 OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-### Sunucuyu (Backend) Başlatma
-1. Terminalde `server` klasörüne gidin: `cd server`
-2. Paketleri yükleyin: `npm install`
-3. Uygulamayı çalıştırın: `npm run dev`
-*(Sunucu 3001 portunda ayaklanacaktır)*
+---
 
-### Arayüzü (Frontend) Başlatma
+### 2. Otomatik Kurulum (Her Şeyi Tek Seferde Yükleme)
+Proje klasörleri içindeki Node.js paketlerini, Python sanal ortamını (venv), Python kütüphanelerini ve Ollama (Llama3) modelini tek tuşla kurmak için Windows sistemlerinde PowerShell betiği kullanabilirsiniz.
+
+1. Projenin ana (kök) klasöründe bir Terminal/PowerShell açın.
+2. Aşağıdaki komutu çalıştırın:
+   ```powershell
+   .\setup.ps1
+   ```
+   *(Eğer yetki hatası alırsanız, önce `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` yazıp enter'a basın ve komutu tekrar deneyin.)*
+
+Bu script bittikten sonra projedeki tüm gerekli altyapılar kurulmuş ve modeller inmiş olacaktır.
+
+---
+
+### 3. Sunucuyu ve Arayüzü Başlatma
+
+Kurulumlar bittikten sonra projeyi ayaklandırmak için 3 ayrı terminal sekmesine ihtiyacınız var.
+
+**Terminal 1 (Python Analiz Sunucusu):**
+```bash
+cd server\src\services\analysis\python_api
+.\venv\Scripts\activate
+uvicorn api:app --reload --port 8000
+```
+
+**Terminal 2 (Node.js Ana Sunucusu):**
+```bash
+cd server
+npm run dev
+```
+
+**Terminal 3 (React Arayüzü):**
+```bash
+cd client
+npm run dev
+```
+
+---
+
+### 4. Arayüzü (Frontend) Başlatma
 1. Terminalde yeni bir sekme açın ve `client` klasörüne gidin: `cd client`
 2. Paketleri yükleyin: `npm install`
 3. Arayüzü çalıştırın: `npm run dev`

@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+transformers
+torch
+torchaudio
+librosa
+soundfile
+numpy
+pydantic
+python-multipart
+requests
+matplotlib

@@ -29,6 +29,7 @@ import { CandidateAudioTranscriber } from "../services/analysis/CandidateAudioTr
 import { InterviewFlowPolicy } from "../orchestration/InterviewFlowPolicy.js";
 import { GuardrailsEngine } from "../orchestration/GuardrailsEngine.js";
 import { BackendOrchestrator } from "../orchestration/BackendOrchestrator.js";
+import { PythonAnalysisClient } from "../services/analysis/PythonAnalysisClient.js";
 
 export class AppServer {
   constructor({ env = getEnv(), logger = new Logger() } = {}) {
@@ -83,6 +84,9 @@ export class AppServer {
     const candidateAudioTranscriber = new CandidateAudioTranscriber({
       apiKey: this.env.openAiApiKey,
     });
+    const pythonAnalysisClient = new PythonAnalysisClient({
+      logger: this.logger
+    });
 
     const backendOrchestrator = new BackendOrchestrator({
       sessions,
@@ -94,6 +98,7 @@ export class AppServer {
       idGenerator,
       reportArchive,
       candidateAudioTranscriber,
+      pythonAnalysisClient,
     });
 
     const sessionController = new SessionController({ backendOrchestrator });

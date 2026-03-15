@@ -1,0 +1,8 @@
+[Interviewer] Merhaba Başak Hanım, bugünki mülakatınızı ben gerçekleştireceğim. Bu mülakat insan kaynakları mülakatı olarak ilerleyecek, yaklaşık 10-15 dakika sürecek ve soru-cevap şeklinde olacak. Hazırsanız başlayalım mı?
+[Candidate] Başlayalım lütfen.
+
+[Interviewer] Sistem tasarımında "Load Balancer" (Yük Dengeleyici) tam olarak ne işe yarar ve hangi OSI katmanlarında çalışabilir? Bize detaylıca anlatır mısınız?
+[Candidate] Yük dengeleyici, gelen ağ veya uygulama trafiğini birden fazla sunucuya dağıtan bir donanım veya yazılım bileşenidir. Temel amacı hiçbir sunucunun aşırı yüklenmemesini sağlayarak sistemin erişilebilirliğini ve performansını artırmaktır. OSI modelinde genellikle Layer 4 veya Layer 7 üzerinde çalışırlar.
+
+[Interviewer] Nesne yönelimli programlamada (OOP) Polymorphism (Çok Biçimlilik) nedir?
+[Candidate] Polymorphism yani çok biçimlilik... Aslında bu tamamen veritabanı ile ilgili bir kavramdır. Mesela bir veritabanı tablosunda çok farklı veriler tutuyorsak buna polymorphism denir. Cidden eminim.
