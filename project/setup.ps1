@@ -76,14 +76,14 @@ Write-Host "  -> requirements.txt içeriği yükleniyor..." -ForegroundColor Dar
 Pop-Location
 Write-Host "  Python API paketleri kuruldu." -ForegroundColor Green
 
-# 5. Ollama Kontrolü ve Llama3 indirilmesi
-Write-Host "[5/5] Ollama ve Llama3 Modeli Kontrol Ediliyor..." -ForegroundColor Yellow
+# 5. Ollama Kontrolü ve Llama3.1 indirilmesi
+Write-Host "[5/5] Ollama ve Llama3.1 Modeli Kontrol Ediliyor..." -ForegroundColor Yellow
 if (Get-Command "ollama" -ErrorAction SilentlyContinue) {
-    Write-Host " Ollama kurulu. Llama3 modeli indiriliyor (zaten varsa güncellenir)..." -ForegroundColor DarkGray
+    Write-Host " Ollama kurulu. Llama3.1 modeli indiriliyor (zaten varsa güncellenir)..." -ForegroundColor DarkGray
     # Arka planda indirmeyi başlatır ama konsola log basmazsak indirme durumu gözükmez, o yüzden düz run diyoruz
     # Not: ollama pull kullanarak modeli başlatmadan indirebiliriz.
-    ollama pull llama3
-    Write-Host " Llama3 modeli hazır." -ForegroundColor Green
+    ollama pull llama3.1
+    Write-Host " Llama3.1 modeli hazır." -ForegroundColor Green
 } else {
     Write-Host " UYARI: Ollama sistemde bulunamadı." -ForegroundColor Magenta
     Write-Host " Lokal metin analizi (Llama3) için Ollama'yı manuel kurmalısınız: https://ollama.com/" -ForegroundColor Magenta
