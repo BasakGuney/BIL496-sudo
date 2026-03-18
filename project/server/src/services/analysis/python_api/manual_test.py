@@ -3,7 +3,7 @@ import json
 import time
 import os
 
-API_BASE = "http://localhost:8001"
+API_BASE = "http://localhost:8000"
 
 def test_session_analysis():
     print("🚀 Test 1: Audio Analysis (/analyze-session)")
@@ -103,7 +103,7 @@ def test_transcript_analysis():
         print(f"❌ Transcript Analizi Başarısız: {e}")
 
 if __name__ == "__main__":
-    print("Testing against API at http://localhost:8001...")
+    print("Testing against API at http://localhost:8000...")
     
     # Run both tests
     test_session_analysis()

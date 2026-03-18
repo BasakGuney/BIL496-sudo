@@ -179,4 +179,4 @@ async def analyze_transcript(request: TranscriptAnalysisRequest):
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {err}")
 
 if __name__ == "__main__":
-    uvicorn.run("api:app", host="0.0.0.0", port=8001)
+    uvicorn.run("api:app", host="0.0.0.0", port=8000)

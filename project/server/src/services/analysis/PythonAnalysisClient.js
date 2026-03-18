@@ -7,7 +7,7 @@ import ffmpegPath from "ffmpeg-static";
 const execAsync = promisify(exec);
 
 export class PythonAnalysisClient {
-  constructor({ baseUrl = "http://localhost:8001", fetchImpl = fetch, logger = console } = {}) {
+  constructor({ baseUrl = "http://localhost:8000", fetchImpl = fetch, logger = console } = {}) {
     this.baseUrl = baseUrl;
     this.fetchImpl = fetchImpl;
     this.logger = logger;
