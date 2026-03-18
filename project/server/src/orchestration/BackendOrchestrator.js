@@ -248,13 +248,12 @@ export class BackendOrchestrator {
       });
 
       if (this.pythonAnalysisClient && archiveResult) {
-        // Fire and forget
+        // Re-run the full audio set at the end so audio_model_out.json becomes the final
+        // session-wide aggregate, then hand transcript.txt content to the transcript LLM flow.
         this.pythonAnalysisClient.analyzeSessionAndTranscript({
           sessionId,
           baseDir: this.reportArchive.baseDir,
-          candidateAnswerAudioFiles: (archiveResult.savedCandidateAnswerAudioFiles || []).filter(
-            (file) => !runtime.analyzedAudioRelativePaths.includes(file?.relativePath)
-          ),
+          candidateAnswerAudioFiles: archiveResult.savedCandidateAnswerAudioFiles || [],
           transcriptText: archiveResult.transcriptText || transcriptText,
           report: report
         }).catch(err => console.error("[BackendOrchestrator] PythonAnalysisClient Error:", err));
