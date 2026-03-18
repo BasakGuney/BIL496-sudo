@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { SessionConfig } from "@/lib/types";
+import type { CandidateAnswerAudio, SessionConfig } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Flag, Mic, Volume2 } from "lucide-react";
 import { VoiceWaveCanvas } from "@/components/interview/VoiceWaveCanvas";
 import { connectRealtimeInterview } from "@/lib/realtimeClient";
-import { endSession } from "@/lib/mockApi";
+import { endSession, uploadCandidateAnswerIncremental } from "@/lib/mockApi";
 
 const BACKEND_URL = "http://localhost:3001";
 
@@ -33,6 +33,7 @@ export function InterviewPage({
   const connRef = useRef<Awaited<ReturnType<typeof connectRealtimeInterview>> | null>(null);
   const connectingRef = useRef(false); // ✅ double connect guard
   const finishingRef = useRef(false); // ✅ double click guard for finish
+  const uploadedAnswerKeysRef = useRef<Set<string>>(new Set());
 
   // Kamera PiP
   useEffect(() => {
@@ -142,6 +143,42 @@ export function InterviewPage({
     };
   }, [config.mode]);
 
+  function buildAnswerUploadKey(answer: Partial<CandidateAnswerAudio>) {
+    return [
+      Number(answer?.questionIndex || 0),
+      Number(answer?.startedAt || 0),
+      Number(answer?.endedAt || 0),
+    ].join(":");
+  }
+
+  async function flushIncrementalAnswers() {
+    const conn = connRef.current;
+    if (!conn?.getCandidateAnswerAudios) return;
+
+    const audios = (await conn.getCandidateAnswerAudios()) as CandidateAnswerAudio[];
+    for (const answer of audios) {
+      const key = buildAnswerUploadKey(answer);
+      if (uploadedAnswerKeysRef.current.has(key)) continue;
+
+      await uploadCandidateAnswerIncremental(sessionId, answer);
+      uploadedAnswerKeysRef.current.add(key);
+    }
+  }
+
+  useEffect(() => {
+    if (status !== "connected") return;
+
+    const intervalId = window.setInterval(() => {
+      if (finishingRef.current) return;
+
+      flushIncrementalAnswers().catch((error) => {
+        console.error("incremental answer upload failed", error);
+      });
+    }, 2500);
+
+    return () => window.clearInterval(intervalId);
+  }, [sessionId, status]);
+
   async function enableAudio() {
     const conn = connRef.current;
     if (!conn) return;
@@ -176,6 +213,10 @@ export function InterviewPage({
     await new Promise((resolve) => setTimeout(resolve, 900));
 
     // Güvenli kopyaları al, stopMedia her şeyi temizliyor.
+    await flushIncrementalAnswers().catch((error) => {
+      console.error("final incremental flush failed", error);
+    });
+
     const transcript = connRef.current?.getTranscript() || [];
     let candidateAnswerAudios: any[] = [];
     if (connRef.current?.getCandidateAnswerAudios) {

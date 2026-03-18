@@ -31,6 +31,46 @@ export class FileReportArchive {
       .filter((item) => item.questionIndex > 0 && item.audioBase64.length > 0);
   }
 
+  buildAnswerFileName(answer = {}, sequence = null) {
+    const ext = this.extensionFromMimeType(answer?.mimeType);
+    const index = Number(answer?.questionIndex || sequence || 1);
+    return `answer_${String(index).padStart(2, "0")}.${ext}`;
+  }
+
+  async ensureSessionDir(sessionId) {
+    await mkdir(this.baseDir, { recursive: true });
+    const safeSessionId = this.sanitizeSessionId(sessionId);
+    const sessionDir = path.join(this.baseDir, safeSessionId);
+    await mkdir(sessionDir, { recursive: true });
+    return sessionDir;
+  }
+
+  async saveIncrementalCandidateAnswerAudio({ sessionId, candidateAnswerAudio }) {
+    const normalized = this.normalizeCandidateAnswerAudios([candidateAnswerAudio]);
+    const answer = normalized[0] || null;
+    if (!answer) return null;
+
+    const sessionDir = await this.ensureSessionDir(sessionId);
+    const answersDir = path.join(sessionDir, "candidate-answers");
+    await mkdir(answersDir, { recursive: true });
+
+    const fileName = this.buildAnswerFileName(answer, answer.questionIndex);
+    const fullPath = path.join(answersDir, fileName);
+    const audioBuffer = Buffer.from(answer.audioBase64, "base64");
+    if (audioBuffer.length === 0) return null;
+
+    await writeFile(fullPath, audioBuffer);
+    return {
+      questionIndex: answer.questionIndex,
+      mimeType: answer.mimeType,
+      startedAt: answer.startedAt,
+      endedAt: answer.endedAt,
+      fileName,
+      relativePath: path.join("candidate-answers", fileName),
+      fullPath,
+    };
+  }
+
   async saveCandidateAnswerAudioFiles({ sessionDir, candidateAnswerAudios }) {
     const normalized = this.normalizeCandidateAnswerAudios(candidateAnswerAudios);
     if (normalized.length === 0) return [];
@@ -43,9 +83,8 @@ export class FileReportArchive {
     let seq = 1;
 
     for (const answer of sorted) {
-      const ext = this.extensionFromMimeType(answer.mimeType);
       const index = answer.questionIndex;
-      const fileName = `answer_${String(seq).padStart(2, "0")}.${ext}`;
+      const fileName = this.buildAnswerFileName(answer, seq);
       const fullPath = path.join(answersDir, fileName);
 
       const audioBuffer = Buffer.from(answer.audioBase64, "base64");
@@ -92,14 +131,22 @@ export class FileReportArchive {
   }
 
 
-  async save({ sessionId, transcript, report, candidateAnswerAudios = [] }) {
-    await mkdir(this.baseDir, { recursive: true });
+  mergeSavedAudioFiles(existingFiles = [], newFiles = []) {
+    const out = [];
+    const seen = new Set();
 
-    // Cleaned up debugging logger
+    for (const file of [...existingFiles, ...newFiles]) {
+      const key = [file?.questionIndex, file?.startedAt, file?.endedAt, file?.relativePath].join(":");
+      if (!file?.relativePath || seen.has(key)) continue;
+      seen.add(key);
+      out.push(file);
+    }
 
-    const safeSessionId = this.sanitizeSessionId(sessionId);
-    const sessionDir = path.join(this.baseDir, safeSessionId);
-    await mkdir(sessionDir, { recursive: true });
+    return out.sort((a, b) => Number(a?.startedAt || 0) - Number(b?.startedAt || 0));
+  }
+
+  async save({ sessionId, transcript, report, candidateAnswerAudios = [], existingCandidateAnswerAudioFiles = [] }) {
+    const sessionDir = await this.ensureSessionDir(sessionId);
     const transcriptEntries = this.buildTranscriptEntries({ transcript, report });
     const filename = `report.json`;
     const fullPath = path.join(sessionDir, filename);
@@ -113,10 +160,14 @@ export class FileReportArchive {
       .filter(Boolean)
       .join("\n");
 
-    const savedCandidateAnswerAudioFiles = await this.saveCandidateAnswerAudioFiles({
+    const newlySavedCandidateAnswerAudioFiles = await this.saveCandidateAnswerAudioFiles({
       sessionDir,
       candidateAnswerAudios,
     });
+    const savedCandidateAnswerAudioFiles = this.mergeSavedAudioFiles(
+      existingCandidateAnswerAudioFiles,
+      newlySavedCandidateAnswerAudioFiles
+    );
 
     const payload = {
       sessionId,

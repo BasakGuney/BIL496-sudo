@@ -38,6 +38,66 @@ export class PythonAnalysisClient {
     }
   }
 
+  async analyzeAudioFiles({ sessionId, filePaths = [] }) {
+    const validPaths = (Array.isArray(filePaths) ? filePaths : []).filter(Boolean);
+    if (!sessionId || validPaths.length === 0) {
+      this.logger.warn("PythonAnalysisClient: Missing sessionId or filePaths, skipping audio analysis.");
+      return;
+    }
+
+    this.logger.info(`Sending ${validPaths.length} files to Python API for audio analysis...`);
+    try {
+      const audioResponse = await this.fetchImpl(`${this.baseUrl}/analyze-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file_paths: validPaths,
+          session_id: sessionId
+        })
+      });
+
+      if (!audioResponse.ok) {
+        const errText = await audioResponse.text();
+        this.logger.error(`Audio analysis API failed: ${audioResponse.status} - ${errText}`);
+        return;
+      }
+
+      this.logger.info("Audio analysis completed successfully.");
+    } catch (error) {
+      this.logger.error("Failed to call Python audio analysis API:", error);
+    }
+  }
+
+  async analyzeTranscript({ sessionId, transcriptText = "", qaEvaluations = [] }) {
+    if (!sessionId || (!transcriptText && qaEvaluations.length === 0)) {
+      this.logger.warn("PythonAnalysisClient: Missing transcript content, skipping transcript analysis.");
+      return;
+    }
+
+    this.logger.info("Sending transcript for analysis to Python API...");
+    try {
+      const transcriptResponse = await this.fetchImpl(`${this.baseUrl}/analyze-transcript`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          qaPairs: qaEvaluations,
+          transcriptText,
+          session_id: sessionId
+        })
+      });
+
+      if (!transcriptResponse.ok) {
+        const errText = await transcriptResponse.text();
+        this.logger.error(`Transcript analysis API failed: ${transcriptResponse.status} - ${errText}`);
+        return;
+      }
+
+      this.logger.info("Transcript analysis completed successfully.");
+    } catch (error) {
+      this.logger.error("Failed to call Python transcript analysis API:", error);
+    }
+  }
+
   async analyzeSessionAndTranscript({ sessionId, baseDir, candidateAnswerAudioFiles = [], transcriptText = "", report = null }) {
     if (!sessionId || !baseDir) {
       this.logger.warn("PythonAnalysisClient: Missing sessionId or baseDir, skipping analysis.");
@@ -60,26 +120,7 @@ export class PythonAnalysisClient {
 
     // 2. Call /analyze-session (Audio Analysis)
     if (wavPaths.length > 0) {
-      this.logger.info(`Sending ${wavPaths.length} files to Python API for audio analysis...`);
-      try {
-        const audioResponse = await this.fetchImpl(`${this.baseUrl}/analyze-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            file_paths: wavPaths,
-            session_id: sessionId
-          })
-        });
-
-        if (!audioResponse.ok) {
-          const errText = await audioResponse.text();
-          this.logger.error(`Audio analysis API failed: ${audioResponse.status} - ${errText}`);
-        } else {
-          this.logger.info("Audio analysis completed successfully.");
-        }
-      } catch (error) {
-        this.logger.error("Failed to call Python audio analysis API:", error);
-      }
+      await this.analyzeAudioFiles({ sessionId, filePaths: wavPaths });
     } else {
       this.logger.warn("No WAV files generated or available. Skipping audio analysis.");
     }
@@ -87,27 +128,7 @@ export class PythonAnalysisClient {
     // 3. Call /analyze-transcript
     const qaEvaluations = report?.qaEvaluations || [];
     if (qaEvaluations.length > 0 || transcriptText) {
-      this.logger.info("Sending transcript for analysis to Python API...");
-      try {
-        const transcriptResponse = await this.fetchImpl(`${this.baseUrl}/analyze-transcript`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            qaPairs: qaEvaluations,
-            transcriptText: transcriptText,
-            session_id: sessionId
-          })
-        });
-
-        if (!transcriptResponse.ok) {
-          const errText = await transcriptResponse.text();
-          this.logger.error(`Transcript analysis API failed: ${transcriptResponse.status} - ${errText}`);
-        } else {
-          this.logger.info("Transcript analysis completed successfully.");
-        }
-      } catch (error) {
-        this.logger.error("Failed to call Python transcript analysis API:", error);
-      }
+      await this.analyzeTranscript({ sessionId, transcriptText, qaEvaluations });
     } else {
       this.logger.warn("No transcript or QA evaluations available. Skipping transcript analysis.");
     }

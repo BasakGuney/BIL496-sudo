@@ -67,6 +67,79 @@ export class BackendOrchestrator {
     );
   }
 
+  buildAnswerKey(answer = {}) {
+    return [
+      Number(answer?.questionIndex || 0),
+      Number(answer?.startedAt || 0),
+      Number(answer?.endedAt || 0),
+    ].join(":");
+  }
+
+  getRuntimeState(session) {
+    if (!session.runtimeState) {
+      session.runtimeState = {
+        incrementalCandidateAnswerAudios: [],
+        incrementalTranscriptEntries: [],
+        incrementalSavedAudioFiles: [],
+        analyzedAudioRelativePaths: [],
+      };
+    }
+
+    return session.runtimeState;
+  }
+
+  mergeUniqueAnswers(...groups) {
+    const out = [];
+    const seen = new Set();
+
+    for (const group of groups) {
+      for (const item of Array.isArray(group) ? group : []) {
+        const key = this.buildAnswerKey(item);
+        if (key === "0:0:0" || seen.has(key)) continue;
+        seen.add(key);
+        out.push(item);
+      }
+    }
+
+    return out.sort((a, b) => Number(a?.startedAt || 0) - Number(b?.startedAt || 0));
+  }
+
+  mergeUniqueTranscriptEntries(...groups) {
+    const out = [];
+    const seen = new Set();
+
+    for (const group of groups) {
+      for (const item of Array.isArray(group) ? group : []) {
+        const key = [
+          item?.role === "interviewer" ? "interviewer" : "candidate",
+          Number(item?.ts || 0),
+          String(item?.text || "").trim(),
+        ].join(":");
+        if (!String(item?.text || "").trim() || seen.has(key)) continue;
+        seen.add(key);
+        out.push(item);
+      }
+    }
+
+    return out.sort((a, b) => Number(a?.ts || 0) - Number(b?.ts || 0));
+  }
+
+  mergeUniqueSavedAudioFiles(...groups) {
+    const out = [];
+    const seen = new Set();
+
+    for (const group of groups) {
+      for (const item of Array.isArray(group) ? group : []) {
+        const key = [item?.relativePath, item?.questionIndex, item?.startedAt, item?.endedAt].join(":");
+        if (!item?.relativePath || seen.has(key)) continue;
+        seen.add(key);
+        out.push(item);
+      }
+    }
+
+    return out.sort((a, b) => Number(a?.startedAt || 0) - Number(b?.startedAt || 0));
+  }
+
   async enrichTranscriptWithCandidateAudio(transcript = [], candidateAnswerAudios = []) {
     const base = Array.isArray(transcript) ? [...transcript] : [];
     if (this.hasCandidateTranscript(base)) return base;
@@ -76,6 +149,75 @@ export class BackendOrchestrator {
     if (!Array.isArray(transcribed) || transcribed.length === 0) return base;
 
     return [...base, ...transcribed].sort((a, b) => Number(a?.ts || 0) - Number(b?.ts || 0));
+  }
+
+  async ingestCandidateAnswer(sessionId, candidateAnswerAudio = null) {
+    const session = await this.sessions.findById(sessionId);
+    if (!session) throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", statusCode: 404 });
+    if (!candidateAnswerAudio) throw new AppError("Candidate answer audio is required", { code: "INVALID_ANSWER_AUDIO", statusCode: 400 });
+
+    const runtime = this.getRuntimeState(session);
+    const normalizedAnswer = {
+      questionIndex: Number(candidateAnswerAudio?.questionIndex || 0),
+      mimeType: String(candidateAnswerAudio?.mimeType || "audio/webm"),
+      startedAt: Number(candidateAnswerAudio?.startedAt || Date.now()),
+      endedAt: Number(candidateAnswerAudio?.endedAt || Date.now()),
+      audioBase64: String(candidateAnswerAudio?.audioBase64 || ""),
+    };
+
+    if (normalizedAnswer.questionIndex <= 0 || !normalizedAnswer.audioBase64) {
+      throw new AppError("Candidate answer audio payload is invalid", { code: "INVALID_ANSWER_AUDIO", statusCode: 400 });
+    }
+
+    const answerKey = this.buildAnswerKey(normalizedAnswer);
+    const existingAnswerKeys = new Set(runtime.incrementalCandidateAnswerAudios.map((item) => this.buildAnswerKey(item)));
+    if (existingAnswerKeys.has(answerKey)) {
+      return { accepted: true, duplicate: true };
+    }
+
+    runtime.incrementalCandidateAnswerAudios.push(normalizedAnswer);
+
+    let savedAudioFile = null;
+    if (this.reportArchive?.saveIncrementalCandidateAnswerAudio) {
+      savedAudioFile = await this.reportArchive.saveIncrementalCandidateAnswerAudio({
+        sessionId,
+        candidateAnswerAudio: normalizedAnswer,
+      });
+      if (savedAudioFile) {
+        runtime.incrementalSavedAudioFiles = this.mergeUniqueSavedAudioFiles(
+          runtime.incrementalSavedAudioFiles,
+          [savedAudioFile]
+        );
+      }
+    }
+
+    const text = await this.candidateAudioTranscriber?.transcribeOne?.(normalizedAnswer).catch(() => "");
+    if (text) {
+      runtime.incrementalTranscriptEntries = this.mergeUniqueTranscriptEntries(
+        runtime.incrementalTranscriptEntries,
+        [{
+          role: "candidate",
+          text,
+          ts: normalizedAnswer.startedAt || Date.now(),
+          source: "incremental-audio",
+          model: "gpt-4o-mini-transcribe",
+        }]
+      );
+    }
+
+    if (this.pythonAnalysisClient && savedAudioFile?.fullPath) {
+      const wavPath = await this.pythonAnalysisClient.convertToWav(savedAudioFile.fullPath);
+      if (wavPath && !runtime.analyzedAudioRelativePaths.includes(savedAudioFile.relativePath)) {
+        runtime.analyzedAudioRelativePaths.push(savedAudioFile.relativePath);
+        this.pythonAnalysisClient.analyzeAudioFiles({
+          sessionId,
+          filePaths: [wavPath],
+        }).catch((err) => console.error("[BackendOrchestrator] Incremental audio analysis error:", err));
+      }
+    }
+
+    await this.sessions.update(session);
+    return { accepted: true, duplicate: false, transcriptText: text || "" };
   }
 
   async endSession(sessionId, reason = null, transcript = [], candidateAnswerAudios = []) {
@@ -94,9 +236,21 @@ export class BackendOrchestrator {
     }
 
     session.end();
-    const transcriptEntries = await this.enrichTranscriptWithCandidateAudio(transcript, candidateAnswerAudios);
-    const report = await this.analyzer.generateReport(session, transcriptEntries);
-    const transcriptText = transcriptEntries
+    const runtime = this.getRuntimeState(session);
+    const mergedCandidateAnswerAudios = this.mergeUniqueAnswers(
+      runtime.incrementalCandidateAnswerAudios,
+      candidateAnswerAudios
+    );
+    const transcriptEntries = this.mergeUniqueTranscriptEntries(
+      transcript,
+      runtime.incrementalTranscriptEntries
+    );
+    const enrichedTranscriptEntries = await this.enrichTranscriptWithCandidateAudio(
+      transcriptEntries,
+      mergedCandidateAnswerAudios
+    );
+    const report = await this.analyzer.generateReport(session, enrichedTranscriptEntries);
+    const transcriptText = enrichedTranscriptEntries
       .map((item) => {
         const role = item?.role === "interviewer" ? "Interviewer" : "Candidate";
         return `[${role}] ${String(item?.text || "").trim()}`;
@@ -104,7 +258,7 @@ export class BackendOrchestrator {
       .filter(Boolean)
       .join("\n");
 
-    report.transcript = transcriptEntries;
+    report.transcript = enrichedTranscriptEntries;
     report.transcriptText = transcriptText;
 
     session.report = report;
@@ -118,9 +272,10 @@ export class BackendOrchestrator {
     if (this.reportArchive?.save) {
       const archiveResult = await this.reportArchive.save({
         sessionId,
-        transcript: transcriptEntries,
+        transcript: enrichedTranscriptEntries,
         report,
-        candidateAnswerAudios,
+        candidateAnswerAudios: mergedCandidateAnswerAudios,
+        existingCandidateAnswerAudioFiles: runtime.incrementalSavedAudioFiles,
       });
 
       if (this.pythonAnalysisClient && archiveResult) {
@@ -128,7 +283,9 @@ export class BackendOrchestrator {
         this.pythonAnalysisClient.analyzeSessionAndTranscript({
           sessionId,
           baseDir: this.reportArchive.baseDir,
-          candidateAnswerAudioFiles: archiveResult.savedCandidateAnswerAudioFiles || [],
+          candidateAnswerAudioFiles: (archiveResult.savedCandidateAnswerAudioFiles || []).filter(
+            (file) => !runtime.analyzedAudioRelativePaths.includes(file?.relativePath)
+          ),
           transcriptText: archiveResult.transcriptText || transcriptText,
           report: report
         }).catch(err => console.error("[BackendOrchestrator] PythonAnalysisClient Error:", err));

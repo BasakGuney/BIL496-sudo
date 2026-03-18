@@ -5,6 +5,7 @@ export class ReportController {
     this.backendOrchestrator = backendOrchestrator;
     this.getReport = this.getReport.bind(this);
     this.endSessionAndCreateReport = this.endSessionAndCreateReport.bind(this);
+    this.ingestCandidateAnswer = this.ingestCandidateAnswer.bind(this);
   }
 
   async getReport(req, res, next) {
@@ -25,6 +26,18 @@ export class ReportController {
         req.body?.candidateAnswerAudios || []
       );
       res.json(ReportView.fromReport(report));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async ingestCandidateAnswer(req, res, next) {
+    try {
+      const result = await this.backendOrchestrator.ingestCandidateAnswer(
+        req.params.sessionId,
+        req.body?.candidateAnswerAudio || req.body || null
+      );
+      res.json(result);
     } catch (error) {
       next(error);
     }
