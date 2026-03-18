@@ -88,6 +88,7 @@ class SessionAnalysisRequest(BaseModel):
     file_paths: List[str]
     session_id: str = None
     merge_with_existing: bool = False
+    write_text_report: bool = False
 
 @app.post("/analyze-session")
 async def analyze_session(request: SessionAnalysisRequest):
@@ -104,18 +105,22 @@ async def analyze_session(request: SessionAnalysisRequest):
                 res['filename'] = os.path.basename(f)
                 results.append(res)
                 
-        if not results:
-            raise HTTPException(status_code=400, detail="No readable audio files found.")
-            
         target_dir = get_session_dir(request.session_id)
+        existing_json_path = os.path.join(target_dir, "audio_model_out.json")
+        existing_items = []
+
+        if request.merge_with_existing and os.path.exists(existing_json_path):
+            with open(existing_json_path, "r", encoding="utf-8") as f:
+                existing_payload = json.load(f)
+            existing_items = existing_payload.get("items", [])
+
         merged_results = results
 
         if request.merge_with_existing:
-            existing_json_path = os.path.join(target_dir, "audio_model_out.json")
-            if os.path.exists(existing_json_path):
-                with open(existing_json_path, "r", encoding="utf-8") as f:
-                    existing_payload = json.load(f)
-                merged_results = merge_results_by_filename(existing_payload.get("items", []), results)
+            merged_results = merge_results_by_filename(existing_items, results)
+
+        if not merged_results:
+            raise HTTPException(status_code=400, detail="No readable audio files found.")
 
         overall_emotions = calculate_weighted_average_emotions(merged_results)
         overall_clarity = calculate_weighted_average_clarity(merged_results)
@@ -153,11 +158,6 @@ async def analyze_session(request: SessionAnalysisRequest):
             report_content += f"- **Baskın Duygu:** `{dominant_emotion}`\n"
             report_content += "\n"
 
-        try:
-            llm_analysis = interpret_report_with_llama(report_content, overall_emotions)
-        except Exception as e:
-            llm_analysis = f"> ⚠️ **Yapay Zeka Hatası:** Llama değerlendirmesi başarılamadı. {str(e)}"
-            
         # 1) Save audio_model_out.json
         model_out_data = {
             "overall_emotions": overall_emotions,
@@ -167,9 +167,16 @@ async def analyze_session(request: SessionAnalysisRequest):
         with open(os.path.join(target_dir, "audio_model_out.json"), "w", encoding="utf-8") as f:
             json.dump(model_out_data, f, ensure_ascii=False, indent=2)
 
-        # 2) Save audio_analysis_out.txt
-        with open(os.path.join(target_dir, "audio_analysis_out.txt"), "w", encoding="utf-8") as f:
-            f.write(llm_analysis)
+        llm_analysis = None
+        if request.write_text_report:
+            try:
+                llm_analysis = interpret_report_with_llama(report_content, overall_emotions)
+            except Exception as e:
+                llm_analysis = f"> ⚠️ **Yapay Zeka Hatası:** Llama değerlendirmesi başarılamadı. {str(e)}"
+
+            # 2) Save audio_analysis_out.txt only for the final synthesized report stage
+            with open(os.path.join(target_dir, "audio_analysis_out.txt"), "w", encoding="utf-8") as f:
+                f.write(llm_analysis)
         
         return {
             "overall_emotions": overall_emotions,

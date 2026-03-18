@@ -67,9 +67,9 @@ export class PythonAnalysisClient {
     }
   }
 
-  async analyzeAudioFiles({ sessionId, filePaths = [] }) {
+  async analyzeAudioFiles({ sessionId, filePaths = [], writeTextReport = false }) {
     const validPaths = (Array.isArray(filePaths) ? filePaths : []).filter(Boolean);
-    if (!sessionId || validPaths.length === 0) {
+    if (!sessionId) {
       this.logger.warn("PythonAnalysisClient: Missing sessionId or filePaths, skipping audio analysis.");
       return false;
     }
@@ -83,6 +83,7 @@ export class PythonAnalysisClient {
           file_paths: validPaths,
           session_id: sessionId,
           merge_with_existing: true,
+          write_text_report: writeTextReport,
         })
       });
 
@@ -187,11 +188,13 @@ export class PythonAnalysisClient {
     // appended/merged into the session artifact as each answer arrives.
     if (wavPaths.length > 0) {
       for (const wavPath of wavPaths) {
-        await this.analyzeAudioFiles({ sessionId, filePaths: [wavPath] });
+        await this.analyzeAudioFiles({ sessionId, filePaths: [wavPath], writeTextReport: false });
       }
     } else {
       this.logger.info("No new WAV files were available for audio analysis.");
     }
+
+    await this.analyzeAudioFiles({ sessionId, filePaths: [], writeTextReport: true });
 
     // 3. Call /analyze-transcript
     const qaEvaluations = report?.qaEvaluations || [];
