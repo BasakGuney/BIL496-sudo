@@ -140,6 +140,27 @@ export class BackendOrchestrator {
     return out.sort((a, b) => Number(a?.startedAt || 0) - Number(b?.startedAt || 0));
   }
 
+  filterTranscriptByRole(transcript = [], role = "candidate") {
+    return (Array.isArray(transcript) ? transcript : []).filter((item) => item?.role === role);
+  }
+
+  async buildCandidateTranscriptFromAudio({ mergedCandidateAnswerAudios = [], runtime }) {
+    const incrementalAnswerKeys = new Set(
+      (runtime?.incrementalCandidateAnswerAudios || []).map((item) => this.buildAnswerKey(item))
+    );
+    const remainingCandidateAnswerAudios = (Array.isArray(mergedCandidateAnswerAudios) ? mergedCandidateAnswerAudios : []).filter(
+      (item) => !incrementalAnswerKeys.has(this.buildAnswerKey(item))
+    );
+    const transcribedRemainingEntries = remainingCandidateAnswerAudios.length > 0
+      ? await this.candidateAudioTranscriber?.transcribeCandidateAnswerAudios?.(remainingCandidateAnswerAudios).catch(() => [])
+      : [];
+
+    return this.mergeUniqueTranscriptEntries(
+      runtime?.incrementalTranscriptEntries || [],
+      transcribedRemainingEntries
+    );
+  }
+
   async enrichTranscriptWithCandidateAudio(transcript = [], candidateAnswerAudios = []) {
     const base = Array.isArray(transcript) ? [...transcript] : [];
     if (this.hasCandidateTranscript(base)) return base;
@@ -246,14 +267,18 @@ export class BackendOrchestrator {
       runtime.incrementalCandidateAnswerAudios,
       candidateAnswerAudios
     );
+    const hasIncrementalCandidateTranscript = (runtime.incrementalTranscriptEntries || []).length > 0;
+    const interviewerTranscriptEntries = this.filterTranscriptByRole(transcript, "interviewer");
+    const candidateTranscriptEntries = hasIncrementalCandidateTranscript
+      ? await this.buildCandidateTranscriptFromAudio({ mergedCandidateAnswerAudios, runtime })
+      : this.filterTranscriptByRole(transcript, "candidate");
     const transcriptEntries = this.mergeUniqueTranscriptEntries(
-      transcript,
-      runtime.incrementalTranscriptEntries
+      interviewerTranscriptEntries,
+      candidateTranscriptEntries
     );
-    const enrichedTranscriptEntries = await this.enrichTranscriptWithCandidateAudio(
-      transcriptEntries,
-      mergedCandidateAnswerAudios
-    );
+    const enrichedTranscriptEntries = hasIncrementalCandidateTranscript
+      ? transcriptEntries
+      : await this.enrichTranscriptWithCandidateAudio(transcriptEntries, mergedCandidateAnswerAudios);
     const report = await this.analyzer.generateReport(session, enrichedTranscriptEntries);
     const transcriptText = enrichedTranscriptEntries
       .map((item) => {

@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export class FileReportArchive {
@@ -33,10 +33,8 @@ export class FileReportArchive {
 
   buildAnswerFileName(answer = {}, sequence = null) {
     const ext = this.extensionFromMimeType(answer?.mimeType);
-    const index = Number(answer?.questionIndex || sequence || 1);
-    const startedAt = Number(answer?.startedAt || 0);
-    const suffix = startedAt > 0 ? `_${startedAt}` : sequence ? `_${String(sequence).padStart(2, "0")}` : "";
-    return `answer_${String(index).padStart(2, "0")}${suffix}.${ext}`;
+    const index = Number(sequence || 1);
+    return `answer_${String(index).padStart(2, "0")}.${ext}`;
   }
 
   async ensureSessionDir(sessionId) {
@@ -56,7 +54,8 @@ export class FileReportArchive {
     const answersDir = path.join(sessionDir, "candidate-answers");
     await mkdir(answersDir, { recursive: true });
 
-    const fileName = this.buildAnswerFileName(answer, answer.questionIndex);
+    const nextSequence = await this.getNextAnswerSequence(answersDir);
+    const fileName = this.buildAnswerFileName(answer, nextSequence);
     const fullPath = path.join(answersDir, fileName);
     const audioBuffer = Buffer.from(answer.audioBase64, "base64");
     if (audioBuffer.length === 0) return null;
@@ -73,7 +72,25 @@ export class FileReportArchive {
     };
   }
 
-  async saveCandidateAnswerAudioFiles({ sessionDir, candidateAnswerAudios }) {
+  async getNextAnswerSequence(answersDir) {
+    const files = await readdir(answersDir, { withFileTypes: true }).catch(() => []);
+    let maxSequence = 0;
+
+    for (const file of files) {
+      if (!file?.isFile?.()) continue;
+      const match = /^answer_(\d+)\./i.exec(file.name);
+      if (!match) continue;
+      maxSequence = Math.max(maxSequence, Number(match[1] || 0));
+    }
+
+    return maxSequence + 1;
+  }
+
+  buildSavedAudioKey(item = {}) {
+    return [item?.questionIndex, item?.startedAt, item?.endedAt].join(":");
+  }
+
+  async saveCandidateAnswerAudioFiles({ sessionDir, candidateAnswerAudios, startSequence = 1 }) {
     const normalized = this.normalizeCandidateAnswerAudios(candidateAnswerAudios);
     if (normalized.length === 0) return [];
 
@@ -82,10 +99,9 @@ export class FileReportArchive {
 
     const sorted = [...normalized].sort((a, b) => a.startedAt - b.startedAt);
     const saved = [];
-    let seq = 1;
+    let seq = startSequence;
 
     for (const answer of sorted) {
-      const index = answer.questionIndex;
       const fileName = this.buildAnswerFileName(answer, seq);
       const fullPath = path.join(answersDir, fileName);
 
@@ -93,7 +109,7 @@ export class FileReportArchive {
       if (audioBuffer.length === 0) continue;
       await writeFile(fullPath, audioBuffer);
       saved.push({
-        questionIndex: index,
+        questionIndex: answer.questionIndex,
         mimeType: answer.mimeType,
         startedAt: answer.startedAt,
         endedAt: answer.endedAt,
@@ -162,9 +178,15 @@ export class FileReportArchive {
       .filter(Boolean)
       .join("\n");
 
+    const existingKeys = new Set(existingCandidateAnswerAudioFiles.map((item) => this.buildSavedAudioKey(item)));
+    const unsavedCandidateAnswerAudios = this.normalizeCandidateAnswerAudios(candidateAnswerAudios).filter(
+      (item) => !existingKeys.has(this.buildSavedAudioKey(item))
+    );
+
     const newlySavedCandidateAnswerAudioFiles = await this.saveCandidateAnswerAudioFiles({
       sessionDir,
-      candidateAnswerAudios,
+      candidateAnswerAudios: unsavedCandidateAnswerAudios,
+      startSequence: existingCandidateAnswerAudioFiles.length + 1,
     });
     const savedCandidateAnswerAudioFiles = this.mergeSavedAudioFiles(
       existingCandidateAnswerAudioFiles,
