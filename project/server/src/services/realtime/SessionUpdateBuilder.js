@@ -11,7 +11,7 @@ export class SessionUpdateBuilder {
       instructions: this.promptTemplates.sessionInstructions(cfg),
       audio: {
         input: {
-          transcription: { model: "gpt-4o-mini-transcribe" },
+          transcription: { model: "gpt-4o-transcribe" },
           turn_detection: this.turnPolicy.serverVad(),
         },
         output: { voice: "marin" },

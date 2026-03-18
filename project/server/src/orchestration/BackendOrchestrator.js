@@ -60,13 +60,6 @@ export class BackendOrchestrator {
     return { turnIndex: 1, questionText: firstQuestion, sessionId };
   }
 
-
-  hasCandidateTranscript(transcript = []) {
-    return (Array.isArray(transcript) ? transcript : []).some(
-      (item) => item?.role === "candidate" && String(item?.text || "").trim().length > 0
-    );
-  }
-
   buildAnswerKey(answer = {}) {
     return [
       Number(answer?.questionIndex || 0),
@@ -141,22 +134,6 @@ export class BackendOrchestrator {
 
   filterTranscriptByRole(transcript = [], role = "candidate") {
     return (Array.isArray(transcript) ? transcript : []).filter((item) => item?.role === role);
-  }
-
-  async buildCandidateTranscriptFromAudio(candidateAnswerAudios = []) {
-    if (!this.candidateAudioTranscriber?.transcribeCandidateAnswerAudios) return [];
-    return this.candidateAudioTranscriber.transcribeCandidateAnswerAudios(candidateAnswerAudios).catch(() => []);
-  }
-
-  async enrichTranscriptWithCandidateAudio(transcript = [], candidateAnswerAudios = []) {
-    const base = Array.isArray(transcript) ? [...transcript] : [];
-    if (this.hasCandidateTranscript(base)) return base;
-    if (!this.candidateAudioTranscriber?.transcribeCandidateAnswerAudios) return base;
-
-    const transcribed = await this.candidateAudioTranscriber.transcribeCandidateAnswerAudios(candidateAnswerAudios);
-    if (!Array.isArray(transcribed) || transcribed.length === 0) return base;
-
-    return [...base, ...transcribed].sort((a, b) => Number(a?.ts || 0) - Number(b?.ts || 0));
   }
 
   async ingestCandidateAnswer(sessionId, candidateAnswerAudio = null) {
@@ -240,19 +217,9 @@ export class BackendOrchestrator {
       runtime.incrementalCandidateAnswerAudios,
       candidateAnswerAudios
     );
-    const interviewerTranscriptEntries = this.filterTranscriptByRole(transcript, "interviewer");
-    const candidateTranscriptEntries = mergedCandidateAnswerAudios.length > 0
-      ? await this.buildCandidateTranscriptFromAudio(mergedCandidateAnswerAudios)
-      : this.filterTranscriptByRole(transcript, "candidate");
-    const transcriptEntries = this.mergeUniqueTranscriptEntries(
-      interviewerTranscriptEntries,
-      candidateTranscriptEntries
-    );
-    const enrichedTranscriptEntries = mergedCandidateAnswerAudios.length > 0
-      ? transcriptEntries
-      : await this.enrichTranscriptWithCandidateAudio(transcriptEntries, mergedCandidateAnswerAudios);
-    const report = await this.analyzer.generateReport(session, enrichedTranscriptEntries);
-    const transcriptText = enrichedTranscriptEntries
+    const transcriptEntries = this.mergeUniqueTranscriptEntries(transcript);
+    const report = await this.analyzer.generateReport(session, transcriptEntries);
+    const transcriptText = transcriptEntries
       .map((item) => {
         const role = item?.role === "interviewer" ? "Interviewer" : "Candidate";
         return `[${role}] ${String(item?.text || "").trim()}`;
@@ -260,7 +227,7 @@ export class BackendOrchestrator {
       .filter(Boolean)
       .join("\n");
 
-    report.transcript = enrichedTranscriptEntries;
+    report.transcript = transcriptEntries;
     report.transcriptText = transcriptText;
 
     session.report = report;
@@ -274,7 +241,7 @@ export class BackendOrchestrator {
     if (this.reportArchive?.save) {
       const archiveResult = await this.reportArchive.save({
         sessionId,
-        transcript: enrichedTranscriptEntries,
+        transcript: transcriptEntries,
         report,
         candidateAnswerAudios: mergedCandidateAnswerAudios,
         existingCandidateAnswerAudioFiles: runtime.incrementalSavedAudioFiles,
