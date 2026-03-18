@@ -139,6 +139,29 @@ export class PythonAnalysisClient {
     }
   }
 
+  async writeTranscriptFallbackArtifact({ sessionDir, transcriptText = "", qaEvaluations = [] }) {
+    if (!sessionDir) return;
+
+    const fallbackPayload = {
+      status: "skipped",
+      reason: "Python transcript service unavailable or transcript analysis failed",
+      generatedAt: new Date().toISOString(),
+      transcriptText,
+      qaPairs: Array.isArray(qaEvaluations) ? qaEvaluations : [],
+    };
+
+    try {
+      await fs.mkdir(sessionDir, { recursive: true });
+      await fs.writeFile(
+        path.join(sessionDir, "transcript_analysis_out.json"),
+        `${JSON.stringify(fallbackPayload, null, 2)}\n`,
+        "utf8"
+      );
+    } catch (error) {
+      this.logger.warn("Failed to write transcript fallback artifact.", error);
+    }
+  }
+
   async analyzeSessionAndTranscript({ sessionId, baseDir, candidateAnswerAudioFiles = [], transcriptText = "", report = null }) {
     if (!sessionId || !baseDir) {
       this.logger.warn("PythonAnalysisClient: Missing sessionId or baseDir, skipping analysis.");
@@ -169,7 +192,10 @@ export class PythonAnalysisClient {
     // 3. Call /analyze-transcript
     const qaEvaluations = report?.qaEvaluations || [];
     if (qaEvaluations.length > 0 || transcriptText) {
-      await this.analyzeTranscript({ sessionId, transcriptText, qaEvaluations });
+      const transcriptAnalysisSucceeded = await this.analyzeTranscript({ sessionId, transcriptText, qaEvaluations });
+      if (!transcriptAnalysisSucceeded) {
+        await this.writeTranscriptFallbackArtifact({ sessionDir, transcriptText, qaEvaluations });
+      }
     } else {
       this.logger.warn("No transcript or QA evaluations available. Skipping transcript analysis.");
     }
