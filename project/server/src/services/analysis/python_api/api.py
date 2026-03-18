@@ -12,12 +12,31 @@ from transcript_analyzer import analyze_transcript_with_llama
 
 REPORTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../reports"))
 
+def normalize_session_folder_name(session_id: str):
+    safe_session_id = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in str(session_id or "unknown-session"))
+    return safe_session_id if safe_session_id.startswith("S-") else f"S-{safe_session_id}"
+
 def get_session_dir(session_id: str):
     if not session_id:
         return "."
-    path_to_dir = os.path.join(REPORTS_DIR, session_id)
+    path_to_dir = os.path.join(REPORTS_DIR, normalize_session_folder_name(session_id))
     os.makedirs(path_to_dir, exist_ok=True)
     return path_to_dir
+
+def merge_results_by_filename(existing_items, new_items):
+    merged = {}
+
+    for item in existing_items or []:
+        filename = item.get("filename")
+        if filename:
+            merged[filename] = item
+
+    for item in new_items or []:
+        filename = item.get("filename")
+        if filename:
+            merged[filename] = item
+
+    return list(merged.values())
 
 app = FastAPI(title="Speech Emotion API for Interviews")
 
@@ -68,6 +87,7 @@ async def analyze_audio(file: UploadFile = File(...)):
 class SessionAnalysisRequest(BaseModel):
     file_paths: List[str]
     session_id: str = None
+    merge_with_existing: bool = False
 
 @app.post("/analyze-session")
 async def analyze_session(request: SessionAnalysisRequest):
@@ -87,8 +107,18 @@ async def analyze_session(request: SessionAnalysisRequest):
         if not results:
             raise HTTPException(status_code=400, detail="No readable audio files found.")
             
-        overall_emotions = calculate_weighted_average_emotions(results)
-        overall_clarity = calculate_weighted_average_clarity(results)
+        target_dir = get_session_dir(request.session_id)
+        merged_results = results
+
+        if request.merge_with_existing:
+            existing_json_path = os.path.join(target_dir, "audio_model_out.json")
+            if os.path.exists(existing_json_path):
+                with open(existing_json_path, "r", encoding="utf-8") as f:
+                    existing_payload = json.load(f)
+                merged_results = merge_results_by_filename(existing_payload.get("items", []), results)
+
+        overall_emotions = calculate_weighted_average_emotions(merged_results)
+        overall_clarity = calculate_weighted_average_clarity(merged_results)
         
         # Generate the report text internally
         report_content = "## 1. Genel Değerlendirme (Süre Ağırlıklı Ortalamalar)\n\n"
@@ -110,7 +140,7 @@ async def analyze_session(request: SessionAnalysisRequest):
             report_content += f"- **{translated_label}:** `%{score}`\n"
         
         report_content += "\n---\n\n## 2. Soru Bazlı Detaylı Analiz Çıktıları\n\n"
-        for r in results:
+        for r in merged_results:
             dominant_emotion_key = max(r['emotions'].items(), key=lambda x: x[1])[0]
             dominant_emotion = label_translations.get(dominant_emotion_key, dominant_emotion_key)
             if isinstance(dominant_emotion, str):
@@ -128,13 +158,11 @@ async def analyze_session(request: SessionAnalysisRequest):
         except Exception as e:
             llm_analysis = f"> ⚠️ **Yapay Zeka Hatası:** Llama değerlendirmesi başarılamadı. {str(e)}"
             
-        target_dir = get_session_dir(request.session_id)
-        
         # 1) Save audio_model_out.json
         model_out_data = {
             "overall_emotions": overall_emotions,
             "overall_clarity": overall_clarity,
-            "items": results
+            "items": merged_results
         }
         with open(os.path.join(target_dir, "audio_model_out.json"), "w", encoding="utf-8") as f:
             json.dump(model_out_data, f, ensure_ascii=False, indent=2)
@@ -146,7 +174,7 @@ async def analyze_session(request: SessionAnalysisRequest):
         return {
             "overall_emotions": overall_emotions,
             "overall_clarity": overall_clarity,
-            "items": results,
+            "items": merged_results,
             "coach_report": llm_analysis
         }
     except Exception as e:

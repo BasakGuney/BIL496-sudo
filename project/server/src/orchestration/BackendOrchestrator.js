@@ -248,12 +248,15 @@ export class BackendOrchestrator {
       });
 
       if (this.pythonAnalysisClient && archiveResult) {
-        // Re-run the full audio set at the end so audio_model_out.json becomes the final
-        // session-wide aggregate, then hand transcript.txt content to the transcript LLM flow.
+        // Only send any still-unprocessed answer files here. Incremental uploads are already
+        // analyzed one by one during the interview, and the Python layer appends/merges those
+        // item-level results into the session artifacts.
         this.pythonAnalysisClient.analyzeSessionAndTranscript({
           sessionId,
           baseDir: this.reportArchive.baseDir,
-          candidateAnswerAudioFiles: archiveResult.savedCandidateAnswerAudioFiles || [],
+          candidateAnswerAudioFiles: (archiveResult.savedCandidateAnswerAudioFiles || []).filter(
+            (file) => !runtime.analyzedAudioRelativePaths.includes(file?.relativePath)
+          ),
           transcriptText: archiveResult.transcriptText || transcriptText,
           report: report
         }).catch(err => console.error("[BackendOrchestrator] PythonAnalysisClient Error:", err));

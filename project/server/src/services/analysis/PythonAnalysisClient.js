@@ -74,14 +74,15 @@ export class PythonAnalysisClient {
       return false;
     }
 
-    this.logger.info(`Sending ${validPaths.length} files to Python API for audio analysis...`);
+    this.logger.info(`Sending ${validPaths.length} file${validPaths.length === 1 ? "" : "s"} to Python API for audio analysis...`);
     try {
       const audioResponse = await this.fetchImpl(`${this.baseUrl}/analyze-session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           file_paths: validPaths,
-          session_id: sessionId
+          session_id: sessionId,
+          merge_with_existing: true,
         })
       });
 
@@ -182,11 +183,14 @@ export class PythonAnalysisClient {
       }
     }
 
-    // 2. Call /analyze-session (Audio Analysis)
+    // 2. Call /analyze-session one file at a time so incremental item outputs are
+    // appended/merged into the session artifact as each answer arrives.
     if (wavPaths.length > 0) {
-      await this.analyzeAudioFiles({ sessionId, filePaths: wavPaths });
+      for (const wavPath of wavPaths) {
+        await this.analyzeAudioFiles({ sessionId, filePaths: [wavPath] });
+      }
     } else {
-      this.logger.warn("No WAV files generated or available. Skipping audio analysis.");
+      this.logger.info("No new WAV files were available for audio analysis.");
     }
 
     // 3. Call /analyze-transcript
