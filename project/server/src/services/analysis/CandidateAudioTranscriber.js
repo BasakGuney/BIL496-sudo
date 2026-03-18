@@ -35,7 +35,7 @@ export class CandidateAudioTranscriber {
     const file = new File([bytes], `candidate.${ext}`, { type: mimeType || "audio/webm" });
     const formData = new FormData();
     formData.set("file", file);
-    formData.set("model", "gpt-4o-mini-transcribe");
+    formData.set("model", "gpt-4o-transcribe");
     formData.set("language", "tr");
     formData.set(
       "prompt",

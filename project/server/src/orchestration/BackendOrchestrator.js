@@ -79,7 +79,6 @@ export class BackendOrchestrator {
     if (!session.runtimeState) {
       session.runtimeState = {
         incrementalCandidateAnswerAudios: [],
-        incrementalTranscriptEntries: [],
         incrementalSavedAudioFiles: [],
         analyzedAudioRelativePaths: [],
       };
@@ -144,21 +143,9 @@ export class BackendOrchestrator {
     return (Array.isArray(transcript) ? transcript : []).filter((item) => item?.role === role);
   }
 
-  async buildCandidateTranscriptFromAudio({ mergedCandidateAnswerAudios = [], runtime }) {
-    const incrementalAnswerKeys = new Set(
-      (runtime?.incrementalCandidateAnswerAudios || []).map((item) => this.buildAnswerKey(item))
-    );
-    const remainingCandidateAnswerAudios = (Array.isArray(mergedCandidateAnswerAudios) ? mergedCandidateAnswerAudios : []).filter(
-      (item) => !incrementalAnswerKeys.has(this.buildAnswerKey(item))
-    );
-    const transcribedRemainingEntries = remainingCandidateAnswerAudios.length > 0
-      ? await this.candidateAudioTranscriber?.transcribeCandidateAnswerAudios?.(remainingCandidateAnswerAudios).catch(() => [])
-      : [];
-
-    return this.mergeUniqueTranscriptEntries(
-      runtime?.incrementalTranscriptEntries || [],
-      transcribedRemainingEntries
-    );
+  async buildCandidateTranscriptFromAudio(candidateAnswerAudios = []) {
+    if (!this.candidateAudioTranscriber?.transcribeCandidateAnswerAudios) return [];
+    return this.candidateAudioTranscriber.transcribeCandidateAnswerAudios(candidateAnswerAudios).catch(() => []);
   }
 
   async enrichTranscriptWithCandidateAudio(transcript = [], candidateAnswerAudios = []) {
@@ -212,20 +199,6 @@ export class BackendOrchestrator {
       }
     }
 
-    const text = await this.candidateAudioTranscriber?.transcribeOne?.(normalizedAnswer).catch(() => "");
-    if (text) {
-      runtime.incrementalTranscriptEntries = this.mergeUniqueTranscriptEntries(
-        runtime.incrementalTranscriptEntries,
-        [{
-          role: "candidate",
-          text,
-          ts: normalizedAnswer.startedAt || Date.now(),
-          source: "incremental-audio",
-          model: "gpt-4o-mini-transcribe",
-        }]
-      );
-    }
-
     if (this.pythonAnalysisClient && savedAudioFile?.fullPath) {
       const wavPath = await this.pythonAnalysisClient.convertToWav(savedAudioFile.fullPath);
       if (wavPath && !runtime.analyzedAudioRelativePaths.includes(savedAudioFile.relativePath)) {
@@ -243,7 +216,7 @@ export class BackendOrchestrator {
     }
 
     await this.sessions.update(session);
-    return { accepted: true, duplicate: false, transcriptText: text || "" };
+    return { accepted: true, duplicate: false };
   }
 
   async endSession(sessionId, reason = null, transcript = [], candidateAnswerAudios = []) {
@@ -267,16 +240,15 @@ export class BackendOrchestrator {
       runtime.incrementalCandidateAnswerAudios,
       candidateAnswerAudios
     );
-    const hasIncrementalCandidateTranscript = (runtime.incrementalTranscriptEntries || []).length > 0;
     const interviewerTranscriptEntries = this.filterTranscriptByRole(transcript, "interviewer");
-    const candidateTranscriptEntries = hasIncrementalCandidateTranscript
-      ? await this.buildCandidateTranscriptFromAudio({ mergedCandidateAnswerAudios, runtime })
+    const candidateTranscriptEntries = mergedCandidateAnswerAudios.length > 0
+      ? await this.buildCandidateTranscriptFromAudio(mergedCandidateAnswerAudios)
       : this.filterTranscriptByRole(transcript, "candidate");
     const transcriptEntries = this.mergeUniqueTranscriptEntries(
       interviewerTranscriptEntries,
       candidateTranscriptEntries
     );
-    const enrichedTranscriptEntries = hasIncrementalCandidateTranscript
+    const enrichedTranscriptEntries = mergedCandidateAnswerAudios.length > 0
       ? transcriptEntries
       : await this.enrichTranscriptWithCandidateAudio(transcriptEntries, mergedCandidateAnswerAudios);
     const report = await this.analyzer.generateReport(session, enrichedTranscriptEntries);

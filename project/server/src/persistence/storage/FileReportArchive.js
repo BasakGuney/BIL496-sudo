@@ -10,6 +10,11 @@ export class FileReportArchive {
     return String(sessionId || "unknown-session").replace(/[^a-zA-Z0-9-_]/g, "_");
   }
 
+  buildSessionFolderName(sessionId) {
+    const safeSessionId = this.sanitizeSessionId(sessionId);
+    return safeSessionId.startsWith("S-") ? safeSessionId : `S-${safeSessionId}`;
+  }
+
   extensionFromMimeType(mimeType = "") {
     const clean = String(mimeType || "").toLowerCase();
     if (clean.includes("ogg")) return "ogg";
@@ -39,8 +44,7 @@ export class FileReportArchive {
 
   async ensureSessionDir(sessionId) {
     await mkdir(this.baseDir, { recursive: true });
-    const safeSessionId = this.sanitizeSessionId(sessionId);
-    const sessionDir = path.join(this.baseDir, safeSessionId);
+    const sessionDir = path.join(this.baseDir, this.buildSessionFolderName(sessionId));
     await mkdir(sessionDir, { recursive: true });
     return sessionDir;
   }

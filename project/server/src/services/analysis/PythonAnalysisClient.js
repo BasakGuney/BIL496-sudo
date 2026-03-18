@@ -14,6 +14,15 @@ export class PythonAnalysisClient {
     this.connectionRefusedWarnings = new Set();
   }
 
+  sanitizeSessionId(sessionId = "") {
+    return String(sessionId || "unknown-session").replace(/[^a-zA-Z0-9-_]/g, "_");
+  }
+
+  buildSessionFolderName(sessionId = "") {
+    const safeSessionId = this.sanitizeSessionId(sessionId);
+    return safeSessionId.startsWith("S-") ? safeSessionId : `S-${safeSessionId}`;
+  }
+
   isConnectionRefused(error) {
     if (!error) return false;
     if (error?.cause?.code === "ECONNREFUSED") return true;
@@ -136,7 +145,7 @@ export class PythonAnalysisClient {
       return;
     }
 
-    const sessionDir = path.join(baseDir, sessionId);
+    const sessionDir = path.join(baseDir, this.buildSessionFolderName(sessionId));
 
     // 1. Prepare and Convert Audio Files
     const wavPaths = [];
