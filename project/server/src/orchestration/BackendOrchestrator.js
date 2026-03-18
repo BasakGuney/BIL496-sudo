@@ -208,11 +208,16 @@ export class BackendOrchestrator {
     if (this.pythonAnalysisClient && savedAudioFile?.fullPath) {
       const wavPath = await this.pythonAnalysisClient.convertToWav(savedAudioFile.fullPath);
       if (wavPath && !runtime.analyzedAudioRelativePaths.includes(savedAudioFile.relativePath)) {
-        runtime.analyzedAudioRelativePaths.push(savedAudioFile.relativePath);
         this.pythonAnalysisClient.analyzeAudioFiles({
           sessionId,
           filePaths: [wavPath],
-        }).catch((err) => console.error("[BackendOrchestrator] Incremental audio analysis error:", err));
+        })
+          .then((success) => {
+            if (success && !runtime.analyzedAudioRelativePaths.includes(savedAudioFile.relativePath)) {
+              runtime.analyzedAudioRelativePaths.push(savedAudioFile.relativePath);
+            }
+          })
+          .catch((err) => console.error("[BackendOrchestrator] Incremental audio analysis error:", err));
       }
     }
 

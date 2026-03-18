@@ -34,7 +34,9 @@ export class FileReportArchive {
   buildAnswerFileName(answer = {}, sequence = null) {
     const ext = this.extensionFromMimeType(answer?.mimeType);
     const index = Number(answer?.questionIndex || sequence || 1);
-    return `answer_${String(index).padStart(2, "0")}.${ext}`;
+    const startedAt = Number(answer?.startedAt || 0);
+    const suffix = startedAt > 0 ? `_${startedAt}` : sequence ? `_${String(sequence).padStart(2, "0")}` : "";
+    return `answer_${String(index).padStart(2, "0")}${suffix}.${ext}`;
   }
 
   async ensureSessionDir(sessionId) {

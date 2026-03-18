@@ -11,6 +11,26 @@ export class PythonAnalysisClient {
     this.baseUrl = baseUrl;
     this.fetchImpl = fetchImpl;
     this.logger = logger;
+    this.connectionRefusedWarnings = new Set();
+  }
+
+  isConnectionRefused(error) {
+    if (!error) return false;
+    if (error?.cause?.code === "ECONNREFUSED") return true;
+    if (Array.isArray(error?.cause?.errors) && error.cause.errors.some((item) => item?.code === "ECONNREFUSED")) {
+      return true;
+    }
+    return false;
+  }
+
+  logServiceUnavailable(scope, error) {
+    const key = `${scope}:${this.baseUrl}`;
+    if (this.connectionRefusedWarnings.has(key)) return;
+    this.connectionRefusedWarnings.add(key);
+    this.logger.warn(`Python ${scope} service is unavailable at ${this.baseUrl}. Skipping ${scope} analysis until it is back online.`);
+    if (error?.cause?.code && error.cause.code !== "ECONNREFUSED") {
+      this.logger.warn(`Python ${scope} connection detail: ${error.cause.code}`);
+    }
   }
 
   async convertToWav(inputPath) {
@@ -42,7 +62,7 @@ export class PythonAnalysisClient {
     const validPaths = (Array.isArray(filePaths) ? filePaths : []).filter(Boolean);
     if (!sessionId || validPaths.length === 0) {
       this.logger.warn("PythonAnalysisClient: Missing sessionId or filePaths, skipping audio analysis.");
-      return;
+      return false;
     }
 
     this.logger.info(`Sending ${validPaths.length} files to Python API for audio analysis...`);
@@ -59,19 +79,25 @@ export class PythonAnalysisClient {
       if (!audioResponse.ok) {
         const errText = await audioResponse.text();
         this.logger.error(`Audio analysis API failed: ${audioResponse.status} - ${errText}`);
-        return;
+        return false;
       }
 
       this.logger.info("Audio analysis completed successfully.");
+      return true;
     } catch (error) {
-      this.logger.error("Failed to call Python audio analysis API:", error);
+      if (this.isConnectionRefused(error)) {
+        this.logServiceUnavailable("audio", error);
+      } else {
+        this.logger.error("Failed to call Python audio analysis API:", error);
+      }
+      return false;
     }
   }
 
   async analyzeTranscript({ sessionId, transcriptText = "", qaEvaluations = [] }) {
     if (!sessionId || (!transcriptText && qaEvaluations.length === 0)) {
       this.logger.warn("PythonAnalysisClient: Missing transcript content, skipping transcript analysis.");
-      return;
+      return false;
     }
 
     this.logger.info("Sending transcript for analysis to Python API...");
@@ -89,12 +115,18 @@ export class PythonAnalysisClient {
       if (!transcriptResponse.ok) {
         const errText = await transcriptResponse.text();
         this.logger.error(`Transcript analysis API failed: ${transcriptResponse.status} - ${errText}`);
-        return;
+        return false;
       }
 
       this.logger.info("Transcript analysis completed successfully.");
+      return true;
     } catch (error) {
-      this.logger.error("Failed to call Python transcript analysis API:", error);
+      if (this.isConnectionRefused(error)) {
+        this.logServiceUnavailable("transcript", error);
+      } else {
+        this.logger.error("Failed to call Python transcript analysis API:", error);
+      }
+      return false;
     }
   }
 
