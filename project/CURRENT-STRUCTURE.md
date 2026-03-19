@@ -7,9 +7,14 @@ Sistem genel olarak **3 ana katmandan** (Client, Node.js Server, Python API) olu
 ### 💻 A. İstemci (Client - React / Vite)
 Kullanıcının (Adayın) etkileşime girdiği önyüzdür. React tabanlı SPA (Single Page Application) olarak tasarlanmıştır.
 
+* **Klasör Yapısı (`client/src/`):**
+  * `app/`: Uygulamanın genel state (durum) yönetimi ve store mantığının tutulduğu yer.
+  * `pages/`: Sayfa bazlı UI ve yönlendirme (Setup, Interview, Feedback) bileşenleri.
+  * `components/`: Tekrar kullanılabilir arayüz parçaları (Butonlar, Kartlar, VoiceWaveCanvas).
+  * `lib/`: Yardımcı araçlar. Özellikle **`realtimeClient.ts`** burada bulunur.
 * **Sorumluluklar:**
   * **Ses Yakalama & Çalma:** Tarayıcının mikrofonuna erişir (`getUserMedia`), kullanıcının ses parçalarını yakalar ve WebRTC üzerinden oynatılacak yapay zeka sesini anlık olarak çalar.
-  * **WebRTC İletişimi:** Gecikmesiz karşılıklı konuşma (low-latency) için Node.js üzerinden OpenAI'a doğrudan ses köprüsü (SDP) kurar.
+  * **WebRTC İletişimi (`lib/realtimeClient.ts`):** Gecikmesiz karşılıklı konuşma (low-latency) için Node.js üzerinden OpenAI'a doğrudan ses köprüsü (SDP) kurar.
   * **Arayüz (UI):** Soruların ekrandaki durumunu, geri sayımı, izinleri ve mülakat sonrasında üretilen final raporunu (grafikler vs.) kullanıcıya sunar.
 
 ### ⚙️ B. Ana Sunucu (Node.js - Express)
@@ -62,12 +67,12 @@ Sistem birden fazla yapay zekanın "Orkestrasyonu (Birbirini Yönetmesi)" üzeri
    * **Bulunduğu Yer:** Python API (`analyzer.py`).
    * **İşlevi:** Türkçe için özel eğitilmiş (Fine-tuned) bu model, adayın harfleri ne kadar net yuttuğunu veya vurguları ne kadar doğru yaptığını (Diksiyon/Clarity) ölçer. Bir kelimenin ses dalgasıyla, beklenen harf dizilimini modelin kendi içindeki çıktılarıyla eşleştirip güven (confidence) skoru üretir.
 
-5. **`llama3` (Veya Çalışan Ollama Modeli)**
+5. **`llama3.1` (Veya Çalışan Ollama Modeli)**
    * **Rolü:** İnsan Kaynakları Analisti / HR Stratejisti.
    * **Bulunduğu Yer:** Python API (`transcript_analyzer.py` ve `analyzer.py` içindeki Ollama entegrasyonu).
    * **İşlevi:** Yerel (offline) çalışan bir Büyük Dil Modelidir (LLM). İki şekilde çalışır:
      * **Ses Yorumlayıcı:** `wav2vec2` modellerinden dönen "Özgüven: %60, Gerginlik: %40" gibi ham sayısal verileri okur; "*Adayın başlangıçta gergin olduğu, ancak daha sonra özgüveninin yerine geldiği görülmektedir*" şeklinde metinsel bir sentez yazısı yazar.
-     * **İçerik Yorumlayıcı:** Adayın yazıya dökülen cevaplarını, İK kurallarına göre okuyarak "*Cevap sorudan bağımsızdı, adaya şu tavsiyeler verilebilir*" şeklinde detaylı mantıksal geri bildirim metinleri (coach report) üretir. 
+     * **İçerik Yorumlayıcı:** Adayın yazıya dökülen cevaplarını, İK kurallarına göre okuyarak "*Kendini tanıtma sorusuna kısa ve doğrudan bir giriş yaptın.*" şeklinde halüsinasyonsuz, detaylı ve mantıksal geri bildirim metinleri (coach report) üretir. 
 
 ---
 
@@ -101,6 +106,6 @@ Projenin ana klasöründe terminal üzerinden şu komutu çalıştırmanız yete
 .\setup.ps1
 ```
 
-Bu script çalıştığında tüm bağımlılıkları yükler, ffmpeg dosyalarını getirir, python sanal ortamını yaratıp kütüphaneleri çeker ve arka planda Llama3 modelini bilgisayarınıza indirir.
+Bu script çalıştığında tüm bağımlılıkları yükler, ffmpeg dosyalarını getirir, python sanal ortamını yaratıp kütüphaneleri çeker ve arka planda güncel Llama3.1 modelini (eski llama3 yerine) bilgisayarınıza indirir veya günceller.
 
 Çalıştırma komutları (uvicorn, npm run dev vb.) ve diğer detaylar için `project_documentation.md` dosyasına bakabilirsiniz.

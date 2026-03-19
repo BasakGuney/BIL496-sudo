@@ -6,7 +6,7 @@ const client = new PythonAnalysisClient();
 
 async function test() {
   const reportsDir = path.resolve(process.cwd(), "reports");
-  const sessionId = "S-1773567046663";
+  const sessionId = "S-1773859433140";
   const jsonPath = path.join(reportsDir, sessionId, "report.json");
 
   console.log(`Reading ${jsonPath}...`);

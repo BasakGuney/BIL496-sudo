@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Camera Web Probe</title>
+  <style>
+    :root {
+      --bg: #101417;
+      --panel: #1a2329;
+      --text: #e6edf2;
+      --muted: #9fb0bc;
+      --accent: #4bd38f;
+      --warn: #f1a33c;
+    }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(circle at top, #1a2430 0%, var(--bg) 60%);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+    .card {
+      width: min(980px, 96vw);
+      background: var(--panel);
+      border: 1px solid #2a3944;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+    }
+    .head {
+      padding: 14px 16px;
+      border-bottom: 1px solid #2a3944;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    .status {
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .status.ok { color: var(--accent); }
+    .status.warn { color: var(--warn); }
+    .alert {
+      display: none;
+      margin: 12px 16px 0;
+      border: 2px solid #ff4d4d;
+      background: #6e1111;
+      color: #fff;
+      font-weight: 700;
+      border-radius: 10px;
+      padding: 10px 12px;
+      text-align: center;
+      animation: pulse 0.8s infinite;
+    }
+    .alert.show {
+      display: block;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.35; }
+      100% { opacity: 1; }
+    }
+    .video-wrap {
+      padding: 16px;
+    }
+    img {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #324654;
+      background: #0c1115;
+      display: block;
+    }
+    .note {
+      padding: 0 16px 16px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    .controls {
+      padding: 0 16px 16px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 10px;
+      align-items: end;
+    }
+    .controls label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .controls input {
+      width: 100%;
+      box-sizing: border-box;
+      background: #0f171c;
+      color: var(--text);
+      border: 1px solid #334854;
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .controls button {
+      background: #2f7c57;
+      border: 1px solid #3fa06f;
+      color: #eafcf2;
+      border-radius: 8px;
+      padding: 9px 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .controls button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+    .result {
+      padding: 0 16px 16px;
+      display: grid;
+      gap: 10px;
+    }
+    .result h3 {
+      margin: 0;
+      font-size: 16px;
+    }
+    .emotion-hero {
+      margin: 0 16px 16px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px solid #2f4350;
+      background: linear-gradient(135deg, #132029 0%, #0c141a 100%);
+      display: grid;
+      gap: 6px;
+    }
+    .emotion-hero .label {
+      font-size: 12px;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .emotion-hero .value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .emotion-hero .meta {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .emotion-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: #1b2a33;
+      overflow: hidden;
+      border: 1px solid #2c3f4a;
+    }
+    .emotion-bar > div {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.3s ease;
+    }
+    .emotion-live {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 6px 16px 0;
+    }
+    .emotion-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .emotion-actions pre {
+      flex: 1;
+    }
+    .ghost-btn {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid #365160;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .ghost-btn.full {
+      width: 100%;
+    }
+    .ghost-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(6, 10, 12, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 50;
+    }
+    .modal.show {
+      display: flex;
+    }
+    .modal-card {
+      width: min(980px, 96vw);
+      background: #111b22;
+      border: 1px solid #2a3944;
+      border-radius: 14px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .modal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+    }
+    .modal-item {
+      background: #0f171c;
+      border: 1px solid #2c3f4a;
+      border-radius: 10px;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+    }
+    .modal-item img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #253642;
+      background: #0c1115;
+    }
+    .modal-caption {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    pre {
+      margin: 0;
+      padding: 12px;
+      background: #0f171c;
+      border: 1px solid #334854;
+      border-radius: 10px;
+      color: #d8e6f0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 260px;
+      overflow: auto;
+    }
+    code { color: #b9d9ff; }
+  </style>
+</head>
+<body>
+  <section class="card">
+    <div class="head">
+      <div class="title">Camera Behavior Web Probe</div>
+      <div id="status" class="status">Kontrol ediliyor...</div>
+    </div>
+    <div id="alertBanner" class="alert">UYARI: Ekran dışına bakış algılandı. Lütfen ekrana geri bakın.</div>
+    <div class="video-wrap">
+      <img src="/video_feed" alt="Live camera stream with face box" />
+    </div>
+    <div class="note">
+      Yüz algılandığında yeşil kutu çizilir. Görüntü yoksa terminal uygulaması için kamera iznini aç:
+      <code>System Settings &gt; Privacy &amp; Security &gt; Camera</code>.
+    </div>
+    <div class="emotion-hero">
+      <div class="label">Duygu Durumu</div>
+      <div id="emotionValue" class="value">Henüz çalıştırılmadı.</div>
+      <div id="emotionMeta" class="meta">Duygu analizi için session başlatın.</div>
+      <div class="emotion-bar"><div id="emotionBar"></div></div>
+    </div>
+    <div id="emotionLiveNote" class="emotion-live">Canlı duygu kapalı.</div>
+    <div class="controls">
+      <div>
+        <label for="duration">Süre (sn)</label>
+        <input id="duration" type="number" min="1" value="15" />
+      </div>
+      <div>
+        <label for="fps">FPS</label>
+        <input id="fps" type="number" min="1" value="10" />
+      </div>
+      <div>
+        <label for="camera_index">Kamera Index</label>
+        <input id="camera_index" type="number" min="0" value="0" />
+      </div>
+      <div>
+        <button id="runBtn" type="button">Session Başlat</button>
+      </div>
+      <div>
+        <button id="emotionBtn" class="ghost-btn full" type="button">Canlı Duygu Başlat</button>
+      </div>
+    </div>
+    <div class="result">
+      <h3>Kamera Feedback</h3>
+      <pre id="feedbackBox">Henüz çalıştırılmadı.</pre>
+      <h3>Duygu Analizi</h3>
+      <div class="emotion-actions">
+        <pre id="emotionBox">Henüz çalıştırılmadı.</pre>
+        <button id="openEmotionModal" class="ghost-btn" type="button" disabled>Yüzleri Gör</button>
+      </div>
+      <h3>Duygu Örnekleri</h3>
+      <pre id="emotionSamplesBox">Henüz çalıştırılmadı.</pre>
+      <h3>JSON Sonuç</h3>
+      <pre id="jsonBox">Henüz çalıştırılmadı.</pre>
+    </div>
+  </section>
+
+  <div id="emotionModal" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="modal-title">Duygu Örnekleri (Kırpılmış Yüzler)</div>
+        <button id="closeEmotionModal" class="ghost-btn" type="button">Kapat</button>
+      </div>
+      <div id="emotionModalGrid" class="modal-grid"></div>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const alertBanner = document.getElementById('alertBanner');
+
+    async function refreshHealth() {
+      try {
+        const r = await fetch('/health');
+        const data = await r.json();
+        if (data.camera_open && data.mediapipe_face_mesh) {
+          if (data.prolonged_eye_closed_warning) {
+            statusEl.textContent = 'Uyarı: Gözler 2+ sn kapalı';
+            statusEl.className = 'status warn';
+            alertBanner.textContent = 'UYARI: Gözler 2+ sn kapalı.';
+            alertBanner.classList.add('show');
+          } else if (data.horizontal_scan_warning) {
+            statusEl.textContent = 'Uyarı: Yoğun yatay göz hareketi';
+            statusEl.className = 'status warn';
+            alertBanner.textContent = 'UYARI: Yoğun yatay göz hareketi algılandı.';
+            alertBanner.classList.add('show');
+          } else if (data.attention_warning) {
+            statusEl.textContent = 'Uyarı: Ekran dışına bakış gözlendi';
+            statusEl.className = 'status warn';
+            alertBanner.textContent = 'UYARI: Ekran dışına bakış algılandı. Lütfen ekrana geri bakın.';
+            alertBanner.classList.add('show');
+          } else {
+            statusEl.textContent = 'Hazır';
+            statusEl.className = 'status ok';
+            alertBanner.classList.remove('show');
+          }
+        } else {
+          statusEl.textContent = 'Kamera veya MediaPipe hazır değil';
+          statusEl.className = 'status warn';
+          alertBanner.classList.remove('show');
+        }
+      } catch (_) {
+        statusEl.textContent = 'Bağlantı hatası';
+        statusEl.className = 'status warn';
+        alertBanner.classList.remove('show');
+      }
+    }
+
+    refreshHealth();
+    setInterval(refreshHealth, 1200);
+
+    const runBtn = document.getElementById('runBtn');
+    const emotionBtn = document.getElementById('emotionBtn');
+    const durationEl = document.getElementById('duration');
+    const fpsEl = document.getElementById('fps');
+    const cameraIndexEl = document.getElementById('camera_index');
+    const feedbackBox = document.getElementById('feedbackBox');
+    const emotionBox = document.getElementById('emotionBox');
+    const emotionSamplesBox = document.getElementById('emotionSamplesBox');
+    const openEmotionModalBtn = document.getElementById('openEmotionModal');
+    const emotionModal = document.getElementById('emotionModal');
+    const closeEmotionModalBtn = document.getElementById('closeEmotionModal');
+    const emotionModalGrid = document.getElementById('emotionModalGrid');
+    const emotionValue = document.getElementById('emotionValue');
+    const emotionMeta = document.getElementById('emotionMeta');
+    const emotionBar = document.getElementById('emotionBar');
+    const emotionLiveNote = document.getElementById('emotionLiveNote');
+    const jsonBox = document.getElementById('jsonBox');
+    let emotionHistory = [];
+    let emotionLive = false;
+    let emotionLiveTimer = null;
+
+    const emotionColors = {
+      angry: '#f75b5b',
+      disgust: '#7ec27f',
+      fear: '#f1a33c',
+      happy: '#4bd38f',
+      neutral: '#7aa9ff',
+      sad: '#5fa3d9',
+      surprise: '#e7c15a',
+    };
+
+    function renderEmotionHistory(samples) {
+      if (!samples.length) {
+        emotionSamplesBox.textContent = 'Örnek yok.';
+        openEmotionModalBtn.disabled = true;
+        emotionModalGrid.textContent = '';
+        return;
+      }
+
+      const rows = samples.map(item => {
+        const t = (item.time_sec || 0).toFixed(1);
+        const pct = ((item.score || 0) * 100).toFixed(0);
+        return `t=${t}s · frame=${item.frame} · ${item.label} (${pct}%)`;
+      });
+      emotionSamplesBox.textContent = rows.join('\n');
+
+      const hasImages = samples.some(item => item.face_jpeg_base64);
+      openEmotionModalBtn.disabled = !hasImages;
+      emotionModalGrid.textContent = '';
+      if (hasImages) {
+        for (const item of samples) {
+          if (!item.face_jpeg_base64) {
+            continue;
+          }
+          const card = document.createElement('div');
+          card.className = 'modal-item';
+
+          const img = document.createElement('img');
+          img.src = `data:image/jpeg;base64,${item.face_jpeg_base64}`;
+          img.alt = 'Emotion sample face';
+
+          const caption = document.createElement('div');
+          caption.className = 'modal-caption';
+          const t = (item.time_sec || 0).toFixed(1);
+          const pct = ((item.score || 0) * 100).toFixed(0);
+          caption.textContent = `t=${t}s · frame=${item.frame} · ${item.label} (${pct}%)`;
+
+          card.appendChild(img);
+          card.appendChild(caption);
+          emotionModalGrid.appendChild(card);
+        }
+      }
+    }
+
+    async function runProbe() {
+      runBtn.disabled = true;
+      statusEl.textContent = 'Session çalışıyor...';
+      statusEl.className = 'status warn';
+
+      const payload = {
+        duration_sec: Number(durationEl.value),
+        fps: Number(fpsEl.value),
+        camera_index: Number(cameraIndexEl.value),
+      };
+
+      try {
+        const response = await fetch('/run_probe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Session çalıştırılamadı.');
+        }
+
+        feedbackBox.textContent = (data.camera_feedback || []).map(x => `- ${x}`).join('\n');
+
+        const metrics = data.camera_metrics || {};
+        const hasEmotion = Object.prototype.hasOwnProperty.call(metrics, 'emotion_samples');
+        if (hasEmotion) {
+          const dist = metrics.emotion_distribution || {};
+          const dominant = metrics.dominant_emotion;
+          const score = metrics.dominant_emotion_score;
+          const samples = metrics.emotion_samples || 0;
+          const sampleFrames = metrics.emotion_sample_frames || [];
+          const sampleTimes = metrics.emotion_sample_timestamps || [];
+          const sampleResults = metrics.emotion_sample_results || [];
+
+          const lines = [];
+          if (dominant) {
+            const pct = (score || 0) * 100;
+            lines.push(`Dominant: ${dominant} (${pct.toFixed(0)}%)`);
+            emotionValue.textContent = dominant;
+            let meta = `Güven: ${pct.toFixed(0)}% · Örnek: ${samples}`;
+            if (sampleFrames.length) {
+              meta += ` · Son frame: ${sampleFrames[sampleFrames.length - 1]}`;
+            }
+            emotionMeta.textContent = meta;
+            emotionBar.style.width = `${Math.min(100, Math.max(0, pct)).toFixed(0)}%`;
+          } else {
+            emotionValue.textContent = 'Duygu yok';
+            emotionMeta.textContent = 'Yüz algılanamadı veya analiz yapılamadı.';
+            emotionBar.style.width = '0%';
+          }
+          if (samples) {
+            lines.push(`Samples: ${samples}`);
+          }
+          if (sampleFrames.length) {
+            lines.push(`Sample frames: ${sampleFrames.join(', ')}`);
+          }
+          if (sampleTimes.length) {
+            const formatted = sampleTimes.map(x => `${x.toFixed(1)}s`);
+            lines.push(`Sample times: ${formatted.join(', ')}`);
+          }
+          const entries = Object.entries(dist).sort((a, b) => b[1] - a[1]);
+          if (entries.length) {
+            lines.push('Distribution:');
+            for (const [label, value] of entries) {
+              lines.push(`${label}: ${(value * 100).toFixed(1)}%`);
+            }
+          }
+          emotionBox.textContent = lines.length ? lines.join('\n') : 'Duygu analizi verisi yok.';
+
+          emotionHistory = Array.isArray(sampleResults) ? sampleResults : [];
+          renderEmotionHistory(emotionHistory);
+        }
+
+        jsonBox.textContent = JSON.stringify(data, null, 2);
+        statusEl.textContent = 'Session tamamlandı';
+        statusEl.className = 'status ok';
+      } catch (err) {
+        feedbackBox.textContent = 'Hata oluştu.';
+        jsonBox.textContent = String(err);
+        statusEl.textContent = 'Session hatası';
+        statusEl.className = 'status warn';
+      } finally {
+        runBtn.disabled = false;
+      }
+    }
+
+    function updateLiveEmotionUI(sample) {
+      if (!sample) {
+        emotionValue.textContent = 'Duygu yok';
+        emotionMeta.textContent = 'Yüz algılanamadı veya analiz yapılamadı.';
+        emotionBar.style.width = '0%';
+        emotionBar.style.background = 'var(--accent)';
+        return;
+      }
+      const pct = ((sample.score || 0) * 100).toFixed(0);
+      emotionValue.textContent = sample.label || 'Bilinmiyor';
+      emotionMeta.textContent = `Güven: ${pct}% · Frame: ${sample.frame ?? '-'}`;
+      emotionBar.style.width = `${Math.min(100, Math.max(0, Number(pct))).toFixed(0)}%`;
+      emotionBar.style.background = emotionColors[sample.label] || 'var(--accent)';
+      emotionBox.textContent = `Anlık duygu: ${sample.label} (${pct}%)`;
+    }
+
+    async function pollEmotionLive() {
+      try {
+        const response = await fetch('/emotion_live');
+        const data = await response.json();
+        if (data.error) {
+          emotionLiveNote.textContent = `Canlı duygu hatası: ${data.error}`;
+          return;
+        }
+        if (!data.enabled) {
+          return;
+        }
+        const sample = data.last;
+        updateLiveEmotionUI(sample);
+        if (sample) {
+          emotionHistory = [...emotionHistory, sample].slice(-30);
+          renderEmotionHistory(emotionHistory);
+        }
+      } catch (_) {
+        emotionLiveNote.textContent = 'Canlı duygu bağlantı hatası.';
+      }
+    }
+
+    async function toggleEmotionLive() {
+      emotionBtn.disabled = true;
+      try {
+        const next = !emotionLive;
+        const response = await fetch('/emotion_live', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: next }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Canlı duygu başlatılamadı.');
+        }
+        emotionLive = next;
+        emotionBtn.textContent = emotionLive ? 'Canlı Duygu Durdur' : 'Canlı Duygu Başlat';
+        emotionLiveNote.textContent = emotionLive ? 'Canlı duygu açık (her frame).' : 'Canlı duygu kapalı.';
+        if (emotionLive) {
+          if (!emotionLiveTimer) {
+            emotionLiveTimer = setInterval(pollEmotionLive, 200);
+          }
+        } else if (emotionLiveTimer) {
+          clearInterval(emotionLiveTimer);
+          emotionLiveTimer = null;
+        }
+      } catch (err) {
+        emotionLiveNote.textContent = String(err);
+      } finally {
+        emotionBtn.disabled = false;
+      }
+    }
+
+    runBtn.addEventListener('click', runProbe);
+    emotionBtn.addEventListener('click', toggleEmotionLive);
+    openEmotionModalBtn.addEventListener('click', () => {
+      if (!openEmotionModalBtn.disabled) {
+        emotionModal.classList.add('show');
+      }
+    });
+    closeEmotionModalBtn.addEventListener('click', () => {
+      emotionModal.classList.remove('show');
+    });
+    emotionModal.addEventListener('click', (event) => {
+      if (event.target === emotionModal) {
+        emotionModal.classList.remove('show');
+      }
+    });
+  </script>
+</body>
+</html>
