@@ -141,6 +141,41 @@ export class PythonAnalysisClient {
     }
   }
 
+  async analyzeVision({ sessionId, visionAnalysis = null }) {
+    if (!sessionId || !visionAnalysis || typeof visionAnalysis !== "object") {
+      this.logger.warn("PythonAnalysisClient: Missing vision analysis payload, skipping vision analysis.");
+      return false;
+    }
+
+    this.logger.info("Sending vision analysis for interpretation to Python API...");
+    try {
+      const visionResponse = await this.fetchImpl(`${this.baseUrl}/analyze-vision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          visionAnalysis,
+        })
+      });
+
+      if (!visionResponse.ok) {
+        const errText = await visionResponse.text();
+        this.logger.error(`Vision analysis API failed: ${visionResponse.status} - ${errText}`);
+        return false;
+      }
+
+      this.logger.info("Vision analysis completed successfully.");
+      return true;
+    } catch (error) {
+      if (this.isConnectionRefused(error)) {
+        this.logServiceUnavailable("vision", error);
+      } else {
+        this.logger.error("Failed to call Python vision analysis API:", error);
+      }
+      return false;
+    }
+  }
+
   async writeTranscriptFallbackArtifact({ sessionDir, transcriptText = "", qaEvaluations = [] }) {
     if (!sessionDir) return;
 
@@ -164,7 +199,7 @@ export class PythonAnalysisClient {
     }
   }
 
-  async analyzeSessionAndTranscript({ sessionId, baseDir, candidateAnswerAudioFiles = [], transcriptText = "", report = null }) {
+  async analyzeSessionAndTranscript({ sessionId, baseDir, candidateAnswerAudioFiles = [], transcriptText = "", report = null, visionAnalysis = null }) {
     if (!sessionId || !baseDir) {
       this.logger.warn("PythonAnalysisClient: Missing sessionId or baseDir, skipping analysis.");
       return;
@@ -205,6 +240,12 @@ export class PythonAnalysisClient {
       }
     } else {
       this.logger.warn("No transcript or QA evaluations available. Skipping transcript analysis.");
+    }
+
+    if (visionAnalysis) {
+      await this.analyzeVision({ sessionId, visionAnalysis });
+    } else {
+      this.logger.info("No vision analysis payload available. Skipping vision analysis.");
     }
   }
 }

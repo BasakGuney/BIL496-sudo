@@ -534,7 +534,8 @@ export class BackendOrchestrator {
             (file) => !runtime.analyzedAudioRelativePaths.includes(file?.relativePath)
           ),
           transcriptText: archiveResult.transcriptText || transcriptText,
-          report: report
+          report: report,
+          visionAnalysis: archiveResult.visionArtifacts,
         }).catch(err => console.error("[BackendOrchestrator] PythonAnalysisClient Error:", err));
       }
     }

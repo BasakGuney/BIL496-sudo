@@ -7,7 +7,7 @@ import json
 from typing import List
 from pydantic import BaseModel
 
-from analyzer import AudioAnalyzer, calculate_weighted_average_emotions, calculate_weighted_average_clarity, interpret_report_with_llama
+from analyzer import AudioAnalyzer, calculate_weighted_average_emotions, calculate_weighted_average_clarity, interpret_report_with_llama, interpret_vision_report_with_llama
 from transcript_analyzer import analyze_transcript_with_llama
 
 REPORTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../reports"))
@@ -184,6 +184,36 @@ async def analyze_session(request: SessionAnalysisRequest):
             "items": merged_results,
             "coach_report": llm_analysis
         }
+    except Exception as e:
+        import traceback
+        err = traceback.format_exc()
+        print(err)
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {err}")
+
+
+class VisionAnalysisRequest(BaseModel):
+    visionAnalysis: dict
+    session_id: str = None
+
+@app.post("/analyze-vision")
+async def analyze_vision(request: VisionAnalysisRequest):
+    try:
+        target_dir = get_session_dir(request.session_id)
+        vision_dir = os.path.join(target_dir, "vision")
+        os.makedirs(vision_dir, exist_ok=True)
+
+        result = interpret_vision_report_with_llama(request.visionAnalysis)
+        payload = {
+            "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "source": "ollama-llama3.1",
+            "visionAnalysisPath": os.path.join("vision", "vision_analysis_out.json"),
+            "report": result,
+        }
+
+        with open(os.path.join(vision_dir, "vision_llm_analysis_out.json"), "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+
+        return payload
     except Exception as e:
         import traceback
         err = traceback.format_exc()

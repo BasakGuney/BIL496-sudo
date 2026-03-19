@@ -207,3 +207,103 @@ def interpret_report_with_llama(report_text, overall_emotions):
         return "> ⚠️ **Zaman Aşımı:** LLM çok geç yanıt verdi (240sn saniye aşıldı). Lütfen daha güçlü bir model seçin veya bilgisayarınızın performansını kontrol edin."
     except Exception as e:
         return f"> ⚠️ **Ollama Bağlantı Hatası:** Yapay zeka değerlendirmesi alınamadı. Lütfen Ollama'nın çalıştığından (`ollama run llama3.1`) emin olun. Hata: {str(e)}"
+
+
+def interpret_vision_report_with_llama(vision_analysis):
+    overview = vision_analysis.get("overview", {}) if isinstance(vision_analysis, dict) else {}
+    tension = vision_analysis.get("tension", {}) if isinstance(vision_analysis, dict) else {}
+    diagnostics = vision_analysis.get("diagnostics", {}) if isinstance(vision_analysis, dict) else {}
+    samples = vision_analysis.get("samples", []) if isinstance(vision_analysis, dict) else []
+
+    prompt = f"""Sen kıdemli bir beden dili ve mülakat performansı koçusun. Aşağıdaki görsel mülakat metriklerini kullanarak yalnızca geçerli JSON döndür.
+
+JSON şeması:
+{{
+  "status": "ok" | "warning" | "unavailable",
+  "summary": "Kısa tek paragraf Türkçe özet",
+  "scores": [
+    {{"key": "camera_presence", "label": "Kamera Varlığı", "score": 0-100, "detail": "..."}},
+    {{"key": "framing", "label": "Kadraj ve Merkezleme", "score": 0-100, "detail": "..."}},
+    {{"key": "stability", "label": "Stabilite", "score": 0-100, "detail": "..."}},
+    {{"key": "visual_stress", "label": "Görsel Stres", "score": 0-100, "detail": "..."}}
+  ],
+  "strengths": ["..."],
+  "risks": ["..."],
+  "recommendations": [{{"title": "...", "text": "..."}}]
+}}
+
+Kurallar:
+- Sadece JSON döndür, markdown kullanma.
+- Değerlendirmeyi yalnızca verilen sayısal verilerden türet.
+- Türkçe yaz.
+- recommendation listesinde 2-4 madde olsun.
+- strengths ve risks listelerinde 1-4 madde olsun.
+- Eğer status hazır değilse veya örnek sayısı çok düşükse bunu açıkça belirt.
+
+VERİLER:
+- status: {vision_analysis.get('status')}
+- source: {vision_analysis.get('source')}
+- sampledFrames: {overview.get('sampledFrames', 0)}
+- faceDetectedFrames: {overview.get('faceDetectedFrames', 0)}
+- missingFaceFrames: {overview.get('missingFaceFrames', 0)}
+- facePresenceScore: {overview.get('facePresenceScore', 0)}
+- focusScore: {overview.get('focusScore', 0)}
+- centeringScore: {overview.get('centeringScore', 0)}
+- steadinessScore: {overview.get('steadinessScore', 0)}
+- averageFaceAreaRatio: {overview.get('averageFaceAreaRatio', 0)}
+- averageCenterOffset: {overview.get('averageCenterOffset', 0)}
+- headMovementRaw: {overview.get('headMovementRaw', 0)}
+- visualTensionScore: {tension.get('visualTensionScore', 0)}
+- attentionRiskScore: {tension.get('attentionRiskScore', 0)}
+- movementRiskScore: {tension.get('movementRiskScore', 0)}
+- eyeTensionScore: {tension.get('eyeTensionScore', 0)}
+- attentionDriftRatio: {tension.get('attentionDriftRatio', 0)}
+- dangerFrameRatio: {tension.get('dangerFrameRatio', 0)}
+- lowEyeRatio: {tension.get('lowEyeRatio', 0)}
+- warnFrames: {tension.get('warnFrames', 0)}
+- dangerFrames: {tension.get('dangerFrames', 0)}
+- lowEyeFrames: {tension.get('lowEyeFrames', 0)}
+- detector: {json.dumps(diagnostics.get('detector'), ensure_ascii=False)}
+- sampleCount: {len(samples)}
+"""
+
+    payload = {
+        "model": "llama3.1",
+        "prompt": prompt,
+        "format": "json",
+        "stream": False,
+        "options": {
+            "temperature": 0.1
+        }
+    }
+
+    try:
+        response = requests.post("http://localhost:11434/api/generate", json=payload, timeout=240)
+        response.raise_for_status()
+        result = response.json()
+        response_text = result.get("response", "{}")
+        parsed = json.loads(response_text)
+        return {
+            "status": str(parsed.get("status") or "ok"),
+            "summary": str(parsed.get("summary") or "Görsel analiz özeti üretilemedi."),
+            "scores": parsed.get("scores") if isinstance(parsed.get("scores"), list) else [],
+            "strengths": parsed.get("strengths") if isinstance(parsed.get("strengths"), list) else [],
+            "risks": parsed.get("risks") if isinstance(parsed.get("risks"), list) else [],
+            "recommendations": parsed.get("recommendations") if isinstance(parsed.get("recommendations"), list) else [],
+        }
+    except Exception as e:
+        return {
+            "status": "warning" if vision_analysis.get("status") != "unavailable" else "unavailable",
+            "summary": "Ollama yorum raporu üretilemedi; ham görsel metrikler kaydedildi.",
+            "scores": [
+                {"key": "camera_presence", "label": "Kamera Varlığı", "score": int(overview.get("facePresenceScore", 0) or 0), "detail": "Yüz görünürlüğü temel alınarak hesaplandı."},
+                {"key": "framing", "label": "Kadraj ve Merkezleme", "score": int(overview.get("centeringScore", 0) or 0), "detail": "Merkezleme metriği temel alınarak hesaplandı."},
+                {"key": "stability", "label": "Stabilite", "score": int(overview.get("steadinessScore", 0) or 0), "detail": "Baş hareketi metriği temel alınarak hesaplandı."},
+                {"key": "visual_stress", "label": "Görsel Stres", "score": int(tension.get("visualTensionScore", 0) or 0), "detail": f"LLM bağlantı hatası nedeniyle doğrudan skor kullanıldı: {str(e)}"},
+            ],
+            "strengths": [],
+            "risks": [f"Yapay zeka görsel yorum raporu üretilemedi: {str(e)}"],
+            "recommendations": [
+                {"title": "Ollama Bağlantısını Kontrol Et", "text": "Görsel koçluk raporu için Ollama servisinin çalışır durumda olduğundan emin ol."}
+            ],
+        }
