@@ -40,6 +40,11 @@ MEDIAPIPE_TASKS_FACE_DETECTOR_OPTIONS = None
 MEDIAPIPE_TASKS_RUNNING_MODE = None
 MEDIAPIPE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
 MEDIAPIPE_MODEL_PATH = Path(__file__).resolve().parent / ".model-cache" / "blaze_face_short_range.tflite"
+MEDIAPIPE_PYTHON_SUPPORTED = sys.version_info[:2] <= (3, 12)
+MEDIAPIPE_PYTHON_SUPPORT_NOTE = (
+    f"Python {platform.python_version()} is outside MediaPipe's published supported versions "
+    "(3.9-3.12) for mediapipe 0.10.33"
+)
 
 try:
     import mediapipe as mp  # type: ignore
@@ -76,6 +81,9 @@ else:
                     "mediapipe import succeeded but no supported face detector API "
                     "(solutions or tasks) is available"
                 )
+
+if MEDIAPIPE_IMPORT_ERROR and not MEDIAPIPE_PYTHON_SUPPORTED:
+    MEDIAPIPE_IMPORT_ERROR = f"{MEDIAPIPE_IMPORT_ERROR}. {MEDIAPIPE_PYTHON_SUPPORT_NOTE}"
 
 
 def load_payload() -> dict[str, Any]:
@@ -137,6 +145,7 @@ def build_detector_info(*, used: str, status: str, fallback_reason: str | None =
         "requested": "mediapipe",
         "used": used,
         "mediapipeAvailable": MEDIAPIPE_FACE_DETECTION is not None or MEDIAPIPE_TASKS_FACE_DETECTOR is not None,
+        "pythonSupportedForMediapipe": MEDIAPIPE_PYTHON_SUPPORTED,
         "fallbackReason": fallback_reason,
         "mediapipeImportError": MEDIAPIPE_IMPORT_ERROR,
         "status": status,
