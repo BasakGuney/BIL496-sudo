@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Flag, Mic, ScanFace, Volume2 } from "lucide-react";
 import { VoiceWaveCanvas } from "@/components/interview/VoiceWaveCanvas";
 import { connectRealtimeInterview } from "@/lib/realtimeClient";
-import { endSession, uploadCandidateAnswerIncremental } from "@/lib/api";
+import { endSession, uploadCandidateAnswerIncremental, waitForReadyReport } from "@/lib/api";
 import { createVisionAnalyzer, type VisionOverlayState } from "@/lib/visionAnalysis";
 
 const BACKEND_URL = "http://localhost:3001";
@@ -34,6 +34,7 @@ export function InterviewPage({
   const [level, setLevel] = useState(0);
   const [aiSpeaking, setAiSpeaking] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [finishingMessage, setFinishingMessage] = useState("Lütfen bekleyin, raporunuz hazırlanıyor.");
   const [overlay, setOverlay] = useState<VisionOverlayState>(DEFAULT_OVERLAY);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -225,12 +226,14 @@ export function InterviewPage({
     if (finishingRef.current) return;
     finishingRef.current = true;
     setIsFinishing(true);
+    setFinishingMessage("Ses, transcript ve görüntü verileri toplanıyor...");
 
     await new Promise((resolve) => setTimeout(resolve, 900));
 
     await flushIncrementalAnswers().catch((error) => {
       console.error("final incremental flush failed", error);
     });
+    setFinishingMessage("Oturum kapatılıyor ve ilk rapor oluşturuluyor...");
 
     const transcript = connRef.current?.getTranscript() || [];
     let candidateAnswerAudios: any[] = [];
@@ -240,7 +243,15 @@ export function InterviewPage({
 
     stopMedia();
     const rep = await endSession(sessionId, transcript, candidateAnswerAudios);
-    onFinish(rep);
+    setFinishingMessage("Analiz raporları hazırlanıyor; lütfen sayfada kalın...");
+
+    try {
+      const readyReport = await waitForReadyReport(sessionId);
+      onFinish(readyReport || rep);
+    } catch (error) {
+      console.error("ready report wait failed", error);
+      onFinish(rep);
+    }
   }
 
   function goBack() {
@@ -302,7 +313,7 @@ export function InterviewPage({
               <div className="animate-in fade-in flex flex-col items-center gap-4 duration-500">
                 <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
                 <div className="text-xl font-medium text-white/90">Mülakat Bitiriliyor...</div>
-                <div className="text-sm text-white/50">Lütfen bekleyin, raporunuz hazırlanıyor.</div>
+                <div className="text-sm text-white/50">{finishingMessage}</div>
               </div>
             ) : (
               <VoiceWaveCanvas speaking={aiSpeaking} level={level} />
