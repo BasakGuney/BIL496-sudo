@@ -217,7 +217,7 @@ export class FileReportArchive {
     const normalized = this.normalizeVisionAnalysis(visionAnalysis);
     if (!normalized) return null;
 
-    const analysisDir = path.join(sessionDir, "analysis", "vision");
+    const analysisDir = path.join(sessionDir, "vision");
     const samplesDir = path.join(analysisDir, "samples");
     await mkdir(samplesDir, { recursive: true });
 
@@ -230,7 +230,7 @@ export class FileReportArchive {
         const imageBuffer = Buffer.from(sample.imageBase64, "base64");
         if (imageBuffer.length > 0) {
           await writeFile(fullPath, imageBuffer);
-          relativeImagePath = path.join("analysis", "vision", "samples", fileName);
+          relativeImagePath = path.join("vision", "samples", fileName);
         }
       }
 
@@ -246,7 +246,7 @@ export class FileReportArchive {
       samples: savedSamples,
     };
 
-    const relativePath = path.join("analysis", "vision", "vision_analysis_out.json");
+    const relativePath = path.join("vision", "vision_analysis_out.json");
     await writeFile(path.join(sessionDir, relativePath), `${JSON.stringify(payload, null, 2)}
 `, "utf8");
     return {
