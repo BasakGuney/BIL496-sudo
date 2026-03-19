@@ -23,7 +23,8 @@ export class ReportController {
         req.params.sessionId,
         req.body?.reason || null,
         req.body?.transcript || [],
-        req.body?.candidateAnswerAudios || []
+        req.body?.candidateAnswerAudios || [],
+        req.body?.visionAnalysis || null
       );
       res.json(ReportView.fromReport(report));
     } catch (error) {

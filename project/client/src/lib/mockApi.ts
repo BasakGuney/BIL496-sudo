@@ -1,4 +1,4 @@
-import type { CandidateAnswerAudio, SessionConfig } from "./types";
+import type { CandidateAnswerAudio, SessionConfig, VisionAnalysis } from "./types";
 
 const BACKEND_URL = "http://localhost:3001";
 
@@ -63,12 +63,18 @@ export async function uploadCandidateAnswerIncremental(sessionId: string, candid
   });
 }
 
-export async function endSession(sessionId: string, transcript: unknown[], candidateAnswerAudios: CandidateAnswerAudio[]) {
+export async function endSession(
+  sessionId: string,
+  transcript: unknown[],
+  candidateAnswerAudios: CandidateAnswerAudio[],
+  visionAnalysis: VisionAnalysis | null
+) {
   return request(`/session/${encodeURIComponent(sessionId)}/end`, {
     method: "POST",
     body: JSON.stringify({
       transcript,
       candidateAnswerAudios,
+      visionAnalysis,
     }),
   });
 }

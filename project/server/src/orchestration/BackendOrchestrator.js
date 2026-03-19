@@ -196,7 +196,7 @@ export class BackendOrchestrator {
     return { accepted: true, duplicate: false };
   }
 
-  async endSession(sessionId, reason = null, transcript = [], candidateAnswerAudios = []) {
+  async endSession(sessionId, reason = null, transcript = [], candidateAnswerAudios = [], visionAnalysis = null) {
     const existingSession = await this.sessions.findById(sessionId);
     const session = existingSession || {
       id: sessionId,
@@ -218,7 +218,7 @@ export class BackendOrchestrator {
       candidateAnswerAudios
     );
     const transcriptEntries = this.mergeUniqueTranscriptEntries(transcript);
-    const report = await this.analyzer.generateReport(session, transcriptEntries);
+    const report = await this.analyzer.generateReport(session, transcriptEntries, visionAnalysis);
     const transcriptText = transcriptEntries
       .map((item) => {
         const role = item?.role === "interviewer" ? "Interviewer" : "Candidate";
@@ -245,6 +245,7 @@ export class BackendOrchestrator {
         report,
         candidateAnswerAudios: mergedCandidateAnswerAudios,
         existingCandidateAnswerAudioFiles: runtime.incrementalSavedAudioFiles,
+        visionAnalysis,
       });
 
       if (this.pythonAnalysisClient && archiveResult) {

@@ -36,6 +36,52 @@ export class FileReportArchive {
       .filter((item) => item.questionIndex > 0 && item.audioBase64.length > 0);
   }
 
+  normalizeVisionAnalysis(visionAnalysis = null) {
+    if (!visionAnalysis || typeof visionAnalysis !== "object") return null;
+
+    const samples = (Array.isArray(visionAnalysis.samples) ? visionAnalysis.samples : [])
+      .slice(0, 8)
+      .map((sample, index) => ({
+        index: index + 1,
+        ts: Number(sample?.ts || 0),
+        frameIndex: Number(sample?.frameIndex || 0),
+        hasFace: Boolean(sample?.hasFace),
+        bbox: sample?.bbox && typeof sample.bbox === "object"
+          ? {
+              x: Number(sample.bbox.x || 0),
+              y: Number(sample.bbox.y || 0),
+              width: Number(sample.bbox.width || 0),
+              height: Number(sample.bbox.height || 0),
+            }
+          : null,
+        imageBase64: String(sample?.imageBase64 || ""),
+      }));
+
+    return {
+      status: String(visionAnalysis.status || "unavailable"),
+      source: String(visionAnalysis.source || "browser-face-detector"),
+      supportiveOverlayUsed: Boolean(visionAnalysis.supportiveOverlayUsed),
+      metrics: {
+        sampledFrames: Number(visionAnalysis?.metrics?.sampledFrames || 0),
+        faceDetectedFrames: Number(visionAnalysis?.metrics?.faceDetectedFrames || 0),
+        missingFaceFrames: Number(visionAnalysis?.metrics?.missingFaceFrames || 0),
+        averageFaceAreaRatio: Number(visionAnalysis?.metrics?.averageFaceAreaRatio || 0),
+        headMovementRaw: Number(visionAnalysis?.metrics?.headMovementRaw || 0),
+        averageCenterOffset: Number(visionAnalysis?.metrics?.averageCenterOffset || 0),
+      },
+      summary: {
+        facePresenceRatio: Number(visionAnalysis?.summary?.facePresenceRatio || 0),
+        centeringScore: Number(visionAnalysis?.summary?.centeringScore || 0),
+        steadinessScore: Number(visionAnalysis?.summary?.steadinessScore || 0),
+        averageFaceAreaRatio: Number(visionAnalysis?.summary?.averageFaceAreaRatio || 0),
+        headMovementRaw: Number(visionAnalysis?.summary?.headMovementRaw || 0),
+      },
+      notes: (Array.isArray(visionAnalysis.notes) ? visionAnalysis.notes : []).map((note) => String(note || "")).filter(Boolean),
+      samples,
+      capturedAt: String(visionAnalysis.capturedAt || new Date().toISOString()),
+    };
+  }
+
   buildAnswerFileName(answer = {}, sequence = null) {
     const ext = this.extensionFromMimeType(answer?.mimeType);
     const index = Number(sequence || 1);
@@ -152,7 +198,6 @@ export class FileReportArchive {
     return fromQa;
   }
 
-
   mergeSavedAudioFiles(existingFiles = [], newFiles = []) {
     const out = [];
     const seen = new Set();
@@ -167,7 +212,49 @@ export class FileReportArchive {
     return out.sort((a, b) => Number(a?.startedAt || 0) - Number(b?.startedAt || 0));
   }
 
-  async save({ sessionId, transcript, report, candidateAnswerAudios = [], existingCandidateAnswerAudioFiles = [] }) {
+  async saveVisionAnalysisArtifacts({ sessionDir, visionAnalysis = null }) {
+    const normalized = this.normalizeVisionAnalysis(visionAnalysis);
+    if (!normalized) return null;
+
+    const analysisDir = path.join(sessionDir, "analysis", "vision");
+    const samplesDir = path.join(analysisDir, "samples");
+    await mkdir(samplesDir, { recursive: true });
+
+    const savedSamples = [];
+    for (const sample of normalized.samples) {
+      let relativeImagePath = null;
+      if (sample.imageBase64) {
+        const fileName = `frame_${String(sample.index).padStart(2, "0")}.jpg`;
+        const fullPath = path.join(samplesDir, fileName);
+        const imageBuffer = Buffer.from(sample.imageBase64, "base64");
+        if (imageBuffer.length > 0) {
+          await writeFile(fullPath, imageBuffer);
+          relativeImagePath = path.join("analysis", "vision", "samples", fileName);
+        }
+      }
+
+      savedSamples.push({
+        ...sample,
+        imageBase64: undefined,
+        imagePath: relativeImagePath,
+      });
+    }
+
+    const payload = {
+      ...normalized,
+      samples: savedSamples,
+    };
+
+    const relativePath = path.join("analysis", "vision", "vision_analysis_out.json");
+    await writeFile(path.join(sessionDir, relativePath), `${JSON.stringify(payload, null, 2)}
+`, "utf8");
+    return {
+      ...payload,
+      relativePath,
+    };
+  }
+
+  async save({ sessionId, transcript, report, candidateAnswerAudios = [], existingCandidateAnswerAudioFiles = [], visionAnalysis = null }) {
     const sessionDir = await this.ensureSessionDir(sessionId);
     const transcriptEntries = this.buildTranscriptEntries({ transcript, report });
     const filename = `report.json`;
@@ -197,23 +284,29 @@ export class FileReportArchive {
       newlySavedCandidateAnswerAudioFiles
     );
 
+    const visionArtifacts = await this.saveVisionAnalysisArtifacts({ sessionDir, visionAnalysis });
+
     const payload = {
       sessionId,
       createdAt: new Date().toISOString(),
       transcript: transcriptEntries,
       transcriptText,
       candidateAnswerAudioFiles: savedCandidateAnswerAudioFiles,
+      visionArtifacts,
       report,
     };
 
-    await writeFile(fullPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    await writeFile(fullPath, `${JSON.stringify(payload, null, 2)}
+`, "utf8");
     const safeTranscriptText = transcriptText || "[Interviewer] (metin kaydı alınamadı)";
-    await writeFile(transcriptTextPath, `${safeTranscriptText}\n`, "utf8");
+    await writeFile(transcriptTextPath, `${safeTranscriptText}
+`, "utf8");
     return {
       fullPath,
       savedCandidateAnswerAudioFiles,
       sessionDir,
-      transcriptText
+      transcriptText,
+      visionArtifacts,
     };
   }
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 type Props = {
   speaking: boolean;
@@ -19,7 +19,6 @@ export function VoiceWaveCanvas({ speaking, level }: Props) {
     if (!ctx) return;
 
     let raf = 0;
-    let t0 = performance.now();
 
     const resize = () => {
       const parent = canvas.parentElement;
@@ -42,8 +41,6 @@ export function VoiceWaveCanvas({ speaking, level }: Props) {
       const cx = w / 2;
       const cy = h / 2;
 
-      const dt = (now - t0) / 1000;
-      t0 = now;
 
       // speaking ise hareket/amp daha yüksek
       const base = speaking ? 1 : 0.35;

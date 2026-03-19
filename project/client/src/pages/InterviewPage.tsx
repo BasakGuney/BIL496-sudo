@@ -1,12 +1,22 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CandidateAnswerAudio, SessionConfig } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Flag, Mic, Volume2 } from "lucide-react";
+import { ArrowLeft, Flag, Mic, ScanFace, Volume2 } from "lucide-react";
 import { VoiceWaveCanvas } from "@/components/interview/VoiceWaveCanvas";
 import { connectRealtimeInterview } from "@/lib/realtimeClient";
 import { endSession, uploadCandidateAnswerIncremental } from "@/lib/mockApi";
+import { createVisionAnalyzer, type VisionOverlayState } from "@/lib/visionAnalysis";
 
 const BACKEND_URL = "http://localhost:3001";
+
+const DEFAULT_OVERLAY: VisionOverlayState = {
+  supported: false,
+  detecting: false,
+  hasFace: false,
+  faceCount: 0,
+  box: null,
+  message: "Görüntü analizi hazırlanıyor...",
+};
 
 export function InterviewPage({
   config,
@@ -19,30 +29,31 @@ export function InterviewPage({
   onFinish: (report: any) => void;
   onBack: () => void;
 }) {
-  const [status, setStatus] = useState<"connecting" | "connected" | "error">(
-    "connecting"
-  );
+  const [status, setStatus] = useState<"connecting" | "connected" | "error">("connecting");
   const [errorText, setErrorText] = useState("");
   const [level, setLevel] = useState(0);
   const [aiSpeaking, setAiSpeaking] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [overlay, setOverlay] = useState<VisionOverlayState>(DEFAULT_OVERLAY);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
+  const visionAnalyzerRef = useRef(createVisionAnalyzer());
 
   const connRef = useRef<Awaited<ReturnType<typeof connectRealtimeInterview>> | null>(null);
-  const connectingRef = useRef(false); // ✅ double connect guard
-  const finishingRef = useRef(false); // ✅ double click guard for finish
+  const connectingRef = useRef(false);
+  const finishingRef = useRef(false);
   const uploadedAnswerKeysRef = useRef<Set<string>>(new Set());
 
-  // Kamera PiP
+  const supportiveMode = useMemo(() => config.mode === "Supportive", [config.mode]);
+
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
         if (cancelled) {
@@ -50,22 +61,34 @@ export function InterviewPage({
           return;
         }
         camStreamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+          await visionAnalyzerRef.current.start({
+            video: videoRef.current,
+            supportiveMode,
+            onOverlay: setOverlay,
+          });
+        }
       } catch (e) {
         console.error(e);
+        setOverlay({
+          ...DEFAULT_OVERLAY,
+          message: "Kamera açılamadı; görüntü analizi devre dışı kalacak.",
+        });
       }
     })();
 
     return () => {
       cancelled = true;
+      visionAnalyzerRef.current.stop();
       if (camStreamRef.current) {
         camStreamRef.current.getTracks().forEach((t) => t.stop());
         camStreamRef.current = null;
       }
     };
-  }, []);
+  }, [supportiveMode]);
 
-  // Realtime connect (✅ sadece 1 kere)
   useEffect(() => {
     if (connectingRef.current) return;
     if (connRef.current) return;
@@ -132,23 +155,16 @@ export function InterviewPage({
     return () => {
       mounted = false;
       cancelAnimationFrame(raf);
-
-      // Sadece unmount oluyorsa ve finish çağrılmadıysa temizle.
-      // finish çağrıldıysa stopMedia zaten işini yaptı.
       if (!finishingRef.current) {
         connRef.current?.close();
         connRef.current = null;
         connectingRef.current = false;
       }
     };
-  }, [config.mode]);
+  }, [config, sessionId]);
 
   function buildAnswerUploadKey(answer: Partial<CandidateAnswerAudio>) {
-    return [
-      Number(answer?.questionIndex || 0),
-      Number(answer?.startedAt || 0),
-      Number(answer?.endedAt || 0),
-    ].join(":");
+    return [Number(answer?.questionIndex || 0), Number(answer?.startedAt || 0), Number(answer?.endedAt || 0)].join(":");
   }
 
   async function flushIncrementalAnswers() {
@@ -191,12 +207,11 @@ export function InterviewPage({
   }
 
   function stopMedia() {
-    // ✅ mikrofon + webrtc kapat
     connRef.current?.close();
     connRef.current = null;
     connectingRef.current = false;
 
-    // ✅ kamera kapat
+    visionAnalyzerRef.current.stop();
     if (camStreamRef.current) {
       camStreamRef.current.getTracks().forEach((t) => t.stop());
       camStreamRef.current = null;
@@ -209,10 +224,8 @@ export function InterviewPage({
     finishingRef.current = true;
     setIsFinishing(true);
 
-    // Erken bitirme anında son transkript event'lerinin düşmesi için kısa bir pencere bırak
     await new Promise((resolve) => setTimeout(resolve, 900));
 
-    // Güvenli kopyaları al, stopMedia her şeyi temizliyor.
     await flushIncrementalAnswers().catch((error) => {
       console.error("final incremental flush failed", error);
     });
@@ -223,8 +236,9 @@ export function InterviewPage({
       candidateAnswerAudios = await connRef.current.getCandidateAnswerAudios();
     }
 
+    const visionAnalysis = visionAnalyzerRef.current.buildPayload();
     stopMedia();
-    const rep = await endSession(sessionId, transcript, candidateAnswerAudios);
+    const rep = await endSession(sessionId, transcript, candidateAnswerAudios, visionAnalysis);
     onFinish(rep);
   }
 
@@ -259,9 +273,7 @@ export function InterviewPage({
       <div className="relative z-10 grid h-[calc(100vh-56px-84px)] place-items-center px-4">
         <div className="w-full max-w-[980px]">
           <div className="mb-4 text-center">
-            <div className="text-3xl md:text-4xl font-semibold tracking-tight text-white">
-              AI Interviewer
-            </div>
+            <div className="text-3xl font-semibold tracking-tight text-white md:text-4xl">AI Interviewer</div>
             <div className="mt-2 text-white/70">
               {status === "connected"
                 ? aiSpeaking
@@ -273,9 +285,14 @@ export function InterviewPage({
             </div>
           </div>
 
-          <div className="h-[300px] md:h-[360px] w-full rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-4 flex flex-col items-center justify-center">
+          <div className="flex items-center justify-center gap-2 pb-4 text-xs text-white/70">
+            <ScanFace className="h-4 w-4" />
+            <span>{overlay.message}</span>
+          </div>
+
+          <div className="flex h-[300px] w-full flex-col items-center justify-center rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur md:h-[360px]">
             {isFinishing ? (
-              <div className="flex flex-col items-center gap-4 animate-in fade-in duration-500">
+              <div className="animate-in fade-in flex flex-col items-center gap-4 duration-500">
                 <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
                 <div className="text-xl font-medium text-white/90">Mülakat Bitiriliyor...</div>
                 <div className="text-sm text-white/50">Lütfen bekleyin, raporunuz hazırlanıyor.</div>
@@ -293,24 +310,33 @@ export function InterviewPage({
             </div>
           )}
 
-          {status === "error" && (
-            <div className="mt-4 text-center text-sm text-red-200">
-              {errorText}
-            </div>
-          )}
+          {status === "error" && <div className="mt-4 text-center text-sm text-red-200">{errorText}</div>}
         </div>
       </div>
 
-      <div className="absolute bottom-4 left-4 z-20 w-[220px] md:w-[260px] overflow-hidden rounded-2xl border border-white/15 bg-black/30 backdrop-blur">
-        <div className="px-3 py-2 text-xs text-white/70">Sen (Kamera)</div>
-        <div className="aspect-video w-full bg-black">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="h-full w-full object-cover"
-          />
+      <div className="absolute bottom-4 left-4 z-20 w-[220px] overflow-hidden rounded-2xl border border-white/15 bg-black/30 backdrop-blur md:w-[260px]">
+        <div className="flex items-center justify-between px-3 py-2 text-xs text-white/70">
+          <span>Sen (Kamera)</span>
+          <span>{overlay.hasFace ? `${overlay.faceCount || 1} yüz` : 'yüz yok'}</span>
+        </div>
+        <div className="relative aspect-video w-full bg-black">
+          <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+          {supportiveMode && overlay.box ? (
+            <div
+              className="pointer-events-none absolute border-2 border-emerald-400 shadow-[0_0_0_9999px_rgba(16,24,40,0.08)]"
+              style={{
+                left: `${(overlay.box.x / Math.max(videoRef.current?.videoWidth || 1, 1)) * 100}%`,
+                top: `${(overlay.box.y / Math.max(videoRef.current?.videoHeight || 1, 1)) * 100}%`,
+                width: `${(overlay.box.width / Math.max(videoRef.current?.videoWidth || 1, 1)) * 100}%`,
+                height: `${(overlay.box.height / Math.max(videoRef.current?.videoHeight || 1, 1)) * 100}%`,
+              }}
+            />
+          ) : null}
+        </div>
+        <div className="border-t border-white/10 px-3 py-2 text-[11px] text-white/60">
+          {supportiveMode
+            ? 'Supportive modda yüz çerçevesi ve kadraj desteği aktif.'
+            : 'Neutral modda yalnızca arka planda görüntü analizi toplanır.'}
         </div>
       </div>
     </div>

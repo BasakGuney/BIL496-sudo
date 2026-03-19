@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Shell } from "@/components/layout/Shell";
 import { Stepper } from "@/components/layout/Stepper";
 import { SetupPage } from "@/pages/SetupPage";
