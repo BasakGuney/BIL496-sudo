@@ -5,7 +5,9 @@ import json
 import platform
 import traceback
 import sys
+from pathlib import Path
 from typing import Any
+from urllib.request import urlretrieve
 
 try:
     import cv2  # type: ignore
@@ -32,6 +34,12 @@ except Exception as exc:  # noqa: BLE001
 
 MEDIAPIPE_IMPORT_ERROR = None
 MEDIAPIPE_FACE_DETECTION = None
+MEDIAPIPE_TASKS_BASE_OPTIONS = None
+MEDIAPIPE_TASKS_FACE_DETECTOR = None
+MEDIAPIPE_TASKS_FACE_DETECTOR_OPTIONS = None
+MEDIAPIPE_TASKS_RUNNING_MODE = None
+MEDIAPIPE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
+MEDIAPIPE_MODEL_PATH = Path(__file__).resolve().parent / ".model-cache" / "blaze_face_short_range.tflite"
 
 try:
     import mediapipe as mp  # type: ignore
@@ -42,10 +50,32 @@ else:
     solutions = getattr(mp, "solutions", None)
     face_detection_module = getattr(solutions, "face_detection", None) if solutions is not None else None
     face_detection_class = getattr(face_detection_module, "FaceDetection", None) if face_detection_module is not None else None
-    if face_detection_class is None:
-        MEDIAPIPE_IMPORT_ERROR = "mediapipe import succeeded but mp.solutions.face_detection.FaceDetection is unavailable"
-    else:
+    if face_detection_class is not None:
         MEDIAPIPE_FACE_DETECTION = face_detection_class
+    else:
+        try:
+            from mediapipe.tasks import python as mp_python  # type: ignore
+            from mediapipe.tasks.python import vision as mp_vision  # type: ignore
+        except Exception as exc:
+            MEDIAPIPE_IMPORT_ERROR = (
+                "mediapipe import succeeded but neither mp.solutions.face_detection.FaceDetection "
+                f"nor mediapipe.tasks face detector APIs are available: {exc}"
+            )
+        else:
+            MEDIAPIPE_TASKS_BASE_OPTIONS = getattr(mp_python, "BaseOptions", None)
+            MEDIAPIPE_TASKS_FACE_DETECTOR = getattr(mp_vision, "FaceDetector", None)
+            MEDIAPIPE_TASKS_FACE_DETECTOR_OPTIONS = getattr(mp_vision, "FaceDetectorOptions", None)
+            MEDIAPIPE_TASKS_RUNNING_MODE = getattr(mp_vision, "RunningMode", None)
+            if not all([
+                MEDIAPIPE_TASKS_BASE_OPTIONS,
+                MEDIAPIPE_TASKS_FACE_DETECTOR,
+                MEDIAPIPE_TASKS_FACE_DETECTOR_OPTIONS,
+                MEDIAPIPE_TASKS_RUNNING_MODE,
+            ]):
+                MEDIAPIPE_IMPORT_ERROR = (
+                    "mediapipe import succeeded but no supported face detector API "
+                    "(solutions or tasks) is available"
+                )
 
 
 def load_payload() -> dict[str, Any]:
@@ -106,39 +136,55 @@ def build_detector_info(*, used: str, status: str, fallback_reason: str | None =
     return {
         "requested": "mediapipe",
         "used": used,
-        "mediapipeAvailable": MEDIAPIPE_FACE_DETECTION is not None,
+        "mediapipeAvailable": MEDIAPIPE_FACE_DETECTION is not None or MEDIAPIPE_TASKS_FACE_DETECTOR is not None,
         "fallbackReason": fallback_reason,
         "mediapipeImportError": MEDIAPIPE_IMPORT_ERROR,
         "status": status,
     }
 
 
-def detect_faces_with_mediapipe(frame):
-    if MEDIAPIPE_FACE_DETECTION is None:
+def ensure_mediapipe_task_model() -> Path:
+    if MEDIAPIPE_MODEL_PATH.exists():
+        return MEDIAPIPE_MODEL_PATH
+    MEDIAPIPE_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    urlretrieve(MEDIAPIPE_MODEL_URL, MEDIAPIPE_MODEL_PATH)
+    return MEDIAPIPE_MODEL_PATH
+
+
+def detect_faces_with_mediapipe_tasks(frame):
+    if (
+        MEDIAPIPE_TASKS_BASE_OPTIONS is None
+        or MEDIAPIPE_TASKS_FACE_DETECTOR is None
+        or MEDIAPIPE_TASKS_FACE_DETECTOR_OPTIONS is None
+        or MEDIAPIPE_TASKS_RUNNING_MODE is None
+    ):
         return None
 
     frame_height, frame_width = frame.shape[:2]
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    detector = MEDIAPIPE_FACE_DETECTION(
-        model_selection=0,
-        min_detection_confidence=0.5,
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+    model_path = ensure_mediapipe_task_model()
+    options = MEDIAPIPE_TASKS_FACE_DETECTOR_OPTIONS(
+        base_options=MEDIAPIPE_TASKS_BASE_OPTIONS(model_asset_path=str(model_path)),
+        running_mode=MEDIAPIPE_TASKS_RUNNING_MODE.IMAGE,
     )
-    with detector:
-        result = detector.process(rgb)
+
+    with MEDIAPIPE_TASKS_FACE_DETECTOR.create_from_options(options) as detector:
+        result = detector.detect(mp_image)
 
     detections = []
-    for detection in result.detections or []:
-        relative_bbox = detection.location_data.relative_bounding_box
-        bbox = normalize_bbox(
-            relative_bbox.xmin * frame_width,
-            relative_bbox.ymin * frame_height,
-            relative_bbox.width * frame_width,
-            relative_bbox.height * frame_height,
+    for detection in getattr(result, "detections", []) or []:
+        bbox = getattr(detection, "bounding_box", None)
+        normalized = normalize_bbox(
+            getattr(bbox, "origin_x", 0),
+            getattr(bbox, "origin_y", 0),
+            getattr(bbox, "width", 0),
+            getattr(bbox, "height", 0),
             frame_width,
             frame_height,
-        )
-        if bbox:
-            detections.append(bbox)
+        ) if bbox is not None else None
+        if normalized:
+            detections.append(normalized)
 
     if not detections:
         return {
@@ -155,6 +201,50 @@ def detect_faces_with_mediapipe(frame):
         "bbox": bbox,
         "detector": build_detector_info(used="mediapipe", status="active"),
     }
+
+
+def detect_faces_with_mediapipe(frame):
+    if MEDIAPIPE_FACE_DETECTION is not None:
+        frame_height, frame_width = frame.shape[:2]
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        detector = MEDIAPIPE_FACE_DETECTION(
+            model_selection=0,
+            min_detection_confidence=0.5,
+        )
+        with detector:
+            result = detector.process(rgb)
+
+        detections = []
+        for detection in result.detections or []:
+            relative_bbox = detection.location_data.relative_bounding_box
+            bbox = normalize_bbox(
+                relative_bbox.xmin * frame_width,
+                relative_bbox.ymin * frame_height,
+                relative_bbox.width * frame_width,
+                relative_bbox.height * frame_height,
+                frame_width,
+                frame_height,
+            )
+            if bbox:
+                detections.append(bbox)
+
+        if not detections:
+            return {
+                "source": "mediapipe",
+                "faceCount": 0,
+                "bbox": None,
+                "detector": build_detector_info(used="mediapipe", status="no_face"),
+            }
+
+        bbox = max(detections, key=lambda item: item["width"] * item["height"])
+        return {
+            "source": "mediapipe",
+            "faceCount": len(detections),
+            "bbox": bbox,
+            "detector": build_detector_info(used="mediapipe", status="active"),
+        }
+
+    return detect_faces_with_mediapipe_tasks(frame)
 
 
 def detect_faces_with_opencv(gray_frame, fallback_reason: str | None = None):
@@ -192,15 +282,15 @@ def main() -> None:
     payload = load_payload()
     if str(payload.get("mode") or "").lower() == "health":
         print(json.dumps({
-            "status": "ready" if MEDIAPIPE_FACE_DETECTION is not None else "limited",
-            "source": "mediapipe" if MEDIAPIPE_FACE_DETECTION is not None else "opencv",
+            "status": "ready" if (MEDIAPIPE_FACE_DETECTION is not None or MEDIAPIPE_TASKS_FACE_DETECTOR is not None) else "limited",
+            "source": "mediapipe" if (MEDIAPIPE_FACE_DETECTION is not None or MEDIAPIPE_TASKS_FACE_DETECTOR is not None) else "opencv",
             "pythonVersion": platform.python_version(),
             "opencvVersion": getattr(cv2, "__version__", "unknown"),
             "mediapipeVersion": getattr(mp, "__version__", None) if mp is not None else None,
             "detector": build_detector_info(
-                used="mediapipe" if MEDIAPIPE_FACE_DETECTION is not None else "opencv",
-                status="active" if MEDIAPIPE_FACE_DETECTION is not None else "fallback",
-                fallback_reason=None if MEDIAPIPE_FACE_DETECTION is not None else "mediapipe_unavailable",
+                used="mediapipe" if (MEDIAPIPE_FACE_DETECTION is not None or MEDIAPIPE_TASKS_FACE_DETECTOR is not None) else "opencv",
+                status="active" if (MEDIAPIPE_FACE_DETECTION is not None or MEDIAPIPE_TASKS_FACE_DETECTOR is not None) else "fallback",
+                fallback_reason=None if (MEDIAPIPE_FACE_DETECTION is not None or MEDIAPIPE_TASKS_FACE_DETECTOR is not None) else "mediapipe_unavailable",
             ),
         }))
         return
@@ -247,7 +337,7 @@ def main() -> None:
         eye_count = detect_eyes(gray, (bbox["x"], bbox["y"], bbox["width"], bbox["height"]))
 
     crop_b64 = encode_crop(frame, None if bbox is None else (bbox["x"], bbox["y"], bbox["width"], bbox["height"]))
-    source = str(detection.get("source") or ("mediapipe" if MEDIAPIPE_FACE_DETECTION is not None else "opencv"))
+    source = str(detection.get("source") or ("mediapipe" if (MEDIAPIPE_FACE_DETECTION is not None or MEDIAPIPE_TASKS_FACE_DETECTOR is not None) else "opencv"))
 
     print(json.dumps({
         "status": "ready" if bbox else "no_face",
