@@ -40,7 +40,7 @@ export class FileReportArchive {
     if (!visionAnalysis || typeof visionAnalysis !== "object") return null;
 
     const samples = (Array.isArray(visionAnalysis.samples) ? visionAnalysis.samples : [])
-      .slice(0, 8)
+      .slice(0, 4)
       .map((sample, index) => ({
         index: index + 1,
         ts: Number(sample?.ts || 0),
@@ -54,6 +54,7 @@ export class FileReportArchive {
               height: Number(sample.bbox.height || 0),
             }
           : null,
+        attentionLevel: String(sample?.attentionLevel || "ok"),
         imageBase64: String(sample?.imageBase64 || ""),
       }));
 

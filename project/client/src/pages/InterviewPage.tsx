@@ -248,6 +248,12 @@ export function InterviewPage({
     onBack();
   }
 
+  const overlayToneClass = overlay.attentionLevel === "danger"
+    ? "border-red-400 shadow-[0_0_0_9999px_rgba(127,29,29,0.18)]"
+    : overlay.attentionLevel === "warn"
+      ? "border-yellow-300 shadow-[0_0_0_9999px_rgba(120,53,15,0.16)]"
+      : "border-emerald-400 shadow-[0_0_0_9999px_rgba(16,24,40,0.08)]";
+
   const needsUserGesture = connRef.current?.audioCtx?.state === "suspended";
 
   return (
@@ -287,7 +293,7 @@ export function InterviewPage({
           </div>
 
           <div className="flex items-center justify-center gap-2 pb-4 text-xs text-white/70">
-            <ScanFace className="h-4 w-4" />
+            <ScanFace className={`h-4 w-4 ${overlay.attentionLevel === "danger" ? "text-red-300" : overlay.attentionLevel === "warn" ? "text-yellow-200" : "text-emerald-300"}`} />
             <span>{overlay.message}</span>
           </div>
 
@@ -324,7 +330,7 @@ export function InterviewPage({
           <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
           {supportiveMode && overlay.box ? (
             <div
-              className="pointer-events-none absolute border-2 border-emerald-400 shadow-[0_0_0_9999px_rgba(16,24,40,0.08)]"
+              className={`pointer-events-none absolute border-2 ${overlayToneClass}`}
               style={{
                 left: `${(overlay.box.x / Math.max(overlay.imageWidth || videoRef.current?.videoWidth || 1, 1)) * 100}%`,
                 top: `${(overlay.box.y / Math.max(overlay.imageHeight || videoRef.current?.videoHeight || 1, 1)) * 100}%`,

@@ -14,6 +14,7 @@ export type VisionOverlayState = {
   message: string;
   imageWidth?: number;
   imageHeight?: number;
+  attentionLevel?: "ok" | "warn" | "danger";
 };
 
 type StartOptions = {
@@ -41,7 +42,7 @@ export function createVisionAnalyzer() {
       sessionId,
       backendBaseUrl,
       supportiveMode,
-      sampleIntervalMs = 1200,
+      sampleIntervalMs = 2500,
       onOverlay: overlayHandler,
     } = options;
 
@@ -94,6 +95,7 @@ export function createVisionAnalyzer() {
           message: String(payload?.message || 'Görüntü analizi hazır.'),
           imageWidth: Number(payload?.imageWidth || video.videoWidth || 0),
           imageHeight: Number(payload?.imageHeight || video.videoHeight || 0),
+          attentionLevel: payload?.attentionLevel || 'ok',
         });
       } catch (error) {
         console.error('Vision frame upload failed', error);
@@ -106,6 +108,7 @@ export function createVisionAnalyzer() {
           message: 'Backend görüntü analizi şu an erişilemiyor.',
           imageWidth: video.videoWidth,
           imageHeight: video.videoHeight,
+          attentionLevel: 'danger',
         });
       }
     }, sampleIntervalMs);

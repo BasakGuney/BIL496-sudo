@@ -56,6 +56,7 @@ export type VisionAnalysis = {
     frameIndex: number;
     hasFace: boolean;
     bbox: { x: number; y: number; width: number; height: number } | null;
+    attentionLevel?: "ok" | "warn" | "danger";
     imageBase64?: string;
     imagePath?: string | null;
   }>;

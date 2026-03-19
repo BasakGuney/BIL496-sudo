@@ -84,9 +84,11 @@ export class BackendOrchestrator {
           lastCenter: null,
           samples: [],
           lastResult: null,
+          lastSavedAttentionLevel: null,
           supportiveOverlayUsed: false,
           source: this.visionFrameAnalyzer ? "server-python-opencv" : "unavailable",
           status: this.visionFrameAnalyzer ? "ready" : "unavailable",
+          lastAttentionLevel: "ok",
           notes: [],
         },
       };
@@ -152,6 +154,25 @@ export class BackendOrchestrator {
   }
 
 
+  computeAttentionLevel({ bbox, imageWidth, imageHeight, faceCount }) {
+    if (!bbox || !imageWidth || !imageHeight) return "danger";
+    if (Number(faceCount || 0) > 1) return "warn";
+
+    const centerX = Number(bbox.x || 0) + Number(bbox.width || 0) / 2;
+    const centerY = Number(bbox.y || 0) + Number(bbox.height || 0) / 2;
+    const offset = Math.sqrt(
+      Math.pow((centerX / Math.max(1, Number(imageWidth))) - 0.5, 2)
+      + Math.pow((centerY / Math.max(1, Number(imageHeight))) - 0.5, 2)
+    );
+    const faceAreaRatio = (Number(bbox.width || 0) * Number(bbox.height || 0))
+      / Math.max(1, Number(imageWidth) * Number(imageHeight));
+
+    if (offset >= 0.24 || faceAreaRatio < 0.035) return "danger";
+    if (offset >= 0.14 || faceAreaRatio < 0.055) return "warn";
+    return "ok";
+  }
+
+
   async ingestVisionFrame(sessionId, payload = {}) {
     const session = await this.sessions.findById(sessionId);
     if (!session) throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", statusCode: 404 });
@@ -183,6 +204,14 @@ export class BackendOrchestrator {
       imageHeight: Number(result?.imageHeight || 0),
     };
 
+    const attentionLevel = this.computeAttentionLevel({
+      bbox: result?.bbox,
+      imageWidth: Number(result?.imageWidth || 0),
+      imageHeight: Number(result?.imageHeight || 0),
+      faceCount: Number(result?.faceCount || 0),
+    });
+    vision.lastAttentionLevel = attentionLevel;
+
     if (result?.bbox) {
       const bbox = result.bbox;
       const faceAreaRatio = (Number(bbox.width || 0) * Number(bbox.height || 0))
@@ -205,14 +234,21 @@ export class BackendOrchestrator {
       }
       vision.lastCenter = { x: centerX, y: centerY };
 
-      if (vision.samples.length < 8 && result?.faceCropBase64) {
+      const shouldSaveSample = result?.faceCropBase64 && vision.samples.length < 4 && (
+        vision.samples.length === 0
+        || attentionLevel !== "ok"
+        || attentionLevel !== vision.lastSavedAttentionLevel
+      );
+      if (shouldSaveSample) {
         vision.samples.push({
           ts: Number(payload?.ts || Date.now()),
           frameIndex,
           hasFace: true,
           bbox,
           imageBase64: result.faceCropBase64,
+          attentionLevel,
         });
+        vision.lastSavedAttentionLevel = attentionLevel;
       }
     }
 
@@ -231,6 +267,7 @@ export class BackendOrchestrator {
       message: result?.message || "Görüntü analizi hazır değil.",
       source: vision.source,
       status: vision.status,
+      attentionLevel,
       imageWidth: Number(result?.imageWidth || 0),
       imageHeight: Number(result?.imageHeight || 0),
     };
@@ -262,6 +299,11 @@ export class BackendOrchestrator {
     }
     if (vision.supportiveOverlayUsed && !notes.includes("Supportive modda canlı yüz çerçevesi gösterildi.")) {
       notes.push("Supportive modda canlı yüz çerçevesi gösterildi.");
+    }
+    if (vision.lastAttentionLevel === "warn") {
+      notes.push("Bazı anlarda kamera odağından sapma gözlendi; yüz çerçevesi sarı uyarıya geçti.");
+    } else if (vision.lastAttentionLevel === "danger") {
+      notes.push("Bazı anlarda belirgin dikkat/kadraj kaybı görüldü; yüz çerçevesi kırmızı uyarıya geçti.");
     }
 
     return {
