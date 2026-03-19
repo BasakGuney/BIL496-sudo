@@ -85,6 +85,7 @@ export class BackendOrchestrator {
           samples: [],
           lastResult: null,
           lastSavedAttentionLevel: null,
+          lastSavedSampleMeta: null,
           warnFrames: 0,
           dangerFrames: 0,
           lowEyeFrames: 0,
@@ -175,6 +176,55 @@ export class BackendOrchestrator {
     return "ok";
   }
 
+  shouldPersistVisionSample({ vision, bbox, attentionLevel, imageWidth, imageHeight, faceCount, frameIndex }) {
+    if (!bbox || !imageWidth || !imageHeight) return false;
+
+    const centerX = Number(bbox.x || 0) + Number(bbox.width || 0) / 2;
+    const centerY = Number(bbox.y || 0) + Number(bbox.height || 0) / 2;
+    const normalizedCenterX = centerX / Math.max(1, Number(imageWidth));
+    const normalizedCenterY = centerY / Math.max(1, Number(imageHeight));
+    const areaRatio = (Number(bbox.width || 0) * Number(bbox.height || 0))
+      / Math.max(1, Number(imageWidth) * Number(imageHeight));
+
+    const current = {
+      frameIndex: Number(frameIndex || 0),
+      attentionLevel: String(attentionLevel || "ok"),
+      faceCount: Number(faceCount || 0),
+      centerX: Number(normalizedCenterX.toFixed(4)),
+      centerY: Number(normalizedCenterY.toFixed(4)),
+      areaRatio: Number(areaRatio.toFixed(4)),
+    };
+
+    const last = vision.lastSavedSampleMeta;
+    if (!last) {
+      vision.lastSavedSampleMeta = current;
+      return true;
+    }
+
+    const attentionChanged = current.attentionLevel !== last.attentionLevel;
+    const faceCountChanged = current.faceCount !== last.faceCount;
+    const centerShift = Math.sqrt(
+      Math.pow(current.centerX - Number(last.centerX || 0), 2)
+      + Math.pow(current.centerY - Number(last.centerY || 0), 2)
+    );
+    const sizeShift = Math.abs(current.areaRatio - Number(last.areaRatio || 0));
+    const frameGap = Math.max(0, current.frameIndex - Number(last.frameIndex || 0));
+
+    const changedEnough = attentionChanged
+      || faceCountChanged
+      || centerShift >= 0.045
+      || sizeShift >= 0.03
+      || frameGap >= 12;
+
+    if (changedEnough) {
+      vision.lastSavedSampleMeta = current;
+      return true;
+    }
+
+    return false;
+  }
+
+
 
   async ingestVisionFrame(sessionId, payload = {}) {
     const session = await this.sessions.findById(sessionId);
@@ -208,6 +258,7 @@ export class BackendOrchestrator {
       imageWidth: Number(result?.imageWidth || 0),
       imageHeight: Number(result?.imageHeight || 0),
       source: String(result?.source || ""),
+      detector: result?.detector || null,
     };
 
     const attentionLevel = this.computeAttentionLevel({
@@ -246,11 +297,15 @@ export class BackendOrchestrator {
         vision.lowEyeFrames += 1;
       }
 
-      const shouldSaveSample = result?.faceCropBase64 && vision.samples.length < 4 && (
-        vision.samples.length === 0
-        || attentionLevel !== "ok"
-        || attentionLevel !== vision.lastSavedAttentionLevel
-      );
+      const shouldSaveSample = result?.faceCropBase64 && this.shouldPersistVisionSample({
+        vision,
+        bbox,
+        attentionLevel,
+        imageWidth: Number(result?.imageWidth || 0),
+        imageHeight: Number(result?.imageHeight || 0),
+        faceCount: Number(result?.faceCount || 0),
+        frameIndex,
+      });
       if (shouldSaveSample) {
         vision.samples.push({
           ts: Number(payload?.ts || Date.now()),
@@ -261,6 +316,9 @@ export class BackendOrchestrator {
           attentionLevel,
         });
         vision.lastSavedAttentionLevel = attentionLevel;
+        if (vision.samples.length > 24) {
+          vision.samples.splice(0, vision.samples.length - 24);
+        }
       }
     }
 
@@ -320,6 +378,16 @@ export class BackendOrchestrator {
     for (const note of Array.isArray(vision.notes) ? vision.notes : []) {
       if (note && !notes.includes(note)) notes.push(note);
     }
+    const detectorInfo = vision.lastResult?.detector;
+    if (detectorInfo?.used === "opencv" && detectorInfo?.requested === "mediapipe") {
+      if (detectorInfo?.mediapipeAvailable === false) {
+        notes.push("MediaPipe bu ortamda kullanılamadı; OpenCV fallback ile analiz yapıldı.");
+      } else if (detectorInfo?.fallbackReason === "mediapipe_no_face") {
+        notes.push("MediaPipe bu framede yüz bulamayınca OpenCV fallback devreye girdi.");
+      }
+    } else if (detectorInfo?.used === "mediapipe") {
+      notes.push("Vision analizi MediaPipe ile çalıştırıldı.");
+    }
     if (vision.supportiveOverlayUsed && !notes.includes("Supportive modda canlı yüz çerçevesi gösterildi.")) {
       notes.push("Supportive modda canlı yüz çerçevesi gösterildi.");
     }
@@ -358,6 +426,11 @@ export class BackendOrchestrator {
         visualTensionScore,
       },
       notes,
+      diagnostics: {
+        detector: vision.lastResult?.detector || null,
+        lastSource: vision.source || "",
+        savedSampleCount: Array.isArray(vision.samples) ? vision.samples.length : 0,
+      },
       samples: Array.isArray(vision.samples) ? vision.samples : [],
       capturedAt: new Date().toISOString(),
     };

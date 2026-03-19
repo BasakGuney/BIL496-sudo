@@ -17,13 +17,24 @@ except Exception as exc:  # noqa: BLE001
         "eyeCount": 0,
         "bbox": None,
         "faceCropBase64": "",
+        "detector": {
+            "requested": "mediapipe",
+            "used": "unavailable",
+            "mediapipeAvailable": False,
+            "fallbackReason": "python_dependencies_unavailable",
+            "mediapipeImportError": str(exc),
+            "status": "unavailable",
+        },
     }))
     raise SystemExit(0)
 
+MEDIAPIPE_IMPORT_ERROR = None
+
 try:
     import mediapipe as mp  # type: ignore
-except Exception:
+except Exception as exc:
     mp = None
+    MEDIAPIPE_IMPORT_ERROR = str(exc)
 
 
 def load_payload() -> dict[str, Any]:
@@ -80,6 +91,17 @@ def normalize_bbox(x: float, y: float, w: float, h: float, frame_width: int, fra
     return {"x": left, "y": top, "width": width, "height": height}
 
 
+def build_detector_info(*, used: str, status: str, fallback_reason: str | None = None):
+    return {
+        "requested": "mediapipe",
+        "used": used,
+        "mediapipeAvailable": mp is not None,
+        "fallbackReason": fallback_reason,
+        "mediapipeImportError": MEDIAPIPE_IMPORT_ERROR,
+        "status": status,
+    }
+
+
 def detect_faces_with_mediapipe(frame):
     if mp is None:
         return None
@@ -108,28 +130,50 @@ def detect_faces_with_mediapipe(frame):
             detections.append(bbox)
 
     if not detections:
-        return {"source": "mediapipe", "faceCount": 0, "bbox": None}
+        return {
+            "source": "mediapipe",
+            "faceCount": 0,
+            "bbox": None,
+            "detector": build_detector_info(used="mediapipe", status="no_face"),
+        }
 
     bbox = max(detections, key=lambda item: item["width"] * item["height"])
-    return {"source": "mediapipe", "faceCount": len(detections), "bbox": bbox}
+    return {
+        "source": "mediapipe",
+        "faceCount": len(detections),
+        "bbox": bbox,
+        "detector": build_detector_info(used="mediapipe", status="active"),
+    }
 
 
-def detect_faces_with_opencv(gray_frame):
+def detect_faces_with_opencv(gray_frame, fallback_reason: str | None = None):
     cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
     detector = cv2.CascadeClassifier(cascade_path)
     if detector.empty():
-        return {"source": "opencv", "error": "OpenCV Haar cascade unavailable.", "faceCount": 0, "bbox": None}
+        return {
+            "source": "opencv",
+            "error": "OpenCV Haar cascade unavailable.",
+            "faceCount": 0,
+            "bbox": None,
+            "detector": build_detector_info(used="opencv", status="unavailable", fallback_reason=fallback_reason),
+        }
 
     faces = detector.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
     face_count = int(len(faces))
     if face_count <= 0:
-        return {"source": "opencv", "faceCount": 0, "bbox": None}
+        return {
+            "source": "opencv",
+            "faceCount": 0,
+            "bbox": None,
+            "detector": build_detector_info(used="opencv", status="no_face", fallback_reason=fallback_reason),
+        }
 
     x, y, w, h = max(faces, key=lambda item: item[2] * item[3])
     return {
         "source": "opencv",
         "faceCount": face_count,
         "bbox": {"x": int(x), "y": int(y), "width": int(w), "height": int(h)},
+        "detector": build_detector_info(used="opencv", status="active", fallback_reason=fallback_reason),
     }
 
 
@@ -145,15 +189,16 @@ def main() -> None:
             "eyeCount": 0,
             "bbox": None,
             "faceCropBase64": "",
+            "detector": build_detector_info(used="unavailable", status="invalid", fallback_reason="decode_failed"),
         }))
         return
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     detection = detect_faces_with_mediapipe(frame)
     if detection is None:
-        detection = detect_faces_with_opencv(gray)
+        detection = detect_faces_with_opencv(gray, fallback_reason="mediapipe_unavailable")
     elif detection.get("faceCount", 0) == 0:
-        fallback = detect_faces_with_opencv(gray)
+        fallback = detect_faces_with_opencv(gray, fallback_reason="mediapipe_no_face")
         if fallback.get("faceCount", 0) > 0:
             detection = fallback
 
@@ -166,6 +211,7 @@ def main() -> None:
             "eyeCount": 0,
             "bbox": None,
             "faceCropBase64": "",
+            "detector": detection.get("detector"),
         }))
         return
 
@@ -181,6 +227,7 @@ def main() -> None:
         "status": "ready" if bbox else "no_face",
         "message": "Yüz algılandı." if bbox else "Yüz bulunamadı. Kameraya hizalanın.",
         "source": source,
+        "detector": detection.get("detector"),
         "faceCount": int(detection.get("faceCount", 0) or 0),
         "eyeCount": eye_count,
         "bbox": bbox,
