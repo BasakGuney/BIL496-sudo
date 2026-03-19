@@ -31,12 +31,21 @@ except Exception as exc:  # noqa: BLE001
     raise SystemExit(0)
 
 MEDIAPIPE_IMPORT_ERROR = None
+MEDIAPIPE_FACE_DETECTION = None
 
 try:
     import mediapipe as mp  # type: ignore
 except Exception as exc:
     mp = None
     MEDIAPIPE_IMPORT_ERROR = str(exc)
+else:
+    solutions = getattr(mp, "solutions", None)
+    face_detection_module = getattr(solutions, "face_detection", None) if solutions is not None else None
+    face_detection_class = getattr(face_detection_module, "FaceDetection", None) if face_detection_module is not None else None
+    if face_detection_class is None:
+        MEDIAPIPE_IMPORT_ERROR = "mediapipe import succeeded but mp.solutions.face_detection.FaceDetection is unavailable"
+    else:
+        MEDIAPIPE_FACE_DETECTION = face_detection_class
 
 
 def load_payload() -> dict[str, Any]:
@@ -97,7 +106,7 @@ def build_detector_info(*, used: str, status: str, fallback_reason: str | None =
     return {
         "requested": "mediapipe",
         "used": used,
-        "mediapipeAvailable": mp is not None,
+        "mediapipeAvailable": MEDIAPIPE_FACE_DETECTION is not None,
         "fallbackReason": fallback_reason,
         "mediapipeImportError": MEDIAPIPE_IMPORT_ERROR,
         "status": status,
@@ -105,12 +114,12 @@ def build_detector_info(*, used: str, status: str, fallback_reason: str | None =
 
 
 def detect_faces_with_mediapipe(frame):
-    if mp is None:
+    if MEDIAPIPE_FACE_DETECTION is None:
         return None
 
     frame_height, frame_width = frame.shape[:2]
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    detector = mp.solutions.face_detection.FaceDetection(
+    detector = MEDIAPIPE_FACE_DETECTION(
         model_selection=0,
         min_detection_confidence=0.5,
     )
@@ -183,15 +192,15 @@ def main() -> None:
     payload = load_payload()
     if str(payload.get("mode") or "").lower() == "health":
         print(json.dumps({
-            "status": "ready" if mp is not None else "limited",
-            "source": "mediapipe" if mp is not None else "opencv",
+            "status": "ready" if MEDIAPIPE_FACE_DETECTION is not None else "limited",
+            "source": "mediapipe" if MEDIAPIPE_FACE_DETECTION is not None else "opencv",
             "pythonVersion": platform.python_version(),
             "opencvVersion": getattr(cv2, "__version__", "unknown"),
             "mediapipeVersion": getattr(mp, "__version__", None) if mp is not None else None,
             "detector": build_detector_info(
-                used="mediapipe" if mp is not None else "opencv",
-                status="active" if mp is not None else "fallback",
-                fallback_reason=None if mp is not None else "mediapipe_unavailable",
+                used="mediapipe" if MEDIAPIPE_FACE_DETECTION is not None else "opencv",
+                status="active" if MEDIAPIPE_FACE_DETECTION is not None else "fallback",
+                fallback_reason=None if MEDIAPIPE_FACE_DETECTION is not None else "mediapipe_unavailable",
             ),
         }))
         return
@@ -238,7 +247,7 @@ def main() -> None:
         eye_count = detect_eyes(gray, (bbox["x"], bbox["y"], bbox["width"], bbox["height"]))
 
     crop_b64 = encode_crop(frame, None if bbox is None else (bbox["x"], bbox["y"], bbox["width"], bbox["height"]))
-    source = str(detection.get("source") or ("mediapipe" if mp is not None else "opencv"))
+    source = str(detection.get("source") or ("mediapipe" if MEDIAPIPE_FACE_DETECTION is not None else "opencv"))
 
     print(json.dumps({
         "status": "ready" if bbox else "no_face",
