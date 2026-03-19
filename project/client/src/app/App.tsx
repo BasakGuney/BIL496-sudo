@@ -65,9 +65,10 @@ export default function App() {
           />
         )}
 
-        {route === "feedback" && report && (
+        {route === "feedback" && report && sessionId && (
           <FeedbackPage
-            report={report}
+            initialReport={report}
+            sessionId={sessionId}
             onNew={() => {
               setConfig(null);
               setSessionId(null);

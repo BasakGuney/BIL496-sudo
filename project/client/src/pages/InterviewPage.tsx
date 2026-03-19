@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Flag, Mic, ScanFace, Volume2 } from "lucide-react";
 import { VoiceWaveCanvas } from "@/components/interview/VoiceWaveCanvas";
 import { connectRealtimeInterview } from "@/lib/realtimeClient";
-import { endSession, uploadCandidateAnswerIncremental } from "@/lib/mockApi";
+import { endSession, uploadCandidateAnswerIncremental } from "@/lib/api";
 import { createVisionAnalyzer, type VisionOverlayState } from "@/lib/visionAnalysis";
 
 const BACKEND_URL = "http://localhost:3001";

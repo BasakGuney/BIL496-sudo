@@ -1,19 +1,23 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { FeedbackReport } from "@/lib/types";
+import type { FeedbackMetric, FeedbackReport } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 
-function MetricList({ title, items }: { title: string; items: any[] }) {
+function MetricList({ title, items, description }: { title: string; items: FeedbackMetric[]; description: string }) {
   return (
     <div className="rounded-2xl border p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">{title}</p>
-        <Badge variant="outline" className="rounded-full">{items.length} metric</Badge>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">{title}</p>
+          <p className="text-xs text-muted-foreground mt-1">{description}</p>
+        </div>
+        <Badge variant="outline" className="rounded-full">0-100</Badge>
       </div>
       <div className="mt-3 space-y-3">
+        {items.length === 0 ? <div className="text-sm text-muted-foreground">Bu bölüm için henüz metrik yok.</div> : null}
         {items.map((m) => (
           <div key={m.key} className="space-y-1">
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-sm gap-3">
               <span>{m.label}</span>
               <span className="text-muted-foreground">{m.score}/100</span>
             </div>
@@ -30,12 +34,12 @@ export function ScoreBreakdown({ report }: { report: FeedbackReport }) {
   return (
     <Card className="rounded-2xl">
       <CardHeader>
-        <CardTitle>Detaylı Kırılım</CardTitle>
+        <CardTitle>Detaylı Skor Kırılımı</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-3">
-        <MetricList title="İçerik" items={report.content} />
-        <MetricList title="İletişim" items={report.communication} />
-        <MetricList title="Davranış (kamera)" items={report.behavioral ?? []} />
+        <MetricList title="İçerik" items={report.content} description="Soruya uygunluk ve cevap netliği." />
+        <MetricList title="İletişim" items={report.communication} description="Akış, tempo ve anlatım kalitesi." />
+        <MetricList title="Davranış / Vision" items={report.behavioral ?? []} description="Kamera görünürlüğü, kadraj ve görsel risk sinyalleri." />
       </CardContent>
     </Card>
   );

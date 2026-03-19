@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionSetupForm } from "@/components/setup/SessionSetupForm";
 import { ConsentPanel } from "@/components/setup/ConsentPanel";
 import type { SessionConfig } from "@/lib/types";
-import { startSession } from "@/lib/mockApi";
+import { startSession } from "@/lib/api";
 
 export function SetupPage({
   onPrepared,

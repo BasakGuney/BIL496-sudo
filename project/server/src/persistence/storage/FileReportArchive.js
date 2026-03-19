@@ -1,4 +1,4 @@
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export class FileReportArchive {
@@ -275,11 +275,74 @@ export class FileReportArchive {
     };
   }
 
+  async readJsonIfExists(filePath) {
+    try {
+      const raw = await readFile(filePath, "utf8");
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  async readTextIfExists(filePath) {
+    try {
+      return await readFile(filePath, "utf8");
+    } catch {
+      return "";
+    }
+  }
+
+  buildScoreMeta() {
+    return {
+      overall: { label: "Genel Skor", min: 0, max: 100 },
+      audio: {
+        label: "Ses Skorları",
+        items: {
+          overallClarity: { label: "Ses Netliği", min: 0, max: 100 },
+        },
+      },
+      vision: {
+        label: "Görüntü Skorları",
+        items: {
+          facePresenceScore: { label: "Yüz Görünürlüğü", min: 0, max: 100 },
+          focusScore: { label: "Odak", min: 0, max: 100 },
+          centeringScore: { label: "Kadraj", min: 0, max: 100 },
+          steadinessScore: { label: "Stabilite", min: 0, max: 100 },
+          visualTensionScore: { label: "Görsel Gerginlik", min: 0, max: 100, inverted: true },
+          attentionRiskScore: { label: "Dikkat Riski", min: 0, max: 100, inverted: true },
+          movementRiskScore: { label: "Hareket Riski", min: 0, max: 100, inverted: true },
+          eyeTensionScore: { label: "Göz Teması Riski", min: 0, max: 100, inverted: true },
+        },
+      },
+    };
+  }
+
+  async loadFeedbackArtifacts(sessionId) {
+    const sessionDir = await this.ensureSessionDir(sessionId);
+    const visionDir = path.join(sessionDir, "vision");
+    const [audioModel, transcriptAnalysis, visionAnalysis, visionLlmAnalysis, audioLlmReport, transcriptText] = await Promise.all([
+      this.readJsonIfExists(path.join(sessionDir, "audio_model_out.json")),
+      this.readJsonIfExists(path.join(sessionDir, "transcript_analysis_out.json")),
+      this.readJsonIfExists(path.join(visionDir, "vision_analysis_out.json")),
+      this.readJsonIfExists(path.join(visionDir, "vision_llm_analysis_out.json")),
+      this.readTextIfExists(path.join(sessionDir, "audio_analysis_out.txt")),
+      this.readTextIfExists(path.join(sessionDir, "transcript.txt")),
+    ]);
+
+    return {
+      transcriptText: String(transcriptText || "").trim(),
+      audioModel,
+      audioLlmReport: String(audioLlmReport || "").trim(),
+      transcriptAnalysis,
+      visionAnalysis,
+      visionLlmAnalysis,
+      scoreMeta: this.buildScoreMeta(),
+    };
+  }
+
   async save({ sessionId, transcript, report, candidateAnswerAudios = [], existingCandidateAnswerAudioFiles = [], visionAnalysis = null }) {
     const sessionDir = await this.ensureSessionDir(sessionId);
     const transcriptEntries = this.buildTranscriptEntries({ transcript, report });
-    const filename = `report.json`;
-    const fullPath = path.join(sessionDir, filename);
     const transcriptTextPath = path.join(sessionDir, `transcript.txt`);
 
     const transcriptText = transcriptEntries
@@ -307,23 +370,10 @@ export class FileReportArchive {
 
     const visionArtifacts = await this.saveVisionAnalysisArtifacts({ sessionDir, visionAnalysis });
 
-    const payload = {
-      sessionId,
-      createdAt: new Date().toISOString(),
-      transcript: transcriptEntries,
-      transcriptText,
-      candidateAnswerAudioFiles: savedCandidateAnswerAudioFiles,
-      visionArtifacts,
-      report,
-    };
-
-    await writeFile(fullPath, `${JSON.stringify(payload, null, 2)}
-`, "utf8");
     const safeTranscriptText = transcriptText || "[Interviewer] (metin kaydı alınamadı)";
     await writeFile(transcriptTextPath, `${safeTranscriptText}
 `, "utf8");
     return {
-      fullPath,
       savedCandidateAnswerAudioFiles,
       sessionDir,
       transcriptText,

@@ -7,11 +7,14 @@ const client = new PythonAnalysisClient();
 async function test() {
   const reportsDir = path.resolve(process.cwd(), "reports");
   const sessionId = "S-1773859433140";
-  const jsonPath = path.join(reportsDir, sessionId, "report.json");
-
-  console.log(`Reading ${jsonPath}...`);
-  const content = await fs.readFile(jsonPath, "utf-8");
-  const reportData = JSON.parse(content);
+  const transcriptText = await fs.readFile(path.join(reportsDir, sessionId, "transcript.txt"), "utf-8");
+  const candidateAnswerDir = path.join(reportsDir, sessionId, "candidate-answers");
+  const files = await fs.readdir(candidateAnswerDir).catch(() => []);
+  const reportData = {
+    candidateAnswerAudioFiles: files.map((file) => ({ relativePath: path.join("candidate-answers", file) })),
+    transcriptText,
+    report: null,
+  };
 
   console.log("Triggering PythonAnalysisClient manually...");
   

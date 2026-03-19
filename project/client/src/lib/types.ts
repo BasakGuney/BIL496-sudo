@@ -86,6 +86,43 @@ export type VisionAnalysis = {
   capturedAt: string;
 };
 
+export type ScoreMeta = {
+  overall?: { label: string; min: number; max: number };
+  audio?: { label: string; items: Record<string, { label: string; min: number; max: number; inverted?: boolean }> };
+  vision?: { label: string; items: Record<string, { label: string; min: number; max: number; inverted?: boolean }> };
+};
+
+export type AudioAnalysisPayload = {
+  model: {
+    overall_emotions?: Record<string, number>;
+    overall_clarity?: number;
+    items?: Array<Record<string, unknown>>;
+  } | null;
+  llmReport: string;
+};
+
+export type TranscriptAnalysisPayload = {
+  overallScore?: number;
+  content?: FeedbackMetric[];
+  communication?: FeedbackMetric[];
+  recommendations?: FeedbackRecommendation[];
+  qaEvaluations?: Array<Record<string, unknown>>;
+} | null;
+
+export type VisionLlmAnalysisPayload = {
+  generatedAt?: string;
+  source?: string;
+  visionAnalysisPath?: string;
+  report?: {
+    status?: string;
+    summary?: string;
+    scores?: FeedbackMetric[];
+    strengths?: string[];
+    risks?: string[];
+    recommendations?: FeedbackRecommendation[];
+  };
+} | null;
+
 export type FeedbackReport = {
   id?: string;
   sessionId: string;
@@ -98,6 +135,17 @@ export type FeedbackReport = {
   transcript?: Array<{ role: string; text: string; ts?: number }>;
   transcriptText?: string;
   visionAnalysis?: VisionAnalysis | null;
+  audioAnalysis?: AudioAnalysisPayload;
+  transcriptAnalysis?: TranscriptAnalysisPayload;
+  visionLlmAnalysis?: VisionLlmAnalysisPayload;
+  scoreMeta?: ScoreMeta | null;
+  analysisStatus?: {
+    audio?: boolean;
+    audioLlm?: boolean;
+    transcript?: boolean;
+    vision?: boolean;
+    visionLlm?: boolean;
+  };
   [key: string]: unknown;
 };
 

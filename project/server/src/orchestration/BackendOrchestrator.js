@@ -176,7 +176,7 @@ export class BackendOrchestrator {
     return "ok";
   }
 
-  shouldPersistVisionSample({ vision, bbox, attentionLevel, imageWidth, imageHeight, faceCount, frameIndex }) {
+  shouldPersistVisionSample({ vision, bbox, attentionLevel, imageWidth, imageHeight, faceCount, frameIndex, eyeCount = 0 }) {
     if (!bbox || !imageWidth || !imageHeight) return false;
 
     const centerX = Number(bbox.x || 0) + Number(bbox.width || 0) / 2;
@@ -210,11 +210,13 @@ export class BackendOrchestrator {
     const sizeShift = Math.abs(current.areaRatio - Number(last.areaRatio || 0));
     const frameGap = Math.max(0, current.frameIndex - Number(last.frameIndex || 0));
 
-    const changedEnough = attentionChanged
+    const isImportantMoment = current.attentionLevel !== "ok" || Number(eyeCount || 0) < 2;
+    const changedEnough = isImportantMoment
+      || attentionChanged
       || faceCountChanged
-      || centerShift >= 0.045
-      || sizeShift >= 0.03
-      || frameGap >= 12;
+      || centerShift >= 0.03
+      || sizeShift >= 0.02
+      || frameGap >= 8;
 
     if (changedEnough) {
       vision.lastSavedSampleMeta = current;
@@ -305,6 +307,7 @@ export class BackendOrchestrator {
         imageHeight: Number(result?.imageHeight || 0),
         faceCount: Number(result?.faceCount || 0),
         frameIndex,
+        eyeCount: Number(result?.eyeCount || 0),
       });
       if (shouldSaveSample) {
         vision.samples.push({
@@ -316,8 +319,12 @@ export class BackendOrchestrator {
           attentionLevel,
         });
         vision.lastSavedAttentionLevel = attentionLevel;
-        if (vision.samples.length > 24) {
-          vision.samples.splice(0, vision.samples.length - 24);
+        if (vision.samples.length > 60) {
+          const importantSamples = vision.samples.filter((sample) => sample?.attentionLevel && sample.attentionLevel !== "ok");
+          const regularSamples = vision.samples.filter((sample) => !sample?.attentionLevel || sample.attentionLevel === "ok");
+          const keptRegular = regularSamples.slice(-36);
+          const keptImportant = importantSamples.slice(-24);
+          vision.samples = [...keptRegular, ...keptImportant].sort((a, b) => Number(a?.frameIndex || 0) - Number(b?.frameIndex || 0));
         }
       }
     }
@@ -549,6 +556,15 @@ export class BackendOrchestrator {
       throw new AppError("Report not found", { code: "REPORT_NOT_FOUND", statusCode: 404 });
     }
 
-    return report;
+    const feedbackArtifacts = this.reportArchive?.loadFeedbackArtifacts
+      ? await this.reportArchive.loadFeedbackArtifacts(sessionId)
+      : null;
+
+    return {
+      ...report,
+      transcriptText: feedbackArtifacts?.transcriptText || report?.transcriptText || "",
+      visionAnalysis: feedbackArtifacts?.visionAnalysis || report?.visionAnalysis || null,
+      feedbackArtifacts,
+    };
   }
 }
