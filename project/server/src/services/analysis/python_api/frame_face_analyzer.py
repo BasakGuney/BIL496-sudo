@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import sys
+from typing import Any
 
 try:
     import cv2  # type: ignore
@@ -11,6 +12,7 @@ except Exception as exc:  # noqa: BLE001
     print(json.dumps({
         "status": "unavailable",
         "message": f"Python vision dependencies unavailable: {exc}",
+        "source": "unavailable",
         "faceCount": 0,
         "eyeCount": 0,
         "bbox": None,
@@ -18,8 +20,13 @@ except Exception as exc:  # noqa: BLE001
     }))
     raise SystemExit(0)
 
+try:
+    import mediapipe as mp  # type: ignore
+except Exception:
+    mp = None
 
-def load_payload() -> dict:
+
+def load_payload() -> dict[str, Any]:
     raw = sys.stdin.read()
     return json.loads(raw or "{}")
 
@@ -63,6 +70,69 @@ def detect_eyes(gray_frame, bbox) -> int:
     return int(min(len(eyes), 2))
 
 
+def normalize_bbox(x: float, y: float, w: float, h: float, frame_width: int, frame_height: int):
+    left = max(0, min(frame_width - 1, int(round(x))))
+    top = max(0, min(frame_height - 1, int(round(y))))
+    width = max(0, min(frame_width - left, int(round(w))))
+    height = max(0, min(frame_height - top, int(round(h))))
+    if width <= 0 or height <= 0:
+        return None
+    return {"x": left, "y": top, "width": width, "height": height}
+
+
+def detect_faces_with_mediapipe(frame):
+    if mp is None:
+        return None
+
+    frame_height, frame_width = frame.shape[:2]
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    detector = mp.solutions.face_detection.FaceDetection(
+        model_selection=0,
+        min_detection_confidence=0.5,
+    )
+    with detector:
+        result = detector.process(rgb)
+
+    detections = []
+    for detection in result.detections or []:
+        relative_bbox = detection.location_data.relative_bounding_box
+        bbox = normalize_bbox(
+            relative_bbox.xmin * frame_width,
+            relative_bbox.ymin * frame_height,
+            relative_bbox.width * frame_width,
+            relative_bbox.height * frame_height,
+            frame_width,
+            frame_height,
+        )
+        if bbox:
+            detections.append(bbox)
+
+    if not detections:
+        return {"source": "mediapipe", "faceCount": 0, "bbox": None}
+
+    bbox = max(detections, key=lambda item: item["width"] * item["height"])
+    return {"source": "mediapipe", "faceCount": len(detections), "bbox": bbox}
+
+
+def detect_faces_with_opencv(gray_frame):
+    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    detector = cv2.CascadeClassifier(cascade_path)
+    if detector.empty():
+        return {"source": "opencv", "error": "OpenCV Haar cascade unavailable.", "faceCount": 0, "bbox": None}
+
+    faces = detector.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+    face_count = int(len(faces))
+    if face_count <= 0:
+        return {"source": "opencv", "faceCount": 0, "bbox": None}
+
+    x, y, w, h = max(faces, key=lambda item: item[2] * item[3])
+    return {
+        "source": "opencv",
+        "faceCount": face_count,
+        "bbox": {"x": int(x), "y": int(y), "width": int(w), "height": int(h)},
+    }
+
+
 def main() -> None:
     payload = load_payload()
     frame = decode_image(str(payload.get("imageBase64", "")))
@@ -70,6 +140,7 @@ def main() -> None:
         print(json.dumps({
             "status": "invalid",
             "message": "Frame could not be decoded.",
+            "source": "unavailable",
             "faceCount": 0,
             "eyeCount": 0,
             "bbox": None,
@@ -78,12 +149,19 @@ def main() -> None:
         return
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    detector = cv2.CascadeClassifier(cascade_path)
-    if detector.empty():
+    detection = detect_faces_with_mediapipe(frame)
+    if detection is None:
+        detection = detect_faces_with_opencv(gray)
+    elif detection.get("faceCount", 0) == 0:
+        fallback = detect_faces_with_opencv(gray)
+        if fallback.get("faceCount", 0) > 0:
+            detection = fallback
+
+    if detection.get("error"):
         print(json.dumps({
             "status": "unavailable",
-            "message": "OpenCV Haar cascade unavailable.",
+            "message": detection["error"],
+            "source": detection.get("source", "unavailable"),
             "faceCount": 0,
             "eyeCount": 0,
             "bbox": None,
@@ -91,21 +169,19 @@ def main() -> None:
         }))
         return
 
-    faces = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
-    face_count = int(len(faces))
-    bbox = None
+    bbox = detection.get("bbox")
     eye_count = 0
-    if face_count > 0:
-        x, y, w, h = max(faces, key=lambda item: item[2] * item[3])
-        bbox = {"x": int(x), "y": int(y), "width": int(w), "height": int(h)}
+    if bbox is not None:
         eye_count = detect_eyes(gray, (bbox["x"], bbox["y"], bbox["width"], bbox["height"]))
 
     crop_b64 = encode_crop(frame, None if bbox is None else (bbox["x"], bbox["y"], bbox["width"], bbox["height"]))
+    source = str(detection.get("source") or ("mediapipe" if mp is not None else "opencv"))
 
     print(json.dumps({
         "status": "ready" if bbox else "no_face",
         "message": "Yüz algılandı." if bbox else "Yüz bulunamadı. Kameraya hizalanın.",
-        "faceCount": face_count,
+        "source": source,
+        "faceCount": int(detection.get("faceCount", 0) or 0),
         "eyeCount": eye_count,
         "bbox": bbox,
         "faceCropBase64": crop_b64,

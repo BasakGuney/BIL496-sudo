@@ -89,7 +89,7 @@ export class BackendOrchestrator {
           dangerFrames: 0,
           lowEyeFrames: 0,
           supportiveOverlayUsed: false,
-          source: this.visionFrameAnalyzer ? "server-python-opencv" : "unavailable",
+          source: this.visionFrameAnalyzer ? "server-python-mediapipe" : "unavailable",
           status: this.visionFrameAnalyzer ? "ready" : "unavailable",
           lastAttentionLevel: "ok",
           notes: [],
@@ -198,6 +198,7 @@ export class BackendOrchestrator {
       : { status: "unavailable", message: "Vision analyzer unavailable.", faceCount: 0, bbox: null, faceCropBase64: "" };
 
     vision.status = result?.status === "invalid" ? "limited" : (result?.status || vision.status || "unavailable");
+    vision.source = String(result?.source || vision.source || "");
     vision.lastResult = {
       status: result?.status || "unavailable",
       message: result?.message || "Görüntü analizi hazır değil.",
@@ -206,7 +207,7 @@ export class BackendOrchestrator {
       bbox: result?.bbox || null,
       imageWidth: Number(result?.imageWidth || 0),
       imageHeight: Number(result?.imageHeight || 0),
-      eyeCount: Number(result?.eyeCount || 0),
+      source: String(result?.source || ""),
     };
 
     const attentionLevel = this.computeAttentionLevel({
@@ -335,7 +336,7 @@ export class BackendOrchestrator {
 
     return {
       status: sampledFrames === 0 ? "unavailable" : (vision.status === "unavailable" ? "limited" : "ready"),
-      source: vision.source || "server-python-opencv",
+      source: vision.source || "server-python-mediapipe",
       supportiveOverlayUsed: Boolean(vision.supportiveOverlayUsed),
       metrics: {
         sampledFrames,

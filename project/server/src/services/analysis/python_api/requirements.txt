@@ -11,3 +11,4 @@ python-multipart
 requests
 matplotlib
 opencv-python-headless
+mediapipe
