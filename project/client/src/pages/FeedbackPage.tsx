@@ -35,28 +35,44 @@ export function FeedbackPage({ report, onNew }: { report: FeedbackReport; onNew:
             </div>
             <div className="rounded-2xl border p-3">
               <div className="text-xs text-muted-foreground">Yüz görünürlüğü</div>
-              <div className="mt-1 font-medium">%{Math.round((vision.summary.facePresenceRatio || 0) * 100)}</div>
+              <div className="mt-1 font-medium">%{vision.overview.facePresenceScore || 0}</div>
             </div>
             <div className="rounded-2xl border p-3">
               <div className="text-xs text-muted-foreground">Kadraj skoru</div>
-              <div className="mt-1 font-medium">{vision.summary.centeringScore}/100</div>
+              <div className="mt-1 font-medium">{vision.overview.centeringScore}/100</div>
             </div>
             <div className="rounded-2xl border p-3">
               <div className="text-xs text-muted-foreground">Stabilite skoru</div>
-              <div className="mt-1 font-medium">{vision.summary.steadinessScore}/100</div>
+              <div className="mt-1 font-medium">{vision.overview.steadinessScore}/100</div>
             </div>
             <div className="rounded-2xl border p-3">
               <div className="text-xs text-muted-foreground">Görsel gerginlik</div>
-              <div className="mt-1 font-medium">{vision.summary.visualTensionScore ?? 0}/100</div>
+              <div className="mt-1 font-medium">{vision.tension.visualTensionScore ?? 0}/100</div>
             </div>
           </div>
-          {vision.notes?.length ? (
-            <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
-              {vision.notes.map((note, index) => (
-                <li key={index}>• {note}</li>
-              ))}
-            </ul>
-          ) : null}
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border p-3">
+              <div className="text-xs text-muted-foreground">Dikkat sapması</div>
+              <div className="mt-1 font-medium">{vision.tension.attentionRiskScore}/100</div>
+              <div className="text-xs text-muted-foreground">
+                warn: {vision.tension.warnFrames} • danger: {vision.tension.dangerFrames}
+              </div>
+            </div>
+            <div className="rounded-2xl border p-3">
+              <div className="text-xs text-muted-foreground">Hareket kaynaklı risk</div>
+              <div className="mt-1 font-medium">{vision.tension.movementRiskScore}/100</div>
+              <div className="text-xs text-muted-foreground">
+                raw movement: {vision.overview.headMovementRaw.toFixed(3)}
+              </div>
+            </div>
+            <div className="rounded-2xl border p-3">
+              <div className="text-xs text-muted-foreground">Göz görünürlüğü riski</div>
+              <div className="mt-1 font-medium">{vision.tension.eyeTensionScore}/100</div>
+              <div className="text-xs text-muted-foreground">
+                low-eye frames: {vision.tension.lowEyeFrames}
+              </div>
+            </div>
+          </div>
         </div>
       ) : null}
 

@@ -42,8 +42,8 @@ export class SignalAggregator {
       },
     ];
 
-    const visionNotes = Array.isArray(vision?.notes) ? vision.notes : [];
-    const summary = visionAnalysis?.summary || {};
+    const overview = visionAnalysis?.overview || {};
+    const tension = visionAnalysis?.tension || {};
     const supportiveOverlayNote = vision.supportiveOverlayUsed
       ? 'Supportive mod sırasında ekranda yüz çerçevesi gösterildi.'
       : null;
@@ -63,14 +63,19 @@ export class SignalAggregator {
         { title: 'Kısa ve net ilerleyin', text: 'Her cevabı sonuç odaklı bir örnekle bitirin.' },
         {
           title: 'Kadrajı sabitleyin',
-          text: summary.facePresenceRatio >= 0.7
+          text: overview.facePresenceRatio >= 0.7
             ? 'Yüz görünürlüğün genel olarak iyi. Aynı hizayı korumaya devam et.'
             : 'Kamerayı göz hizasında tutup yüzünü kadrajın ortasına alman görsel analiz kalitesini artırır.',
         },
+        ...(vision.tensionScore >= 40 ? [{
+          title: 'Gerginlik sinyallerini azaltın',
+          text: tension.lowEyeRatio >= 0.25
+            ? 'Göz görünürlüğünü artırmak için kameraya biraz daha sabit bakıp yüzünü ışığa çevir.'
+            : 'Kısa duraklamalar ve daha sabit baş hareketi görsel gerginlik sinyalini düşürür.',
+        }] : []),
       ],
       notes: [
         'Davranışsal metrikler koçluk amaçlıdır.',
-        ...visionNotes,
         ...(supportiveOverlayNote ? [supportiveOverlayNote] : []),
       ],
     };

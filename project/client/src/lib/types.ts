@@ -35,27 +35,45 @@ export type VisionAnalysis = {
   status: 'ready' | 'limited' | 'unavailable';
   source: string;
   supportiveOverlayUsed: boolean;
-  metrics: {
+  overview: {
     sampledFrames: number;
     faceDetectedFrames: number;
     missingFaceFrames: number;
-    averageFaceAreaRatio: number;
-    headMovementRaw: number;
-    visualTensionScore?: number;
-    averageCenterOffset: number;
-    warnFrames?: number;
-    dangerFrames?: number;
-    lowEyeFrames?: number;
-  };
-  summary: {
+    savedSampleCount: number;
     facePresenceRatio: number;
+    facePresenceScore: number;
+    focusScore: number;
     centeringScore: number;
     steadinessScore: number;
     averageFaceAreaRatio: number;
+    averageCenterOffset: number;
     headMovementRaw: number;
-    visualTensionScore?: number;
   };
-  notes: string[];
+  tension: {
+    visualTensionScore: number;
+    attentionRiskScore: number;
+    movementRiskScore: number;
+    eyeTensionScore: number;
+    attentionDriftRatio: number;
+    dangerFrameRatio: number;
+    lowEyeRatio: number;
+    warnFrames: number;
+    dangerFrames: number;
+    lowEyeFrames: number;
+  };
+  diagnostics?: {
+    detector?: {
+      requested?: string;
+      used?: string;
+      mediapipeAvailable?: boolean;
+      pythonSupportedForMediapipe?: boolean;
+      fallbackReason?: string | null;
+      mediapipeImportError?: string | null;
+      status?: string;
+    } | null;
+    lastSource?: string;
+    savedSampleCount?: number;
+  };
   samples: Array<{
     ts: number;
     frameIndex: number;

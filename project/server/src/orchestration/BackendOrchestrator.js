@@ -366,66 +366,40 @@ export class BackendOrchestrator {
     const visualTensionScore = Math.max(0, Math.min(100, Math.round(
       (movementRiskScore * 0.35) + (attentionRiskScore * 0.4) + (eyeTensionScore * 0.25)
     )));
-
-    const notes = [];
-    if (sampledFrames === 0) {
-      notes.push("Kamera frameleri server tarafına ulaşmadı.");
-    } else if (facePresenceRatio < 0.4) {
-      notes.push("Yüz görünürlüğü düşük kaldı; kamera hizası veya ışık iyileştirilebilir.");
-    } else {
-      notes.push("Yüz görünürlüğü analiz için yeterli seviyedeydi.");
-    }
-    for (const note of Array.isArray(vision.notes) ? vision.notes : []) {
-      if (note && !notes.includes(note)) notes.push(note);
-    }
-    const detectorInfo = vision.lastResult?.detector;
-    if (detectorInfo?.used === "opencv" && detectorInfo?.requested === "mediapipe") {
-      if (detectorInfo?.mediapipeAvailable === false) {
-        notes.push("MediaPipe bu ortamda kullanılamadı; OpenCV fallback ile analiz yapıldı.");
-      } else if (detectorInfo?.fallbackReason === "mediapipe_no_face") {
-        notes.push("MediaPipe bu framede yüz bulamayınca OpenCV fallback devreye girdi.");
-      }
-    } else if (detectorInfo?.used === "mediapipe") {
-      notes.push("Vision analizi MediaPipe ile çalıştırıldı.");
-    }
-    if (vision.supportiveOverlayUsed && !notes.includes("Supportive modda canlı yüz çerçevesi gösterildi.")) {
-      notes.push("Supportive modda canlı yüz çerçevesi gösterildi.");
-    }
-    if (vision.lastAttentionLevel === "warn") {
-      notes.push("Bazı anlarda kamera odağından sapma gözlendi; yüz çerçevesi sarı uyarıya geçti.");
-    } else if (vision.lastAttentionLevel === "danger") {
-      notes.push("Bazı anlarda belirgin dikkat/kadraj kaybı görüldü; yüz çerçevesi kırmızı uyarıya geçti.");
-    }
-    if (visualTensionScore >= 65) {
-      notes.push("Görsel gerginlik eğilimi yüksek görünüyor; göz görünürlüğü ve dikkat sapmaları arttı.");
-    } else if (visualTensionScore >= 35) {
-      notes.push("Görsel gerginlik eğilimi orta seviyede görünüyor.");
-    }
+    const facePresenceScore = Math.max(0, Math.min(100, Math.round(facePresenceRatio * 100)));
+    const focusScore = Math.max(0, Math.min(100, Math.round((facePresenceScore * 0.55) + (centeringScore * 0.45))));
+    const dangerFrameRatio = sampledFrames > 0 ? vision.dangerFrames / sampledFrames : 0;
 
     return {
       status: sampledFrames === 0 ? "unavailable" : (vision.status === "unavailable" ? "limited" : "ready"),
       source: vision.source || "server-python-mediapipe",
       supportiveOverlayUsed: Boolean(vision.supportiveOverlayUsed),
-      metrics: {
+      overview: {
         sampledFrames,
         faceDetectedFrames,
         missingFaceFrames: Math.max(0, sampledFrames - faceDetectedFrames),
+        savedSampleCount: Array.isArray(vision.samples) ? vision.samples.length : 0,
+        facePresenceRatio: Number(facePresenceRatio.toFixed(4)),
+        facePresenceScore,
+        focusScore,
+        centeringScore,
+        steadinessScore,
         averageFaceAreaRatio: Number(averageFaceAreaRatio.toFixed(4)),
-        headMovementRaw: Number(headMovementRaw.toFixed(4)),
         averageCenterOffset: Number(averageCenterOffset.toFixed(4)),
+        headMovementRaw: Number(headMovementRaw.toFixed(4)),
+      },
+      tension: {
+        visualTensionScore,
+        attentionRiskScore,
+        movementRiskScore,
+        eyeTensionScore,
+        attentionDriftRatio: Number(attentionRiskRatio.toFixed(4)),
+        dangerFrameRatio: Number(dangerFrameRatio.toFixed(4)),
+        lowEyeRatio: Number(lowEyeRatio.toFixed(4)),
         warnFrames: Number(vision.warnFrames || 0),
         dangerFrames: Number(vision.dangerFrames || 0),
         lowEyeFrames: Number(vision.lowEyeFrames || 0),
       },
-      summary: {
-        facePresenceRatio: Number(facePresenceRatio.toFixed(4)),
-        centeringScore,
-        steadinessScore,
-        averageFaceAreaRatio: Number(averageFaceAreaRatio.toFixed(4)),
-        headMovementRaw: Number(headMovementRaw.toFixed(4)),
-        visualTensionScore,
-      },
-      notes,
       diagnostics: {
         detector: vision.lastResult?.detector || null,
         lastSource: vision.source || "",
