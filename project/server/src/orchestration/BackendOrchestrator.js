@@ -85,6 +85,9 @@ export class BackendOrchestrator {
           samples: [],
           lastResult: null,
           lastSavedAttentionLevel: null,
+          warnFrames: 0,
+          dangerFrames: 0,
+          lowEyeFrames: 0,
           supportiveOverlayUsed: false,
           source: this.visionFrameAnalyzer ? "server-python-opencv" : "unavailable",
           status: this.visionFrameAnalyzer ? "ready" : "unavailable",
@@ -199,9 +202,11 @@ export class BackendOrchestrator {
       status: result?.status || "unavailable",
       message: result?.message || "Görüntü analizi hazır değil.",
       faceCount: Number(result?.faceCount || 0),
+      eyeCount: Number(result?.eyeCount || 0),
       bbox: result?.bbox || null,
       imageWidth: Number(result?.imageWidth || 0),
       imageHeight: Number(result?.imageHeight || 0),
+      eyeCount: Number(result?.eyeCount || 0),
     };
 
     const attentionLevel = this.computeAttentionLevel({
@@ -211,6 +216,8 @@ export class BackendOrchestrator {
       faceCount: Number(result?.faceCount || 0),
     });
     vision.lastAttentionLevel = attentionLevel;
+    if (attentionLevel === "warn") vision.warnFrames += 1;
+    if (attentionLevel === "danger") vision.dangerFrames += 1;
 
     if (result?.bbox) {
       const bbox = result.bbox;
@@ -233,6 +240,10 @@ export class BackendOrchestrator {
         );
       }
       vision.lastCenter = { x: centerX, y: centerY };
+
+      if (Number(result?.eyeCount || 0) < 2) {
+        vision.lowEyeFrames += 1;
+      }
 
       const shouldSaveSample = result?.faceCropBase64 && vision.samples.length < 4 && (
         vision.samples.length === 0
@@ -270,6 +281,7 @@ export class BackendOrchestrator {
       attentionLevel,
       imageWidth: Number(result?.imageWidth || 0),
       imageHeight: Number(result?.imageHeight || 0),
+      eyeCount: Number(result?.eyeCount || 0),
     };
   }
 
@@ -285,6 +297,16 @@ export class BackendOrchestrator {
     const headMovementRaw = Number(vision.movementAccumulator || 0);
     const centeringScore = Math.max(0, Math.min(100, Math.round((1 - Math.min(averageCenterOffset, 0.75) / 0.75) * 100)));
     const steadinessScore = Math.max(0, Math.min(100, Math.round((1 - Math.min(headMovementRaw, 1.25) / 1.25) * 100)));
+    const attentionRiskRatio = sampledFrames > 0
+      ? ((vision.warnFrames * 0.5) + vision.dangerFrames) / sampledFrames
+      : 0;
+    const lowEyeRatio = faceDetectedFrames > 0 ? vision.lowEyeFrames / faceDetectedFrames : 0;
+    const movementRiskScore = Math.max(0, Math.min(100, Math.round((Math.min(headMovementRaw, 1.25) / 1.25) * 100)));
+    const attentionRiskScore = Math.max(0, Math.min(100, Math.round(attentionRiskRatio * 100)));
+    const eyeTensionScore = Math.max(0, Math.min(100, Math.round(lowEyeRatio * 100)));
+    const visualTensionScore = Math.max(0, Math.min(100, Math.round(
+      (movementRiskScore * 0.35) + (attentionRiskScore * 0.4) + (eyeTensionScore * 0.25)
+    )));
 
     const notes = [];
     if (sampledFrames === 0) {
@@ -305,6 +327,11 @@ export class BackendOrchestrator {
     } else if (vision.lastAttentionLevel === "danger") {
       notes.push("Bazı anlarda belirgin dikkat/kadraj kaybı görüldü; yüz çerçevesi kırmızı uyarıya geçti.");
     }
+    if (visualTensionScore >= 65) {
+      notes.push("Görsel gerginlik eğilimi yüksek görünüyor; göz görünürlüğü ve dikkat sapmaları arttı.");
+    } else if (visualTensionScore >= 35) {
+      notes.push("Görsel gerginlik eğilimi orta seviyede görünüyor.");
+    }
 
     return {
       status: sampledFrames === 0 ? "unavailable" : (vision.status === "unavailable" ? "limited" : "ready"),
@@ -317,6 +344,9 @@ export class BackendOrchestrator {
         averageFaceAreaRatio: Number(averageFaceAreaRatio.toFixed(4)),
         headMovementRaw: Number(headMovementRaw.toFixed(4)),
         averageCenterOffset: Number(averageCenterOffset.toFixed(4)),
+        warnFrames: Number(vision.warnFrames || 0),
+        dangerFrames: Number(vision.dangerFrames || 0),
+        lowEyeFrames: Number(vision.lowEyeFrames || 0),
       },
       summary: {
         facePresenceRatio: Number(facePresenceRatio.toFixed(4)),
@@ -324,6 +354,7 @@ export class BackendOrchestrator {
         steadinessScore,
         averageFaceAreaRatio: Number(averageFaceAreaRatio.toFixed(4)),
         headMovementRaw: Number(headMovementRaw.toFixed(4)),
+        visualTensionScore,
       },
       notes,
       samples: Array.isArray(vision.samples) ? vision.samples : [],

@@ -41,7 +41,11 @@ export type VisionAnalysis = {
     missingFaceFrames: number;
     averageFaceAreaRatio: number;
     headMovementRaw: number;
+    visualTensionScore?: number;
     averageCenterOffset: number;
+    warnFrames?: number;
+    dangerFrames?: number;
+    lowEyeFrames?: number;
   };
   summary: {
     facePresenceRatio: number;
@@ -49,6 +53,7 @@ export type VisionAnalysis = {
     steadinessScore: number;
     averageFaceAreaRatio: number;
     headMovementRaw: number;
+    visualTensionScore?: number;
   };
   notes: string[];
   samples: Array<{

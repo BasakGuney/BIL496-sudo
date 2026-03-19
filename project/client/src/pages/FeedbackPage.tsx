@@ -28,7 +28,7 @@ export function FeedbackPage({ report, onNew }: { report: FeedbackReport; onNew:
       {vision ? (
         <div className="rounded-2xl border p-4">
           <div className="text-sm font-semibold">Görüntü Analizi Özeti</div>
-          <div className="mt-2 grid gap-3 md:grid-cols-4">
+          <div className="mt-2 grid gap-3 md:grid-cols-5">
             <div className="rounded-2xl border p-3">
               <div className="text-xs text-muted-foreground">Durum</div>
               <div className="mt-1 font-medium">{vision.status}</div>
@@ -44,6 +44,10 @@ export function FeedbackPage({ report, onNew }: { report: FeedbackReport; onNew:
             <div className="rounded-2xl border p-3">
               <div className="text-xs text-muted-foreground">Stabilite skoru</div>
               <div className="mt-1 font-medium">{vision.summary.steadinessScore}/100</div>
+            </div>
+            <div className="rounded-2xl border p-3">
+              <div className="text-xs text-muted-foreground">Görsel gerginlik</div>
+              <div className="mt-1 font-medium">{vision.summary.visualTensionScore ?? 0}/100</div>
             </div>
           </div>
           {vision.notes?.length ? (

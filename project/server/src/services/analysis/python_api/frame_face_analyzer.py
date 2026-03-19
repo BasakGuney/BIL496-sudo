@@ -12,6 +12,7 @@ except Exception as exc:  # noqa: BLE001
         "status": "unavailable",
         "message": f"Python vision dependencies unavailable: {exc}",
         "faceCount": 0,
+        "eyeCount": 0,
         "bbox": None,
         "faceCropBase64": "",
     }))
@@ -44,6 +45,24 @@ def encode_crop(frame, bbox):
     return base64.b64encode(buf.tobytes()).decode('ascii')
 
 
+def detect_eyes(gray_frame, bbox) -> int:
+    if bbox is None:
+        return 0
+    x, y, w, h = bbox
+    roi = gray_frame[max(0, y):max(0, y) + max(0, h), max(0, x):max(0, x) + max(0, w)]
+    if roi.size == 0:
+        return 0
+    cascade_path = cv2.data.haarcascades + "haarcascade_eye_tree_eyeglasses.xml"
+    detector = cv2.CascadeClassifier(cascade_path)
+    if detector.empty():
+        cascade_path = cv2.data.haarcascades + "haarcascade_eye.xml"
+        detector = cv2.CascadeClassifier(cascade_path)
+    if detector.empty():
+        return 0
+    eyes = detector.detectMultiScale(roi, scaleFactor=1.1, minNeighbors=4, minSize=(18, 18))
+    return int(min(len(eyes), 2))
+
+
 def main() -> None:
     payload = load_payload()
     frame = decode_image(str(payload.get("imageBase64", "")))
@@ -52,6 +71,7 @@ def main() -> None:
             "status": "invalid",
             "message": "Frame could not be decoded.",
             "faceCount": 0,
+            "eyeCount": 0,
             "bbox": None,
             "faceCropBase64": "",
         }))
@@ -65,6 +85,7 @@ def main() -> None:
             "status": "unavailable",
             "message": "OpenCV Haar cascade unavailable.",
             "faceCount": 0,
+            "eyeCount": 0,
             "bbox": None,
             "faceCropBase64": "",
         }))
@@ -73,9 +94,11 @@ def main() -> None:
     faces = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
     face_count = int(len(faces))
     bbox = None
+    eye_count = 0
     if face_count > 0:
         x, y, w, h = max(faces, key=lambda item: item[2] * item[3])
         bbox = {"x": int(x), "y": int(y), "width": int(w), "height": int(h)}
+        eye_count = detect_eyes(gray, (bbox["x"], bbox["y"], bbox["width"], bbox["height"]))
 
     crop_b64 = encode_crop(frame, None if bbox is None else (bbox["x"], bbox["y"], bbox["width"], bbox["height"]))
 
@@ -83,6 +106,7 @@ def main() -> None:
         "status": "ready" if bbox else "no_face",
         "message": "Yüz algılandı." if bbox else "Yüz bulunamadı. Kameraya hizalanın.",
         "faceCount": face_count,
+        "eyeCount": eye_count,
         "bbox": bbox,
         "faceCropBase64": crop_b64,
         "imageWidth": int(frame.shape[1]),

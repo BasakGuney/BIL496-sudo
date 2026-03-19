@@ -34,6 +34,12 @@ export class SignalAggregator {
         score: vision.facePresenceScore,
         detail: 'Örneklenen framelerde yüz tespit edilme oranını gösterir.',
       },
+      {
+        key: 'visualTension',
+        label: 'Görsel gerginlik eğilimi',
+        score: vision.tensionScore,
+        detail: 'Göz görünürlüğü, dikkat sapması ve hareketlilikten türetilen basit risk skorudur.',
+      },
     ];
 
     const visionNotes = Array.isArray(vision?.notes) ? vision.notes : [];
