@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import platform
+import traceback
 import sys
 from typing import Any
 
@@ -254,4 +255,21 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:  # noqa: BLE001
+        print(json.dumps({
+            "status": "unavailable",
+            "message": f"Vision analyzer runtime error: {exc}",
+            "source": "unavailable",
+            "faceCount": 0,
+            "eyeCount": 0,
+            "bbox": None,
+            "faceCropBase64": "",
+            "detector": build_detector_info(
+                used="unavailable",
+                status="runtime_error",
+                fallback_reason="python_runtime_exception",
+            ),
+            "traceback": traceback.format_exc(),
+        }))

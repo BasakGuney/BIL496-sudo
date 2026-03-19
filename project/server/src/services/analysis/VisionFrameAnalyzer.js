@@ -31,13 +31,31 @@ export class VisionFrameAnalyzer {
         });
       });
       child.on("close", () => {
+        if (!stdout.trim()) {
+          const detail = stderr.trim();
+          if (detail) {
+            this.logger.warn("Vision frame analyzer produced no JSON output", detail);
+          }
+          resolve({
+            status: "unavailable",
+            message: detail
+              ? `Vision analyzer exited without JSON output: ${detail.split("\n")[0]}`
+              : "Vision analyzer exited without JSON output.",
+            faceCount: 0,
+            bbox: null,
+            faceCropBase64: "",
+          });
+          return;
+        }
         try {
-          resolve(JSON.parse(stdout || "{}"));
+          resolve(JSON.parse(stdout));
         } catch {
           this.logger.warn("Vision frame analyzer returned invalid JSON", stderr || stdout);
           resolve({
             status: "unavailable",
-            message: "Vision analyzer returned invalid output.",
+            message: stderr?.trim()
+              ? `Vision analyzer returned invalid output: ${stderr.trim().split("\n")[0]}`
+              : "Vision analyzer returned invalid output.",
             faceCount: 0,
             bbox: null,
             faceCropBase64: "",
