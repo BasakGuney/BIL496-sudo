@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import platform
 import sys
 from typing import Any
 
@@ -179,6 +180,21 @@ def detect_faces_with_opencv(gray_frame, fallback_reason: str | None = None):
 
 def main() -> None:
     payload = load_payload()
+    if str(payload.get("mode") or "").lower() == "health":
+        print(json.dumps({
+            "status": "ready" if mp is not None else "limited",
+            "source": "mediapipe" if mp is not None else "opencv",
+            "pythonVersion": platform.python_version(),
+            "opencvVersion": getattr(cv2, "__version__", "unknown"),
+            "mediapipeVersion": getattr(mp, "__version__", None) if mp is not None else None,
+            "detector": build_detector_info(
+                used="mediapipe" if mp is not None else "opencv",
+                status="active" if mp is not None else "fallback",
+                fallback_reason=None if mp is not None else "mediapipe_unavailable",
+            ),
+        }))
+        return
+
     frame = decode_image(str(payload.get("imageBase64", "")))
     if frame is None:
         print(json.dumps({

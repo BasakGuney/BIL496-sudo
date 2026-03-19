@@ -40,7 +40,6 @@ export class FileReportArchive {
     if (!visionAnalysis || typeof visionAnalysis !== "object") return null;
 
     const samples = (Array.isArray(visionAnalysis.samples) ? visionAnalysis.samples : [])
-      .slice(0, 4)
       .map((sample, index) => ({
         index: index + 1,
         ts: Number(sample?.ts || 0),
@@ -69,6 +68,9 @@ export class FileReportArchive {
         averageFaceAreaRatio: Number(visionAnalysis?.metrics?.averageFaceAreaRatio || 0),
         headMovementRaw: Number(visionAnalysis?.metrics?.headMovementRaw || 0),
         averageCenterOffset: Number(visionAnalysis?.metrics?.averageCenterOffset || 0),
+        warnFrames: Number(visionAnalysis?.metrics?.warnFrames || 0),
+        dangerFrames: Number(visionAnalysis?.metrics?.dangerFrames || 0),
+        lowEyeFrames: Number(visionAnalysis?.metrics?.lowEyeFrames || 0),
       },
       summary: {
         facePresenceRatio: Number(visionAnalysis?.summary?.facePresenceRatio || 0),
@@ -76,8 +78,20 @@ export class FileReportArchive {
         steadinessScore: Number(visionAnalysis?.summary?.steadinessScore || 0),
         averageFaceAreaRatio: Number(visionAnalysis?.summary?.averageFaceAreaRatio || 0),
         headMovementRaw: Number(visionAnalysis?.summary?.headMovementRaw || 0),
+        visualTensionScore: Number(visionAnalysis?.summary?.visualTensionScore || 0),
       },
       notes: (Array.isArray(visionAnalysis.notes) ? visionAnalysis.notes : []).map((note) => String(note || "")).filter(Boolean),
+      diagnostics: visionAnalysis?.diagnostics && typeof visionAnalysis.diagnostics === "object"
+        ? {
+            detector: visionAnalysis.diagnostics.detector || null,
+            lastSource: String(visionAnalysis.diagnostics.lastSource || ""),
+            savedSampleCount: Number(visionAnalysis.diagnostics.savedSampleCount || samples.length || 0),
+          }
+        : {
+            detector: null,
+            lastSource: String(visionAnalysis.source || ""),
+            savedSampleCount: samples.length,
+          },
       samples,
       capturedAt: String(visionAnalysis.capturedAt || new Date().toISOString()),
     };

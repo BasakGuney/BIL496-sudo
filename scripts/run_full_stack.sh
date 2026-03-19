@@ -12,6 +12,7 @@ INSTALL_ONLY="${INSTALL_ONLY:-0}"
 SKIP_CLIENT="${SKIP_CLIENT:-0}"
 SKIP_SERVER="${SKIP_SERVER:-0}"
 SKIP_PY_API="${SKIP_PY_API:-0}"
+ALLOW_VISION_FALLBACK="${ALLOW_VISION_FALLBACK:-0}"
 
 mkdir -p "$LOG_DIR"
 
@@ -40,6 +41,22 @@ PIP_BIN="$PY_VENV_DIR/bin/pip"
 echo "[setup] Installing Python dependencies"
 "$PIP_BIN" install --upgrade pip >/dev/null
 "$PIP_BIN" install -r "$PY_API_DIR/requirements.txt"
+
+echo "[setup] Verifying vision runtime (MediaPipe + OpenCV)"
+VISION_HEALTH="$("$PYTHON_BIN_DEFAULT" "$PY_API_DIR/frame_face_analyzer.py" <<'EOF'
+{"mode":"health"}
+EOF
+)"
+echo "$VISION_HEALTH"
+if ! printf '%s' "$VISION_HEALTH" | grep -q '"source": "mediapipe"'; then
+  if [ "$ALLOW_VISION_FALLBACK" = "1" ]; then
+    echo "[warn] MediaPipe is not active. Continuing with OpenCV fallback because ALLOW_VISION_FALLBACK=1."
+  else
+    echo "[ERROR] MediaPipe is not active in the configured Python environment." >&2
+    echo "        Re-run with a supported Python version for mediapipe, or set ALLOW_VISION_FALLBACK=1 to continue with OpenCV." >&2
+    exit 1
+  fi
+fi
 
 echo "[setup] Installing server npm dependencies"
 npm --prefix "$SERVER_DIR" install
@@ -105,6 +122,7 @@ Useful environment flags:
   SKIP_PY_API=1   -> do not start Python analysis API
   SKIP_SERVER=1   -> do not start Node backend
   SKIP_CLIENT=1   -> do not start Vite client
+  ALLOW_VISION_FALLBACK=1 -> continue even if MediaPipe health check falls back to OpenCV
 
 Press Ctrl+C to stop everything started by this script.
 EOF

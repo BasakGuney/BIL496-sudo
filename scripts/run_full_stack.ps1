@@ -12,6 +12,7 @@ $PyApiDir = Join-Path $RootDir 'project/server/src/services/analysis/python_api'
 $PyVenvDir = Join-Path $PyApiDir '.venv'
 $DefaultPythonBin = Join-Path $PyVenvDir 'Scripts/python.exe'
 $PythonBin = if ($env:PYTHON_BIN) { $env:PYTHON_BIN } else { $DefaultPythonBin }
+$AllowVisionFallback = $env:ALLOW_VISION_FALLBACK -eq '1'
 $ServerDir = Join-Path $RootDir 'project/server'
 $ClientDir = Join-Path $RootDir 'project/client'
 $LogDir = Join-Path $RootDir '.run-logs'
@@ -90,6 +91,19 @@ Write-Host '[setup] Installing Python dependencies'
 & $PipBin install --upgrade pip
 & $PipBin install -r (Join-Path $PyApiDir 'requirements.txt')
 
+Write-Host '[setup] Verifying vision runtime (MediaPipe + OpenCV)'
+$VisionHealthRaw = '{"mode":"health"}' | & $PythonBin (Join-Path $PyApiDir 'frame_face_analyzer.py')
+Write-Host $VisionHealthRaw
+$VisionHealth = $VisionHealthRaw | ConvertFrom-Json
+if ($VisionHealth.source -ne 'mediapipe') {
+    if ($AllowVisionFallback) {
+        Write-Warning 'MediaPipe is not active. Continuing with OpenCV fallback because ALLOW_VISION_FALLBACK=1.'
+    }
+    else {
+        throw 'MediaPipe is not active in the configured Python environment. Use a supported Python version for mediapipe, or set ALLOW_VISION_FALLBACK=1 to continue with OpenCV.'
+    }
+}
+
 Write-Host '[setup] Installing server npm dependencies'
 & npm --prefix $ServerDir install
 
@@ -132,6 +146,7 @@ try {
     Write-Host '  -SkipPyApi    -> do not start Python analysis API'
     Write-Host '  -SkipServer   -> do not start Node backend'
     Write-Host '  -SkipClient   -> do not start Vite client'
+    Write-Host '  ALLOW_VISION_FALLBACK=1 -> continue even if MediaPipe health check falls back to OpenCV'
     Write-Host ''
     Write-Host 'Press Ctrl+C to stop everything started by this script.'
 

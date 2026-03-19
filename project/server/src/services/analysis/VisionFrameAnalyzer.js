@@ -8,13 +8,8 @@ export class VisionFrameAnalyzer {
     this.scriptPath = path.resolve(process.cwd(), "src/services/analysis/python_api/frame_face_analyzer.py");
   }
 
-  analyzeFrame({ imageBase64 = "" } = {}) {
+  runAnalyzer(payload = {}) {
     return new Promise((resolve) => {
-      if (!imageBase64) {
-        resolve({ status: "invalid", message: "Frame payload missing.", faceCount: 0, bbox: null, faceCropBase64: "" });
-        return;
-      }
-
       const child = spawn(this.pythonBin, [this.scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
       let stdout = "";
       let stderr = "";
@@ -50,8 +45,28 @@ export class VisionFrameAnalyzer {
         }
       });
 
-      child.stdin.write(JSON.stringify({ imageBase64 }));
+      child.stdin.write(JSON.stringify(payload));
       child.stdin.end();
     });
+  }
+
+  async healthCheck() {
+    const result = await this.runAnalyzer({ mode: "health" });
+    return {
+      status: String(result?.status || "unavailable"),
+      source: String(result?.source || "unavailable"),
+      pythonVersion: String(result?.pythonVersion || ""),
+      opencvVersion: String(result?.opencvVersion || ""),
+      mediapipeVersion: result?.mediapipeVersion ? String(result.mediapipeVersion) : null,
+      detector: result?.detector || null,
+      message: String(result?.message || ""),
+    };
+  }
+
+  analyzeFrame({ imageBase64 = "" } = {}) {
+    if (!imageBase64) {
+      return Promise.resolve({ status: "invalid", message: "Frame payload missing.", faceCount: 0, bbox: null, faceCropBase64: "" });
+    }
+    return this.runAnalyzer({ imageBase64 });
   }
 }

@@ -127,6 +127,8 @@ export class AppServer {
   listen() {
     const maxRetries = 10;
 
+    this.logVisionAnalyzerHealth();
+
     const start = (port, attempt = 0) => {
       const server = this.app.listen(port, () => {
         this.logger.info(`Realtime server listening on http://localhost:${port}`);
@@ -160,5 +162,27 @@ export class AppServer {
     };
 
     return start(this.env.port, 0);
+  }
+
+  async logVisionAnalyzerHealth() {
+    try {
+      const visionAnalyzer = new VisionFrameAnalyzer({
+        logger: this.logger,
+      });
+      const health = await visionAnalyzer.healthCheck();
+      if (health.source === "mediapipe") {
+        this.logger.info(
+          `Vision analyzer ready with MediaPipe (python=${health.pythonVersion}, mediapipe=${health.mediapipeVersion || "unknown"}, opencv=${health.opencvVersion}).`
+        );
+        return;
+      }
+
+      this.logger.warn(
+        "Vision analyzer started without MediaPipe. OpenCV fallback will be used instead.",
+        health
+      );
+    } catch (error) {
+      this.logger.warn("Vision analyzer health check failed.", error);
+    }
   }
 }
