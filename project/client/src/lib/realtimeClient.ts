@@ -1,5 +1,17 @@
-type TranscriptEntry = { role: string; text: string; ts: number };
-type CandidateAnswerAudio = {
+export type Mode = "Supportive" | "Neutral";
+
+type InterviewType = "HR" | "Technical";
+type CandidateGender = "Kadın" | "Erkek";
+
+type TranscriptEntry = {
+  role: "interviewer" | "candidate";
+  text: string;
+  ts: number;
+  source?: string;
+  model?: string;
+};
+
+export type CandidateAnswerAudio = {
   questionIndex: number;
   mimeType: string;
   startedAt: number;
@@ -7,103 +19,553 @@ type CandidateAnswerAudio = {
   audioBase64: string;
 };
 
-type ConnectOptions = {
-  backendBaseUrl: string;
-  sessionId: string;
-  mode: string;
-  interviewType: string;
-  firstName: string;
-  lastName: string;
-  gender: string;
-  role: string;
-  companyOrIndustry: string;
-  domainInterest: string;
+type RealtimeEvent = {
+  type?: string;
+  transcript?: string;
+  text?: string;
+  delta?: string;
+  response_id?: string;
+  item_id?: string;
+  item?: any;
+  response?: any;
 };
 
-async function blobToBase64(blob: Blob) {
-  const arrayBuffer = await blob.arrayBuffer();
-  let binary = '';
-  const bytes = new Uint8Array(arrayBuffer);
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
+export type RealtimeConnection = {
+  pc: RTCPeerConnection;
+  dc: RTCDataChannel;
+  remoteStream: MediaStream;
+  analyser: AnalyserNode;
+  audioEl: HTMLAudioElement;
+  audioCtx: AudioContext;
+  getTranscript: () => TranscriptEntry[];
+  getCandidateAnswerAudios: () => Promise<CandidateAnswerAudio[]>;
+  close: () => void;
+};
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = String(reader.result || "");
+      const parts = result.split(",");
+      resolve(parts[1] || "");
+    };
+    reader.onerror = () => reject(reader.error || new Error("blob read failed"));
+    reader.readAsDataURL(blob);
+  });
 }
 
-export async function connectRealtimeInterview(_options: ConnectOptions) {
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-    },
-    video: false,
-  });
+function safeCleanup(fn: () => void) {
+  try {
+    fn();
+  } catch (error) {
+    console.debug("[RTC] cleanup skipped", error);
+  }
+}
 
-  const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  const audioCtx = new AudioContextCtor();
-  const analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 2048;
-  const source = audioCtx.createMediaStreamSource(stream);
-  source.connect(analyser);
+const CANDIDATE_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
+const INTERVIEWER_TRANSCRIPT_MODEL = "gpt-4o-realtime";
 
-  const audioEl = new Audio();
-  const transcript: TranscriptEntry[] = [];
-  const candidateAnswerAudios: CandidateAnswerAudio[] = [];
+type TranscriptSource =
+  | "openai-realtime-input_audio_transcription"
+  | "openai-realtime-response_audio_transcript"
+  | "openai-realtime-response_output_text_fallback"
+  | "openai-realtime-response_done_fallback";
 
-  let recorder: MediaRecorder | null = null;
-  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-  if (typeof MediaRecorder !== 'undefined') {
-    recorder = new MediaRecorder(stream, { mimeType });
-    let chunks: Blob[] = [];
-    let segmentStart = Date.now();
-    let questionIndex = 1;
+function extractInterviewerFromResponseDone(msg: RealtimeEvent): string {
+  const outputs = Array.isArray(msg?.response?.output) ? msg.response.output : [];
+  const chunks: string[] = [];
 
-    recorder.ondataavailable = (event) => {
-      if (event.data && event.data.size > 0) chunks.push(event.data);
+  for (const out of outputs) {
+    const contents = Array.isArray(out?.content) ? out.content : [];
+    for (const content of contents) {
+      if (typeof content?.transcript === "string" && content.transcript.trim()) chunks.push(content.transcript.trim());
+      else if (typeof content?.text === "string" && content.text.trim()) chunks.push(content.text.trim());
+    }
+  }
+
+  return chunks.join(" ").trim();
+}
+
+function normalizeCandidateTranscriptText(raw: string): string {
+  const clean = String(raw || "").trim();
+  if (!clean) return "";
+
+  const arabicHelloVariants = new Set(["مرحبا", "مرحباً"]);
+  if (arabicHelloVariants.has(clean)) return "Merhaba";
+
+  return clean;
+}
+
+function extractStableTranscriptMessage(
+  msg: RealtimeEvent
+): { role: "interviewer" | "candidate"; text: string; source: TranscriptSource; model: string } | null {
+  const candidateContentText = Array.isArray(msg?.item?.content)
+    ? msg.item.content
+      .map((content: any) => content?.transcript || "")
+      .filter(Boolean)
+      .join(" ")
+    : "";
+
+  const candidateText =
+    msg?.item?.formatted?.transcript ||
+    candidateContentText ||
+    (typeof msg?.transcript === "string" ? msg.transcript : "");
+
+  if (msg?.type === "conversation.item.input_audio_transcription.completed" && candidateText.trim()) {
+    return {
+      role: "candidate",
+      text: normalizeCandidateTranscriptText(candidateText),
+      source: "openai-realtime-input_audio_transcription",
+      model: CANDIDATE_TRANSCRIPTION_MODEL,
     };
+  }
 
-    recorder.onstop = async () => {
-      if (!chunks.length) return;
-      const blob = new Blob(chunks, { type: mimeType });
-      chunks = [];
-      const audioBase64 = await blobToBase64(blob);
-      candidateAnswerAudios.push({
-        questionIndex: questionIndex++,
-        mimeType,
-        startedAt: segmentStart,
-        endedAt: Date.now(),
-        audioBase64,
-      });
-      transcript.push({ role: 'candidate', text: '[Ses yanıtı kaydedildi]', ts: Date.now() });
-      if (recorder && recorder.state === 'inactive') {
-        segmentStart = Date.now();
-        recorder.start();
-        window.setTimeout(() => recorder?.state === 'recording' && recorder.stop(), 15000);
+  if (msg?.type === "response.audio_transcript.done" && typeof msg?.transcript === "string" && msg.transcript.trim()) {
+    return {
+      role: "interviewer",
+      text: msg.transcript,
+      source: "openai-realtime-response_audio_transcript",
+      model: INTERVIEWER_TRANSCRIPT_MODEL,
+    };
+  }
+
+  if (msg?.type === "response.output_text.done" && typeof msg?.text === "string" && msg.text.trim()) {
+    return {
+      role: "interviewer",
+      text: msg.text,
+      source: "openai-realtime-response_output_text_fallback",
+      model: INTERVIEWER_TRANSCRIPT_MODEL,
+    };
+  }
+
+  if (msg?.type === "response.done") {
+    const text = extractInterviewerFromResponseDone(msg);
+    if (text) {
+      return {
+        role: "interviewer",
+        text,
+        source: "openai-realtime-response_done_fallback",
+        model: INTERVIEWER_TRANSCRIPT_MODEL,
+      };
+    }
+  }
+
+  return null;
+}
+
+function pushTranscript(
+  transcript: TranscriptEntry[],
+  role: "interviewer" | "candidate",
+  text: string,
+  ts: number = Date.now(),
+  source?: string,
+  model?: string
+) {
+  const clean = String(text || "").trim();
+  if (!clean) return;
+
+  const last = transcript[transcript.length - 1];
+  if (last && last.role === role && ts - last.ts < 1800) {
+    last.text = `${last.text} ${clean}`.trim();
+    last.ts = ts;
+    return;
+  }
+
+  transcript.push({ role, text: clean, ts, source, model });
+}
+
+function normalizeTranscriptFingerprint(role: "interviewer" | "candidate", text: string) {
+  return `${role}:${String(text || "")
+    .toLocaleLowerCase("tr")
+    .replace(/\s+/g, " ")
+    .trim()}`;
+}
+
+async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
+  if (pc.iceGatheringState === "complete") return;
+  await new Promise<void>((resolve) => {
+    const timeout = window.setTimeout(() => {
+      pc.removeEventListener("icegatheringstatechange", onState);
+      resolve();
+    }, 1500);
+
+    const onState = () => {
+      if (pc.iceGatheringState === "complete") {
+        window.clearTimeout(timeout);
+        pc.removeEventListener("icegatheringstatechange", onState);
+        resolve();
       }
     };
 
-    recorder.start();
-    window.setTimeout(() => recorder?.state === 'recording' && recorder.stop(), 15000);
+    pc.addEventListener("icegatheringstatechange", onState);
+  });
+}
+
+export async function connectRealtimeInterview(opts: {
+  backendBaseUrl: string;
+  sessionId: string;
+  mode: Mode;
+  interviewType: InterviewType;
+  firstName: string;
+  lastName: string;
+  gender: CandidateGender;
+  role: string;
+  companyOrIndustry: string;
+  domainInterest: string;
+}): Promise<RealtimeConnection> {
+  const transcript: TranscriptEntry[] = [];
+  const candidateAnswerAudios: CandidateAnswerAudio[] = [];
+  const pendingAudioConversions: Promise<void>[] = [];
+
+  const pc = new RTCPeerConnection({
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  });
+
+  pc.onconnectionstatechange = () => console.log("[RTC] connectionState:", pc.connectionState);
+  pc.oniceconnectionstatechange = () => console.log("[RTC] iceConnectionState:", pc.iceConnectionState);
+  pc.onicecandidateerror = () => {};
+
+  pc.addTransceiver("audio", { direction: "recvonly" });
+
+  const dc = pc.createDataChannel("oai-events");
+  dc.onerror = (e) => console.log("[RTC] datachannel error:", e);
+  let initialResponseRequested = false;
+
+  const requestInitialInterviewerResponse = () => {
+    if (initialResponseRequested || dc.readyState !== "open") return;
+    initialResponseRequested = true;
+    dc.send(
+      JSON.stringify({
+        type: "response.create",
+        response: {
+          modalities: ["audio", "text"],
+        },
+      })
+    );
+  };
+
+  const remoteStream = new MediaStream();
+  pc.ontrack = (e) => {
+    remoteStream.addTrack(e.track);
+  };
+
+  const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  pc.addTrack(micStream.getTracks()[0], micStream);
+
+  let interviewerTurnCount = 0;
+  let isCandidateSegmentActive = false;
+  let activeQuestionIndex = 1;
+  let activeSegmentStartedAt = 0;
+  let mediaRecorder: MediaRecorder | null = null;
+  let segmentChunks: Blob[] = [];
+  let activeSegmentStopPromise: Promise<void> | null = null;
+  let resolveActiveSegmentStopPromise: (() => void) | null = null;
+  let interviewerSpeaking = false;
+  const recentlyPushedFingerprints = new Map<string, number>();
+  const interviewerResponseIdsWithTranscript = new Set<string>();
+
+  const pushTranscriptDeduped = (
+    role: "interviewer" | "candidate",
+    text: string,
+    ts: number = Date.now(),
+    source?: string,
+    model?: string
+  ) => {
+    const clean = String(text || "").trim();
+    if (!clean) return;
+
+    const key = normalizeTranscriptFingerprint(role, clean);
+    const lastSeenAt = recentlyPushedFingerprints.get(key);
+    if (typeof lastSeenAt === "number" && ts - lastSeenAt < 4000) {
+      return;
+    }
+
+    recentlyPushedFingerprints.set(key, ts);
+    if (recentlyPushedFingerprints.size > 80) {
+      const threshold = ts - 15000;
+      for (const [fingerprint, seenAt] of recentlyPushedFingerprints) {
+        if (seenAt < threshold) {
+          recentlyPushedFingerprints.delete(fingerprint);
+        }
+      }
+    }
+
+    pushTranscript(transcript, role, clean, ts, source, model);
+  };
+
+  const buildMediaRecorder = () => {
+    const recorder = new MediaRecorder(micStream);
+    recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        segmentChunks.push(event.data);
+      }
+    };
+    recorder.onstop = () => {
+      if (segmentChunks.length) {
+        const blob = new Blob(segmentChunks, { type: recorder.mimeType || "audio/webm" });
+        const questionIndex = Math.max(1, activeQuestionIndex || interviewerTurnCount || 1);
+        const startedAt = activeSegmentStartedAt || Date.now();
+        const endedAt = Date.now();
+        segmentChunks = [];
+
+        const conversion = blobToBase64(blob)
+          .then((audioBase64) => {
+            if (!audioBase64) return;
+            candidateAnswerAudios.push({
+              questionIndex,
+              mimeType: recorder.mimeType || "audio/webm",
+              startedAt,
+              endedAt,
+              audioBase64,
+            });
+          })
+          .catch(() => undefined);
+        pendingAudioConversions.push(conversion);
+      }
+
+      if (resolveActiveSegmentStopPromise) {
+        resolveActiveSegmentStopPromise();
+        resolveActiveSegmentStopPromise = null;
+      }
+    };
+    return recorder;
+  };
+
+  const startCandidateSegment = () => {
+    if (isCandidateSegmentActive) return;
+
+    isCandidateSegmentActive = true;
+    activeQuestionIndex = Math.max(1, interviewerTurnCount || 1);
+    activeSegmentStartedAt = Date.now();
+    segmentChunks = [];
+    mediaRecorder = buildMediaRecorder();
+    try {
+      mediaRecorder.start(250);
+    } catch (_error) {
+      isCandidateSegmentActive = false;
+    }
+  };
+
+  const stopCandidateSegment = () => {
+    if (!isCandidateSegmentActive) return;
+    isCandidateSegmentActive = false;
+    const recorder = mediaRecorder;
+    mediaRecorder = null;
+    if (recorder && recorder.state !== "inactive") {
+      activeSegmentStopPromise = new Promise((resolve) => {
+        resolveActiveSegmentStopPromise = resolve;
+      });
+      try {
+        recorder.requestData();
+        recorder.stop();
+      } catch (_error) {
+        if (resolveActiveSegmentStopPromise) {
+          resolveActiveSegmentStopPromise();
+          resolveActiveSegmentStopPromise = null;
+        }
+      }
+    }
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await waitForIceGatheringComplete(pc);
+
+  const localSdp = pc.localDescription?.sdp || "";
+  const query = new URLSearchParams({
+    mode: opts.mode,
+    sessionId: opts.sessionId,
+    interviewType: opts.interviewType,
+    firstName: opts.firstName,
+    lastName: opts.lastName,
+    gender: opts.gender,
+    role: opts.role,
+    domain: opts.domainInterest,
+    companyOrIndustry: opts.companyOrIndustry,
+  });
+
+  const sdpResp = await fetch(`${opts.backendBaseUrl}/session?${query.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/sdp" },
+    body: localSdp,
+  });
+
+  if (!sdpResp.ok) {
+    const text = await sdpResp.text();
+    throw new Error(`Backend /session failed: ${text}`);
   }
 
+  const answerSdp = await sdpResp.text();
+  await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+
+  const existing = document.getElementById("realtime-remote-audio") as HTMLAudioElement | null;
+  if (existing) {
+    safeCleanup(() => existing.pause());
+    safeCleanup(() => {
+      existing.srcObject = null;
+      existing.remove();
+    });
+  }
+
+  const audioEl = document.createElement("audio");
+  audioEl.id = "realtime-remote-audio";
+  audioEl.autoplay = true;
+  (audioEl as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
+  audioEl.style.display = "none";
+  audioEl.srcObject = remoteStream;
+  document.body.appendChild(audioEl);
+
+  const audioCtx = new AudioContext();
+  const source = audioCtx.createMediaStreamSource(remoteStream);
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 1024;
+  source.connect(analyser);
+
+  const sendTranscriptionSessionUpdate = (model: string) => {
+    if (dc.readyState !== "open") return;
+    dc.send(
+      JSON.stringify({
+        type: "session.update",
+        session: {
+          input_audio_transcription: {
+            model,
+            language: "tr",
+            prompt: "Varsayılan dil TÜRKÇE olmalı ve Latin alfabesi kullanılmalı. Türkçe konuşmayı yazarken teknik İngilizce terimleri (ör: Jenkins, Kubernetes, Docker, GitHub, CI/CD) orijinal yazımıyla koru.",
+          },
+          audio: {
+            input: {
+              transcription: {
+                model,
+                language: "tr",
+                prompt: "Varsayılan dil Türkçe (Latin alfabesi) olsun. Türkçe konuşmada geçen teknik İngilizce terimleri doğru yaz.",
+              },
+              turn_detection: {
+                type: "server_vad",
+                create_response: true,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 700,
+              },
+            },
+          },
+        },
+      })
+    );
+  };
+
+  dc.onmessage = (e) => {
+    let msg: RealtimeEvent;
+    try {
+      msg = JSON.parse(e.data);
+    } catch {
+      return;
+    }
+
+    if (msg?.type === "session.created" || msg?.type === "session.updated") {
+      requestInitialInterviewerResponse();
+    }
+
+    const isInterviewerDelta =
+      msg?.type === "response.output_text.delta" ||
+      msg?.type === "response.audio_transcript.delta";
+    const isInterviewerDone = msg?.type === "response.done";
+    const isInterviewerAudioDone =
+      msg?.type === "response.audio.done" ||
+      msg?.type === "response.audio_transcript.done" ||
+      msg?.type === "response.output_text.done";
+
+    if (isInterviewerDelta && !interviewerSpeaking) {
+      interviewerSpeaking = true;
+      if (isCandidateSegmentActive) {
+        stopCandidateSegment();
+      }
+    }
+
+    if (isInterviewerAudioDone) {
+      interviewerSpeaking = false;
+    }
+
+    if (isInterviewerDone) {
+      interviewerSpeaking = false;
+      interviewerTurnCount += 1;
+    }
+
+    const isSpeechStarted = msg?.type === "input_audio_buffer.speech_started";
+    const isSpeechStopped = msg?.type === "input_audio_buffer.speech_stopped";
+
+    if (isSpeechStarted) {
+      interviewerSpeaking = false;
+      startCandidateSegment();
+    }
+
+    if (isSpeechStopped) {
+      stopCandidateSegment();
+    }
+
+    const entry = extractStableTranscriptMessage(msg);
+    if (!entry?.text?.trim()) return;
+
+    const messageResponseId =
+      msg?.response_id ||
+      msg?.response?.id ||
+      msg?.item?.id ||
+      msg?.item_id ||
+      `${msg.type}-${entry.role}`;
+
+    if (entry.source === "openai-realtime-response_audio_transcript") {
+      interviewerResponseIdsWithTranscript.add(messageResponseId);
+    }
+
+    if (
+      entry.source === "openai-realtime-response_output_text_fallback" ||
+      entry.source === "openai-realtime-response_done_fallback"
+    ) {
+      if (interviewerResponseIdsWithTranscript.has(messageResponseId)) return;
+      interviewerResponseIdsWithTranscript.add(messageResponseId);
+    }
+
+    pushTranscriptDeduped(entry.role, entry.text, Date.now(), entry.source, entry.model);
+  };
+
+  dc.onopen = () => {
+    sendTranscriptionSessionUpdate(CANDIDATE_TRANSCRIPTION_MODEL);
+    window.setTimeout(() => {
+      requestInitialInterviewerResponse();
+    }, 1200);
+  };
+
+  const close = () => {
+    stopCandidateSegment();
+    safeCleanup(() => micStream.getTracks().forEach((track) => track.stop()));
+    safeCleanup(() => pc.close());
+    safeCleanup(() => audioCtx.close());
+    safeCleanup(() => audioEl.pause());
+    safeCleanup(() => {
+      audioEl.srcObject = null;
+      audioEl.remove();
+    });
+  };
+
   return {
+    pc,
+    dc,
+    remoteStream,
     analyser,
-    audioCtx,
     audioEl,
-    close() {
-      if (recorder?.state === 'recording') recorder.stop();
-      stream.getTracks().forEach((track) => track.stop());
-      source.disconnect();
-      analyser.disconnect();
-      void audioCtx.close();
+    audioCtx,
+    getTranscript: () => [...transcript],
+    getCandidateAnswerAudios: async () => {
+      if (isCandidateSegmentActive) {
+        stopCandidateSegment();
+      }
+      if (activeSegmentStopPromise) {
+        await activeSegmentStopPromise;
+        activeSegmentStopPromise = null;
+      }
+
+      await Promise.allSettled(pendingAudioConversions);
+      return [...candidateAnswerAudios];
     },
-    getTranscript() {
-      return transcript;
-    },
-    async getCandidateAnswerAudios() {
-      return candidateAnswerAudios;
-    },
+    close,
   };
 }
