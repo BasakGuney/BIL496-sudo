@@ -66,6 +66,8 @@ export function InterviewPage({
           await videoRef.current.play().catch(() => {});
           await visionAnalyzerRef.current.start({
             video: videoRef.current,
+            sessionId,
+            backendBaseUrl: BACKEND_URL,
             supportiveMode,
             onOverlay: setOverlay,
           });
@@ -236,9 +238,8 @@ export function InterviewPage({
       candidateAnswerAudios = await connRef.current.getCandidateAnswerAudios();
     }
 
-    const visionAnalysis = visionAnalyzerRef.current.buildPayload();
     stopMedia();
-    const rep = await endSession(sessionId, transcript, candidateAnswerAudios, visionAnalysis);
+    const rep = await endSession(sessionId, transcript, candidateAnswerAudios);
     onFinish(rep);
   }
 
@@ -325,10 +326,10 @@ export function InterviewPage({
             <div
               className="pointer-events-none absolute border-2 border-emerald-400 shadow-[0_0_0_9999px_rgba(16,24,40,0.08)]"
               style={{
-                left: `${(overlay.box.x / Math.max(videoRef.current?.videoWidth || 1, 1)) * 100}%`,
-                top: `${(overlay.box.y / Math.max(videoRef.current?.videoHeight || 1, 1)) * 100}%`,
-                width: `${(overlay.box.width / Math.max(videoRef.current?.videoWidth || 1, 1)) * 100}%`,
-                height: `${(overlay.box.height / Math.max(videoRef.current?.videoHeight || 1, 1)) * 100}%`,
+                left: `${(overlay.box.x / Math.max(overlay.imageWidth || videoRef.current?.videoWidth || 1, 1)) * 100}%`,
+                top: `${(overlay.box.y / Math.max(overlay.imageHeight || videoRef.current?.videoHeight || 1, 1)) * 100}%`,
+                width: `${(overlay.box.width / Math.max(overlay.imageWidth || videoRef.current?.videoWidth || 1, 1)) * 100}%`,
+                height: `${(overlay.box.height / Math.max(overlay.imageHeight || videoRef.current?.videoHeight || 1, 1)) * 100}%`,
               }}
             />
           ) : null}

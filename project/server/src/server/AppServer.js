@@ -30,6 +30,7 @@ import { InterviewFlowPolicy } from "../orchestration/InterviewFlowPolicy.js";
 import { GuardrailsEngine } from "../orchestration/GuardrailsEngine.js";
 import { BackendOrchestrator } from "../orchestration/BackendOrchestrator.js";
 import { PythonAnalysisClient } from "../services/analysis/PythonAnalysisClient.js";
+import { VisionFrameAnalyzer } from "../services/analysis/VisionFrameAnalyzer.js";
 
 export class AppServer {
   constructor({ env = getEnv(), logger = new Logger() } = {}) {
@@ -87,6 +88,9 @@ export class AppServer {
     const pythonAnalysisClient = new PythonAnalysisClient({
       logger: this.logger
     });
+    const visionFrameAnalyzer = new VisionFrameAnalyzer({
+      logger: this.logger,
+    });
 
     const backendOrchestrator = new BackendOrchestrator({
       sessions,
@@ -99,6 +103,7 @@ export class AppServer {
       reportArchive,
       candidateAudioTranscriber,
       pythonAnalysisClient,
+      visionFrameAnalyzer,
     });
 
     const sessionController = new SessionController({ backendOrchestrator });

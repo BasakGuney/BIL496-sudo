@@ -6,6 +6,7 @@ export class ReportController {
     this.getReport = this.getReport.bind(this);
     this.endSessionAndCreateReport = this.endSessionAndCreateReport.bind(this);
     this.ingestCandidateAnswer = this.ingestCandidateAnswer.bind(this);
+    this.ingestVisionFrame = this.ingestVisionFrame.bind(this);
   }
 
   async getReport(req, res, next) {
@@ -38,6 +39,15 @@ export class ReportController {
         req.params.sessionId,
         req.body?.candidateAnswerAudio || req.body || null
       );
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async ingestVisionFrame(req, res, next) {
+    try {
+      const result = await this.backendOrchestrator.ingestVisionFrame(req.params.sessionId, req.body || {});
       res.json(result);
     } catch (error) {
       next(error);

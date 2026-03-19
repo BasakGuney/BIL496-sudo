@@ -5,7 +5,7 @@ import { Consent } from "../domain/value-objects/Consent.js";
 import { AppError } from "../domain/errors/AppError.js";
 
 export class BackendOrchestrator {
-  constructor({ sessions, reports, ai, analyzer, guardrails, realtimeManager, idGenerator, reportArchive, candidateAudioTranscriber = null, pythonAnalysisClient = null }) {
+  constructor({ sessions, reports, ai, analyzer, guardrails, realtimeManager, idGenerator, reportArchive, candidateAudioTranscriber = null, pythonAnalysisClient = null, visionFrameAnalyzer = null }) {
     this.sessions = sessions;
     this.reports = reports;
     this.ai = ai;
@@ -16,6 +16,7 @@ export class BackendOrchestrator {
     this.reportArchive = reportArchive;
     this.candidateAudioTranscriber = candidateAudioTranscriber;
     this.pythonAnalysisClient = pythonAnalysisClient;
+    this.visionFrameAnalyzer = visionFrameAnalyzer;
   }
 
   async createSession(cfgInput, offerSdp = "", sessionId = null) {
@@ -74,6 +75,20 @@ export class BackendOrchestrator {
         incrementalCandidateAnswerAudios: [],
         incrementalSavedAudioFiles: [],
         analyzedAudioRelativePaths: [],
+        vision: {
+          sampledFrames: 0,
+          faceDetectedFrames: 0,
+          totalFaceAreaRatio: 0,
+          totalCenterOffset: 0,
+          movementAccumulator: 0,
+          lastCenter: null,
+          samples: [],
+          lastResult: null,
+          supportiveOverlayUsed: false,
+          source: this.visionFrameAnalyzer ? "server-python-opencv" : "unavailable",
+          status: this.visionFrameAnalyzer ? "ready" : "unavailable",
+          notes: [],
+        },
       };
     }
 
@@ -134,6 +149,144 @@ export class BackendOrchestrator {
 
   filterTranscriptByRole(transcript = [], role = "candidate") {
     return (Array.isArray(transcript) ? transcript : []).filter((item) => item?.role === role);
+  }
+
+
+  async ingestVisionFrame(sessionId, payload = {}) {
+    const session = await this.sessions.findById(sessionId);
+    if (!session) throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", statusCode: 404 });
+
+    const runtime = this.getRuntimeState(session);
+    const vision = runtime.vision;
+    const imageBase64 = String(payload?.imageBase64 || "");
+    const frameIndex = Number(payload?.frameIndex || vision.sampledFrames + 1);
+    const supportiveMode = Boolean(payload?.supportiveMode);
+
+    if (!imageBase64) {
+      throw new AppError("Vision frame payload is invalid", { code: "INVALID_VISION_FRAME", statusCode: 400 });
+    }
+
+    vision.sampledFrames += 1;
+    vision.supportiveOverlayUsed = vision.supportiveOverlayUsed || supportiveMode;
+
+    const result = this.visionFrameAnalyzer
+      ? await this.visionFrameAnalyzer.analyzeFrame({ imageBase64 })
+      : { status: "unavailable", message: "Vision analyzer unavailable.", faceCount: 0, bbox: null, faceCropBase64: "" };
+
+    vision.status = result?.status === "invalid" ? "limited" : (result?.status || vision.status || "unavailable");
+    vision.lastResult = {
+      status: result?.status || "unavailable",
+      message: result?.message || "Görüntü analizi hazır değil.",
+      faceCount: Number(result?.faceCount || 0),
+      bbox: result?.bbox || null,
+      imageWidth: Number(result?.imageWidth || 0),
+      imageHeight: Number(result?.imageHeight || 0),
+    };
+
+    if (result?.bbox) {
+      const bbox = result.bbox;
+      const faceAreaRatio = (Number(bbox.width || 0) * Number(bbox.height || 0))
+        / Math.max(1, Number(result?.imageWidth || 1) * Number(result?.imageHeight || 1));
+      const centerX = Number(bbox.x || 0) + Number(bbox.width || 0) / 2;
+      const centerY = Number(bbox.y || 0) + Number(bbox.height || 0) / 2;
+      const centerOffset = Math.sqrt(
+        Math.pow((centerX / Math.max(1, Number(result?.imageWidth || 1))) - 0.5, 2)
+        + Math.pow((centerY / Math.max(1, Number(result?.imageHeight || 1))) - 0.5, 2)
+      );
+
+      vision.faceDetectedFrames += 1;
+      vision.totalFaceAreaRatio += faceAreaRatio;
+      vision.totalCenterOffset += centerOffset;
+      if (vision.lastCenter) {
+        vision.movementAccumulator += Math.sqrt(
+          Math.pow((centerX - vision.lastCenter.x) / Math.max(1, Number(result?.imageWidth || 1)), 2)
+          + Math.pow((centerY - vision.lastCenter.y) / Math.max(1, Number(result?.imageHeight || 1)), 2)
+        );
+      }
+      vision.lastCenter = { x: centerX, y: centerY };
+
+      if (vision.samples.length < 8 && result?.faceCropBase64) {
+        vision.samples.push({
+          ts: Number(payload?.ts || Date.now()),
+          frameIndex,
+          hasFace: true,
+          bbox,
+          imageBase64: result.faceCropBase64,
+        });
+      }
+    }
+
+    const note = String(result?.message || "").trim();
+    if (note && !vision.notes.includes(note) && vision.notes.length < 6) {
+      vision.notes.push(note);
+    }
+
+    await this.sessions.update(session);
+    return {
+      supported: Boolean(this.visionFrameAnalyzer),
+      detecting: result?.status !== "unavailable",
+      hasFace: Boolean(result?.bbox),
+      faceCount: Number(result?.faceCount || 0),
+      box: result?.bbox || null,
+      message: result?.message || "Görüntü analizi hazır değil.",
+      source: vision.source,
+      status: vision.status,
+      imageWidth: Number(result?.imageWidth || 0),
+      imageHeight: Number(result?.imageHeight || 0),
+    };
+  }
+
+  buildVisionAnalysisFromRuntime(runtime) {
+    const vision = runtime?.vision;
+    if (!vision) return null;
+
+    const sampledFrames = Number(vision.sampledFrames || 0);
+    const faceDetectedFrames = Number(vision.faceDetectedFrames || 0);
+    const facePresenceRatio = sampledFrames > 0 ? faceDetectedFrames / sampledFrames : 0;
+    const averageFaceAreaRatio = faceDetectedFrames > 0 ? vision.totalFaceAreaRatio / faceDetectedFrames : 0;
+    const averageCenterOffset = faceDetectedFrames > 0 ? vision.totalCenterOffset / faceDetectedFrames : 1;
+    const headMovementRaw = Number(vision.movementAccumulator || 0);
+    const centeringScore = Math.max(0, Math.min(100, Math.round((1 - Math.min(averageCenterOffset, 0.75) / 0.75) * 100)));
+    const steadinessScore = Math.max(0, Math.min(100, Math.round((1 - Math.min(headMovementRaw, 1.25) / 1.25) * 100)));
+
+    const notes = [];
+    if (sampledFrames === 0) {
+      notes.push("Kamera frameleri server tarafına ulaşmadı.");
+    } else if (facePresenceRatio < 0.4) {
+      notes.push("Yüz görünürlüğü düşük kaldı; kamera hizası veya ışık iyileştirilebilir.");
+    } else {
+      notes.push("Yüz görünürlüğü analiz için yeterli seviyedeydi.");
+    }
+    for (const note of Array.isArray(vision.notes) ? vision.notes : []) {
+      if (note && !notes.includes(note)) notes.push(note);
+    }
+    if (vision.supportiveOverlayUsed && !notes.includes("Supportive modda canlı yüz çerçevesi gösterildi.")) {
+      notes.push("Supportive modda canlı yüz çerçevesi gösterildi.");
+    }
+
+    return {
+      status: sampledFrames === 0 ? "unavailable" : (vision.status === "unavailable" ? "limited" : "ready"),
+      source: vision.source || "server-python-opencv",
+      supportiveOverlayUsed: Boolean(vision.supportiveOverlayUsed),
+      metrics: {
+        sampledFrames,
+        faceDetectedFrames,
+        missingFaceFrames: Math.max(0, sampledFrames - faceDetectedFrames),
+        averageFaceAreaRatio: Number(averageFaceAreaRatio.toFixed(4)),
+        headMovementRaw: Number(headMovementRaw.toFixed(4)),
+        averageCenterOffset: Number(averageCenterOffset.toFixed(4)),
+      },
+      summary: {
+        facePresenceRatio: Number(facePresenceRatio.toFixed(4)),
+        centeringScore,
+        steadinessScore,
+        averageFaceAreaRatio: Number(averageFaceAreaRatio.toFixed(4)),
+        headMovementRaw: Number(headMovementRaw.toFixed(4)),
+      },
+      notes,
+      samples: Array.isArray(vision.samples) ? vision.samples : [],
+      capturedAt: new Date().toISOString(),
+    };
   }
 
   async ingestCandidateAnswer(sessionId, candidateAnswerAudio = null) {
@@ -218,7 +371,8 @@ export class BackendOrchestrator {
       candidateAnswerAudios
     );
     const transcriptEntries = this.mergeUniqueTranscriptEntries(transcript);
-    const report = await this.analyzer.generateReport(session, transcriptEntries, visionAnalysis);
+    const effectiveVisionAnalysis = visionAnalysis || this.buildVisionAnalysisFromRuntime(runtime);
+    const report = await this.analyzer.generateReport(session, transcriptEntries, effectiveVisionAnalysis);
     const transcriptText = transcriptEntries
       .map((item) => {
         const role = item?.role === "interviewer" ? "Interviewer" : "Candidate";
@@ -245,7 +399,7 @@ export class BackendOrchestrator {
         report,
         candidateAnswerAudios: mergedCandidateAnswerAudios,
         existingCandidateAnswerAudioFiles: runtime.incrementalSavedAudioFiles,
-        visionAnalysis,
+        visionAnalysis: effectiveVisionAnalysis,
       });
 
       if (this.pythonAnalysisClient && archiveResult) {
