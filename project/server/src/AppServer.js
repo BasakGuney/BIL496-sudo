@@ -81,6 +81,7 @@ export class AppServer {
     const idGenerator = new IdGenerator();
     const reportArchive = new FileReportArchive({
       baseDir: this.env.reportsDir || path.resolve(process.cwd(), "reports"),
+      persistVisionJpegs: true,
     });
     const candidateAudioTranscriber = new CandidateAudioTranscriber({
       apiKey: this.env.openAiApiKey,
