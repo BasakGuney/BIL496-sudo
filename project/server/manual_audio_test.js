@@ -8,10 +8,10 @@ async function test() {
   const reportsDir = path.resolve(process.cwd(), "reports");
   const sessionId = "S-1773859433140";
   const transcriptText = await fs.readFile(path.join(reportsDir, sessionId, "transcript.txt"), "utf-8");
-  const candidateAnswerDir = path.join(reportsDir, sessionId, "candidate-answers");
+  const candidateAnswerDir = path.join(reportsDir, sessionId, "audio");
   const files = await fs.readdir(candidateAnswerDir).catch(() => []);
   const reportData = {
-    candidateAnswerAudioFiles: files.map((file) => ({ relativePath: path.join("candidate-answers", file) })),
+    candidateAnswerAudioFiles: files.map((file) => ({ relativePath: path.join("audio", file) })),
     transcriptText,
     report: null,
   };

@@ -2,8 +2,9 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export class FileReportArchive {
-  constructor({ baseDir }) {
+  constructor({ baseDir, persistVisionJpegs = false }) {
     this.baseDir = baseDir;
+    this.persistVisionJpegs = Boolean(persistVisionJpegs);
   }
 
   sanitizeSessionId(sessionId) {
@@ -122,7 +123,7 @@ export class FileReportArchive {
     if (!answer) return null;
 
     const sessionDir = await this.ensureSessionDir(sessionId);
-    const answersDir = path.join(sessionDir, "candidate-answers");
+    const answersDir = path.join(sessionDir, "audio");
     await mkdir(answersDir, { recursive: true });
 
     const nextSequence = await this.getNextAnswerSequence(answersDir);
@@ -138,7 +139,7 @@ export class FileReportArchive {
       startedAt: answer.startedAt,
       endedAt: answer.endedAt,
       fileName,
-      relativePath: path.join("candidate-answers", fileName),
+      relativePath: path.join("audio", fileName),
       fullPath,
     };
   }
@@ -165,7 +166,7 @@ export class FileReportArchive {
     const normalized = this.normalizeCandidateAnswerAudios(candidateAnswerAudios);
     if (normalized.length === 0) return [];
 
-    const answersDir = path.join(sessionDir, "candidate-answers");
+    const answersDir = path.join(sessionDir, "audio");
     await mkdir(answersDir, { recursive: true });
 
     const sorted = [...normalized].sort((a, b) => a.startedAt - b.startedAt);
@@ -185,7 +186,7 @@ export class FileReportArchive {
         startedAt: answer.startedAt,
         endedAt: answer.endedAt,
         fileName,
-        relativePath: path.join("candidate-answers", fileName),
+        relativePath: path.join("audio", fileName),
       });
       seq++;
     }
@@ -237,20 +238,21 @@ export class FileReportArchive {
     const normalized = this.normalizeVisionAnalysis(visionAnalysis);
     if (!normalized) return null;
 
-    const analysisDir = path.join(sessionDir, "vision");
-    const samplesDir = path.join(analysisDir, "samples");
-    await mkdir(samplesDir, { recursive: true });
+    const visionDir = path.join(sessionDir, "vision");
+    if (this.persistVisionJpegs) {
+      await mkdir(visionDir, { recursive: true });
+    }
 
     const savedSamples = [];
     for (const sample of normalized.samples) {
       let relativeImagePath = null;
-      if (sample.imageBase64) {
+      if (this.persistVisionJpegs && sample.imageBase64) {
         const fileName = `frame_${String(sample.index).padStart(2, "0")}.jpg`;
-        const fullPath = path.join(samplesDir, fileName);
+        const fullPath = path.join(visionDir, fileName);
         const imageBuffer = Buffer.from(sample.imageBase64, "base64");
         if (imageBuffer.length > 0) {
           await writeFile(fullPath, imageBuffer);
-          relativeImagePath = path.join("vision", "samples", fileName);
+          relativeImagePath = path.join("vision", fileName);
         }
       }
 
@@ -266,7 +268,7 @@ export class FileReportArchive {
       samples: savedSamples,
     };
 
-    const relativePath = path.join("vision", "vision_analysis_out.json");
+    const relativePath = "vision_analysis_out.json";
     await writeFile(path.join(sessionDir, relativePath), `${JSON.stringify(payload, null, 2)}
 `, "utf8");
     return {
@@ -319,12 +321,11 @@ export class FileReportArchive {
 
   async loadFeedbackArtifacts(sessionId) {
     const sessionDir = await this.ensureSessionDir(sessionId);
-    const visionDir = path.join(sessionDir, "vision");
     const [audioModel, transcriptAnalysis, visionAnalysis, visionLlmAnalysis, audioLlmReport, transcriptText] = await Promise.all([
       this.readJsonIfExists(path.join(sessionDir, "audio_model_out.json")),
       this.readJsonIfExists(path.join(sessionDir, "transcript_analysis_out.json")),
-      this.readJsonIfExists(path.join(visionDir, "vision_analysis_out.json")),
-      this.readJsonIfExists(path.join(visionDir, "vision_llm_analysis_out.json")),
+      this.readJsonIfExists(path.join(sessionDir, "vision_analysis_out.json")),
+      this.readJsonIfExists(path.join(sessionDir, "vision_llm_analysis_out.json")),
       this.readTextIfExists(path.join(sessionDir, "audio_analysis_out.txt")),
       this.readTextIfExists(path.join(sessionDir, "transcript.txt")),
     ]);

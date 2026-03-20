@@ -199,18 +199,15 @@ class VisionAnalysisRequest(BaseModel):
 async def analyze_vision(request: VisionAnalysisRequest):
     try:
         target_dir = get_session_dir(request.session_id)
-        vision_dir = os.path.join(target_dir, "vision")
-        os.makedirs(vision_dir, exist_ok=True)
-
         result = interpret_vision_report_with_llama(request.visionAnalysis)
         payload = {
             "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "source": "ollama-llama3.1",
-            "visionAnalysisPath": os.path.join("vision", "vision_analysis_out.json"),
+            "visionAnalysisPath": "vision_analysis_out.json",
             "report": result,
         }
 
-        with open(os.path.join(vision_dir, "vision_llm_analysis_out.json"), "w", encoding="utf-8") as f:
+        with open(os.path.join(target_dir, "vision_llm_analysis_out.json"), "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
 
         return payload
