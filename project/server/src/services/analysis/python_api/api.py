@@ -7,8 +7,8 @@ import json
 from typing import List
 from pydantic import BaseModel
 
-from analyzer import AudioAnalyzer, calculate_weighted_average_emotions, calculate_weighted_average_clarity, interpret_report_with_llama, interpret_vision_report_with_llama
-from transcript_analyzer import analyze_transcript_with_llama
+from audio_analyzer import AudioAnalyzer, calculate_weighted_average_emotions, calculate_weighted_average_clarity, interpret_report_with_llama, interpret_vision_report_with_llama
+from transcript_llm_analyzer import analyze_transcript_with_llama
 
 REPORTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../reports"))
 

@@ -114,7 +114,29 @@ Başlıca görevleri:
 
 # 4. Node.js Backend Katmanı
 
-## 4.1 `project/server/src/api`
+
+## 4.1 `project/server/src/domain`
+Alan modelinin bulunduğu katmandır.
+
+- `entities/`: Session, report gibi çekirdek iş nesneleri
+- `enums/`: Session state, interview type gibi sabit kategoriler
+- `errors/`: Uygulama seviyesinde anlamlı hata tipleri
+- `value-objects/`: Session config, consent gibi kurallı veri paketleri
+
+## 4.2 `project/server/src/dto`
+API sınırındaki veri şekillerini tanımlar.
+
+- `requests/`: dışarıdan gelen payload şekilleri
+- `responses/`: dışarı dönen payload şekilleri
+- `responses/views/`: client'a uygun görünüm nesneleri (`ReportView` gibi)
+
+## 4.3 `project/server/src/persistence`
+Kalıcılaştırma ve repository abstraction katmanıdır.
+
+- `repositories/`: soyut repository arayüzleri
+- `storage/`: bu arayüzlerin dosya/in-memory implementasyonları
+
+## 4.4 `project/server/src/api`
 
 ### Controllers
 - `SessionController`: session oluşturma / başlatma
@@ -125,7 +147,7 @@ Başlıca görevleri:
 ### Routes
 - `sessionRoutes.js`: tüm HTTP uçlarını toplar
 
-## 4.2 `project/server/src/orchestration`
+## 4.5 `project/server/src/orchestration`
 
 ### `BackendOrchestrator.js`
 Sistemin merkez koordinatörüdür.
@@ -154,7 +176,7 @@ Görevleri:
 
 Bu alanlar final `visionAnalysis` çıktısına dönüştürülür.
 
-## 4.3 `project/server/src/persistence/storage`
+## 4.6 `project/server/src/persistence/storage`
 
 ### `FileReportArchive.js`
 Session klasörüne artifact yazan modüldür.
@@ -171,7 +193,7 @@ Yazdığı temel şeyler:
 
 Ayrıca feedback ekranı için bu dosyaları tekrar okuyup `loadFeedbackArtifacts()` ile tek payload halinde döndürür.
 
-## 4.4 `project/server/src/services/analysis`
+## 4.7 `project/server/src/services/analysis`
 
 ### `PythonAnalysisClient.js`
 Node tarafı ile Python API arasında köprüdür.
@@ -236,10 +258,10 @@ Endpoint'ler:
 - `/analyze-vision`
 - `/` health benzeri temel endpoint
 
-## 5.2 `analyzer.py`
+## 5.2 `audio_analyzer.py`
 Audio model inference ve Ollama yorumlarını içerir.
 
-## 5.3 `transcript_analyzer.py`
+## 5.3 `transcript_llm_analyzer.py`
 Transcript için LLM tabanlı JSON yapı üretir.
 
 ## 5.4 `frame_face_analyzer.py`
@@ -391,7 +413,7 @@ Realtime session sırasında aday ve interviewer tarafı transcript olarak topla
 - pacingScore
 
 ## 8.4 LLM transcript yorumu
-Python tarafındaki `transcript_analyzer.py`, transcript ve qaPairs verisini Ollama'ya yollar.
+Python tarafındaki `transcript_llm_analyzer.py`, transcript ve qaPairs verisini Ollama'ya yollar.
 
 Beklenen yapılandırılmış çıktı:
 - `overallScore`

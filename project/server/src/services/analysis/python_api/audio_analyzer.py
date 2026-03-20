@@ -7,7 +7,6 @@ import librosa
 import numpy as np
 import torch.nn.functional as F
 from transformers import AutoModelForAudioClassification, AutoModelForCTC, Wav2Vec2Processor, AutoFeatureExtractor
-from generate_graphs import generate_final_radar_chart
 
 class AudioAnalyzer:
     def __init__(self, 
@@ -307,3 +306,43 @@ VERİLER:
                 {"title": "Ollama Bağlantısını Kontrol Et", "text": "Görsel koçluk raporu için Ollama servisinin çalışır durumda olduğundan emin ol."}
             ],
         }
+
+
+
+def generate_final_radar_chart(stats):
+    """Compatibility helper kept inside audio analyzer to avoid a separate low-level helper file."""
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except Exception:
+        return None
+
+    import os
+    os.makedirs("results", exist_ok=True)
+
+    labels = ['Gerginlik', 'Özgüven', 'Coşku', 'Sert Ton']
+    num_vars = len(labels)
+    stats = np.array(stats)
+    stats = np.concatenate((stats, [stats[0]]))
+    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+    angles += angles[:1]
+
+    fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
+    fig.patch.set_facecolor('white')
+    ax.set_facecolor('white')
+    grid_values = [20, 40, 60, 80, 100]
+    ax.set_rgrids(grid_values, labels=[f"%{x}" for x in grid_values], color="#2c3e50", size=10, fontweight='bold')
+    ax.set_ylim(0, 100)
+    ax.plot(angles, stats, color='#000080', linewidth=2.5, marker='o', markersize=8)
+    ax.fill(angles, stats, color='#000080', alpha=0.1)
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels, fontsize=13, fontweight='bold', color='black')
+
+    for angle, value in zip(angles[:-1], stats[:-1]):
+        ax.text(angle, value + 7, f"%{value:.1f}", ha='center', va='center', fontsize=11, fontweight='bold', color='#000080')
+
+    plt.title("Aday Duygu ve Özgüven Profili", size=15, pad=30, fontweight='bold', color='black')
+    file_path = "results/radar_chart_final.png"
+    plt.savefig(file_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.close()
+    return file_path
