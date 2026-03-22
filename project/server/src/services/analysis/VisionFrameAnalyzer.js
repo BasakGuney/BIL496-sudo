@@ -5,7 +5,7 @@ export class VisionFrameAnalyzer {
   constructor({ pythonBin = process.env.PYTHON_BIN || "python3", logger = console } = {}) {
     this.pythonBin = pythonBin;
     this.logger = logger;
-    this.scriptPath = path.resolve(process.cwd(), "src/services/analysis/python_api/frame_face_analyzer.py");
+    this.scriptPath = path.resolve(process.cwd(), "src/services/analysis/python_api/vision_analyzer.py");
   }
 
   runAnalyzer(payload = {}) {

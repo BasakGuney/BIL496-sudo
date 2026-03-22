@@ -7,14 +7,14 @@ export class TranscriptEvaluator {
     this.promptTemplates = promptTemplates;
   }
 
-  async evaluate({ sessionId, transcript }) {
+  async evaluate({ sessionId, transcript, session = {} }) {
     const safeTranscript = Array.isArray(transcript) ? transcript : [];
     const qaPairs = this.buildQAPairs(safeTranscript);
 
     if (qaPairs.length === 0) {
       const fallbackPairs = this.buildFallbackPairsFromTranscript(safeTranscript);
       if (fallbackPairs.length > 0) {
-        return this.buildHeuristicReport({ sessionId, qaPairs: fallbackPairs });
+        return this.buildHeuristicReport({ sessionId, qaPairs: fallbackPairs, interviewType: session.config?.interviewType });
       }
 
       return {
@@ -49,7 +49,7 @@ export class TranscriptEvaluator {
       };
     }
 
-    const heuristicReport = this.buildHeuristicReport({ sessionId, qaPairs });
+    const heuristicReport = this.buildHeuristicReport({ sessionId, qaPairs, interviewType: session.config?.interviewType });
     if (!this.apiKey) return heuristicReport;
 
     try {
@@ -64,7 +64,7 @@ export class TranscriptEvaluator {
           input: [
             {
               role: "system",
-              content: this.promptTemplates.transcriptEvaluationSystemPrompt(),
+              content: this.promptTemplates.transcriptEvaluationSystemPrompt(session.config?.interviewType),
             },
             {
               role: "user",
@@ -179,7 +179,7 @@ export class TranscriptEvaluator {
     return pairs;
   }
 
-  buildHeuristicReport({ sessionId, qaPairs }) {
+  buildHeuristicReport({ sessionId, qaPairs, interviewType = "Technical" }) {
     const qaEvaluations = qaPairs.map((pair, index) => {
       const words = pair.answer.split(/\s+/).filter(Boolean);
       const uniqueWords = new Set(words.map((w) => w.toLowerCase()));
@@ -278,7 +278,7 @@ export class TranscriptEvaluator {
       content: [
         {
           key: "relevance",
-          label: "İlgililik",
+          label: interviewType === "HR" ? "İletişim ve Empati" : "İlgililik",
           score: avgRelevance,
           detail: `${qaPairs.length} soru-cevap çifti üzerinden soruya bağlılık analizi yapıldı.`,
         },

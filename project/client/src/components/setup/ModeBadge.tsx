@@ -10,7 +10,7 @@ export function ModeBadge({ mode }: { mode: Mode }) {
     <div className="flex items-start gap-2">
       <Badge variant="outline" className="rounded-full">
         <Icon className="mr-2 h-3.5 w-3.5" />
-        {isSupportive ? "Supportive" : "Neutral"}
+        {isSupportive ? "Destekleyici" : "Tarafsız"}
       </Badge>
       <p className="text-sm text-muted-foreground">
         {isSupportive

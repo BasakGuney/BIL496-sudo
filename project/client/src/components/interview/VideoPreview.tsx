@@ -31,7 +31,7 @@ export function VideoPreview() {
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Sen (Kamera)</CardTitle>
         <Badge variant="outline" className="rounded-full">
-          {status === "ready" ? "Live" : status === "error" ? "Blocked" : "Loading"}
+          {status === "ready" ? "Canlı" : status === "error" ? "Engellendi" : "Yükleniyor"}
         </Badge>
       </CardHeader>
       <CardContent>

@@ -4,11 +4,12 @@ import shutil
 import os
 import time
 import json
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
-from audio_analyzer import AudioAnalyzer, calculate_weighted_average_emotions, calculate_weighted_average_clarity, interpret_report_with_llama, interpret_vision_report_with_llama
-from transcript_llm_analyzer import analyze_transcript_with_llama
+from audio_analyzer import AudioAnalyzer, compute_overall, interpret_report_with_gpt
+from vision_analyzer import interpret_vision_report_with_gpt
+from transcript_analyzer import analyze_transcript_with_gpt
 
 REPORTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../reports"))
 
@@ -84,14 +85,14 @@ async def analyze_audio(file: UploadFile = File(...)):
             os.remove(temp_file_path)
         raise HTTPException(status_code=500, detail=str(e))
 
-class SessionAnalysisRequest(BaseModel):
+class AudioAnalysisRequest(BaseModel):
     file_paths: List[str]
     session_id: str = None
     merge_with_existing: bool = False
     write_text_report: bool = False
 
-@app.post("/analyze-session")
-async def analyze_session(request: SessionAnalysisRequest):
+@app.post("/analyze-audio")
+async def analyze_audio_session(request: AudioAnalysisRequest):
     import traceback
     try:
         results = []
@@ -106,7 +107,7 @@ async def analyze_session(request: SessionAnalysisRequest):
                 results.append(res)
                 
         target_dir = get_session_dir(request.session_id)
-        existing_json_path = os.path.join(target_dir, "audio_model_out.json")
+        existing_json_path = os.path.join(target_dir, "audio_segments.json")
         existing_items = []
 
         if request.merge_with_existing and os.path.exists(existing_json_path):
@@ -122,67 +123,40 @@ async def analyze_session(request: SessionAnalysisRequest):
         if not merged_results:
             raise HTTPException(status_code=400, detail="No readable audio files found.")
 
-        overall_emotions = calculate_weighted_average_emotions(merged_results)
-        overall_clarity = calculate_weighted_average_clarity(merged_results)
+        overall_data = compute_overall(merged_results)
         
-        # Generate the report text internally
-        report_content = "## 1. Genel Değerlendirme (Süre Ağırlıklı Ortalamalar)\n\n"
-        report_content += f"### 🔊 Ses Netliği (Clarity): `%{overall_clarity} / 100`\n"
-
-        label_translations = {
-            'neu': 'Özgüven',
-            'hap': 'Coşku',
-            'ang': 'Sert Ton',
-            'sad': 'Gerginlik'
-        }
-
-        report_content += "### 🎭 Duygu Profili\n"
-        sorted_overall = sorted(overall_emotions.items(), key=lambda x: x[1], reverse=True)
-        for label, score in sorted_overall:
-            translated_label = label_translations.get(label, label)
-            if isinstance(translated_label, str):
-                translated_label = translated_label.capitalize()
-            report_content += f"- **{translated_label}:** `%{score}`\n"
-        
-        report_content += "\n---\n\n## 2. Soru Bazlı Detaylı Analiz Çıktıları\n\n"
-        for r in merged_results:
-            dominant_emotion_key = max(r['emotions'].items(), key=lambda x: x[1])[0]
-            dominant_emotion = label_translations.get(dominant_emotion_key, dominant_emotion_key)
-            if isinstance(dominant_emotion, str):
-                dominant_emotion = dominant_emotion.capitalize()
-                
-            report_content += f"### {r['filename']}\n"
-            report_content += f"- **Süre:** {r['duration']} saniye\n"
-            report_content += f"- **Konuşma Hızı:** {r['speech']['wpm']} WPM\n"
-            report_content += f"- **Ses Netliği:** %{r['clarity']}\n"
-            report_content += f"- **Baskın Duygu:** `{dominant_emotion}`\n"
-            report_content += "\n"
-
-        # 1) Save audio_model_out.json
+        # 1) Save audio_segments.json with the new clean schema
         model_out_data = {
-            "overall_emotions": overall_emotions,
-            "overall_clarity": overall_clarity,
-            "items": merged_results
+            "items": merged_results,
+            "overall": overall_data
         }
-        with open(os.path.join(target_dir, "audio_model_out.json"), "w", encoding="utf-8") as f:
+        with open(os.path.join(target_dir, "audio_segments.json"), "w", encoding="utf-8") as f:
             json.dump(model_out_data, f, ensure_ascii=False, indent=2)
 
-        llm_analysis = None
+        # 2) Save audio_report.json
+        llm_report = None
         if request.write_text_report:
             try:
-                llm_analysis = interpret_report_with_llama(report_content, overall_emotions)
+                llm_report = interpret_report_with_gpt(overall_data)
             except Exception as e:
-                llm_analysis = f"> ⚠️ **Yapay Zeka Hatası:** Llama değerlendirmesi başarılamadı. {str(e)}"
+                llm_report = {
+                    "overallAnalysis": f"Ses LLM analiz hatası: {str(e)}",
+                    "clarityBadge": "Analiz Edilemedi",
+                    "dominantEmotion": "Bilinmiyor",
+                    "secondaryEmotion": None,
+                    "scores": [],
+                    "tonDistribution": [],
+                    "speechSummary": [],
+                    "recommendations": {"nextInterview": "", "performanceDevelopment": ""}
+                }
 
-            # 2) Save audio_analysis_out.txt only for the final synthesized report stage
-            with open(os.path.join(target_dir, "audio_analysis_out.txt"), "w", encoding="utf-8") as f:
-                f.write(llm_analysis)
+            with open(os.path.join(target_dir, "audio_report.json"), "w", encoding="utf-8") as f:
+                json.dump(llm_report, f, ensure_ascii=False, indent=2)
         
         return {
-            "overall_emotions": overall_emotions,
-            "overall_clarity": overall_clarity,
             "items": merged_results,
-            "coach_report": llm_analysis
+            "overall": overall_data,
+            "llm_report": llm_report
         }
     except Exception as e:
         import traceback
@@ -199,15 +173,15 @@ class VisionAnalysisRequest(BaseModel):
 async def analyze_vision(request: VisionAnalysisRequest):
     try:
         target_dir = get_session_dir(request.session_id)
-        result = interpret_vision_report_with_llama(request.visionAnalysis)
+        result = interpret_vision_report_with_gpt(request.visionAnalysis)
         payload = {
             "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "source": "ollama-llama3.1",
-            "visionAnalysisPath": "vision_analysis_out.json",
+            "source": "gpt-4o-mini",
+            "visionAnalysisPath": "vision_frames.json",
             "report": result,
         }
 
-        with open(os.path.join(target_dir, "vision_llm_analysis_out.json"), "w", encoding="utf-8") as f:
+        with open(os.path.join(target_dir, "vision_report.json"), "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
 
         return payload
@@ -221,16 +195,17 @@ class TranscriptAnalysisRequest(BaseModel):
     qaPairs: List[dict]
     transcriptText: str
     session_id: str = None
+    interviewType: str = "Technical"
 
 @app.post("/analyze-transcript")
 async def analyze_transcript(request: TranscriptAnalysisRequest):
     try:
-        # Call Ollama logic
-        result = analyze_transcript_with_llama(request.qaPairs, request.transcriptText)
+        # Call GPT logic
+        result = analyze_transcript_with_gpt(request.qaPairs, request.transcriptText, request.interviewType)
         
-        # Save transcript_analysis_out.json
+        # Save transcript_report.json
         target_dir = get_session_dir(request.session_id)
-        with open(os.path.join(target_dir, "transcript_analysis_out.json"), "w", encoding="utf-8") as f:
+        with open(os.path.join(target_dir, "transcript_report.json"), "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
             
         return result

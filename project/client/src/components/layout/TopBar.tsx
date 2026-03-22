@@ -17,7 +17,7 @@ export function TopBar() {
           </div>
           <div>
             <div className="text-sm font-semibold leading-tight">AI Mock Interview</div>
-            <div className="text-xs text-muted-foreground">Mode-Driven Behavior and Feedback</div>
+            <div className="text-xs text-muted-foreground">Mod Odaklı Davranış ve Geri Bildirim</div>
           </div>
         </div>
 

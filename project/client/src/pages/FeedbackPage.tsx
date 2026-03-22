@@ -1,196 +1,326 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import type { FeedbackMetric, FeedbackReport } from "@/lib/types";
-import { FeedbackSummary } from "@/components/feedback/FeedbackSummary";
-import { ScoreBreakdown } from "@/components/feedback/ScoreBreakdown";
-import { RecommendationList } from "@/components/feedback/RecommendationList";
+import type { FeedbackReport } from "@/lib/types";
 import { getReport } from "@/lib/api";
+import { TranscriptAnalysisTab } from "@/components/feedback/TranscriptAnalysisTab";
 import { RotateCcw } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-function metricTone(score: number) {
-  if (score >= 75) return "default" as const;
-  if (score >= 50) return "secondary" as const;
-  return "destructive" as const;
-}
 
-function AudioVisionScoreCards({ report }: { report: FeedbackReport }) {
-  const audioClarity = Number(report.audioAnalysis?.model?.overall_clarity || 0);
-  const vision = report.visionAnalysis;
 
-  const cards = [
-    {
-      key: "overall",
-      title: "Genel Başarı",
-      score: Number(report.overallScore || 0),
-      detail: "Genel skor tüm değerlendirme katmanlarının birleşik sonucudur.",
-    },
-    {
-      key: "audio",
-      title: "Ses Netliği",
-      score: audioClarity,
-      detail: "0-100 ölçeğinde hesaplanır; yüksek değer daha anlaşılır ses anlamına gelir.",
-    },
-    {
-      key: "vision",
-      title: "Görüntü Odağı",
-      score: Number(vision?.overview?.focusScore || 0),
-      detail: "Yüz görünürlüğü ve kadraj merkezliliğine göre 0-100 arasında hesaplanır.",
-    },
-    {
-      key: "tension",
-      title: "Görsel Gerginlik",
-      score: Number(vision?.tension?.visualTensionScore || 0),
-      detail: "Risk metriğidir; 0 düşük risk, 100 yüksek risk anlamına gelir.",
-    },
-  ];
+
+
+function AudioAnalysisTab({ report }: { report: FeedbackReport }) {
+  const llm = report.audioLlmReport;
+  
+  if (!llm) {
+    return (
+      <Card className="rounded-2xl">
+        <CardContent className="pt-6">
+          <p className="text-sm text-muted-foreground">Ses analizi henüz hazır değil. Lütfen bekleyin...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const scores = llm.scores ?? [];
+  const clarityScore = scores.find(s => s.label === "Ses Netliği")?.score ?? 0;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {cards.map((card) => (
-        <Card key={card.key} className="rounded-2xl">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-base">{card.title}</CardTitle>
-              <Badge variant={metricTone(card.score)} className="rounded-full">{card.score}/100</Badge>
+    <div className="space-y-6">
+      {/* Hero row */}
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
+        <Card className="rounded-2xl">
+          <CardContent className="pt-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 min-h-[180px]">
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">Genel Ses Netliği</p>
+              <p className="text-6xl font-extrabold leading-none mb-3">
+                {clarityScore}
+                <span className="text-2xl font-semibold">/100</span>
+              </p>
+              <Badge className="rounded-full bg-blue-50 text-blue-700 border-blue-200" variant="outline">
+                {llm.clarityBadge ?? "Analiz Edilemedi"}
+              </Badge>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Progress value={card.score} />
-            <p className="text-sm text-muted-foreground">{card.detail}</p>
+            
+            <div className="grid gap-3 w-full md:w-[42%]">
+              <div className="rounded-xl border bg-gray-50/50 p-3.5">
+                <div className="text-[12px] uppercase text-muted-foreground tracking-wider mb-1.5">Baskın Duygusal Eğilim</div>
+                <div className="text-sm font-semibold leading-snug">{llm.dominantEmotion ?? "—"}</div>
+              </div>
+              <div className="rounded-xl border bg-gray-50/50 p-3.5">
+                <div className="text-[12px] uppercase text-muted-foreground tracking-wider mb-1.5">İkinci Eğilim</div>
+                <div className="text-sm font-semibold leading-snug">{llm.secondaryEmotion ?? "Yok"}</div>
+              </div>
+            </div>
           </CardContent>
         </Card>
-      ))}
+
+        <Card className="rounded-2xl">
+          <CardHeader>
+            <CardTitle className="text-[20px]">Genel Değerlendirme</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-[15px] text-muted-foreground leading-[1.6]">
+              {llm.overallAnalysis ?? "Ses analizi yorumu bekleniyor..."}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Dimension scores */}
+      {scores.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {scores.map((s) => (
+            <Card key={s.label} className="rounded-2xl">
+              <CardContent className="pt-5 flex flex-col min-h-[180px]">
+                <h4 className="font-semibold text-[15px] mb-2.5 min-h-[38px]">{s.label}</h4>
+                <div className="text-[28px] font-extrabold mb-2.5">{s.score}</div>
+                <div className="text-[13px] text-muted-foreground leading-[1.5] mb-3 flex-1 min-h-[42px]">
+                  {s.detail}
+                </div>
+                <Progress value={s.score} className="h-[10px] mt-auto" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Content Grid: Ton Dağılımı + Konuşma Özeti */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {llm.tonDistribution && llm.tonDistribution.length > 0 && (
+          <Card className="rounded-2xl">
+            <CardHeader><CardTitle className="text-[20px]">Genel Ton Dağılımı</CardTitle></CardHeader>
+            <CardContent>
+              <ul className="space-y-2.5 pl-5 text-foreground list-disc marker:text-muted-foreground">
+                {llm.tonDistribution.map((item, i) => (
+                  <li key={i} className="leading-[1.6]">
+                    <strong>{item.label}:</strong> %{item.score}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+        
+        {llm.speechSummary && llm.speechSummary.length > 0 && (
+          <Card className="rounded-2xl">
+            <CardHeader><CardTitle className="text-[20px]">Konuşma Özeti</CardTitle></CardHeader>
+            <CardContent>
+              <ul className="space-y-2.5 pl-5 text-foreground list-disc marker:text-muted-foreground">
+                {llm.speechSummary.map((item, i) => (
+                  <li key={i} className="leading-[1.6]">{item}</li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Recommendations */}
+      {llm.recommendations && (llm.recommendations.nextInterview || llm.recommendations.performanceDevelopment) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {llm.recommendations.nextInterview && (
+            <Card className="rounded-2xl">
+              <CardHeader><CardTitle className="text-base text-foreground">Bir Sonraki Mülakatta</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-[15px] text-zinc-700 leading-[1.7]">
+                  {llm.recommendations.nextInterview}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+          {llm.recommendations.performanceDevelopment && (
+            <Card className="rounded-2xl">
+              <CardHeader><CardTitle className="text-base text-foreground">Performans Geliştirme</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-[15px] text-zinc-700 leading-[1.7]">
+                  {llm.recommendations.performanceDevelopment}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function LlmAnalysisPanel({ title, status, body, items }: { title: string; status?: string; body?: string; items?: string[] }) {
-  return (
-    <Card className="rounded-2xl">
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle>{title}</CardTitle>
-        <Badge variant={status === "ready" ? "default" : "outline"} className="rounded-full">
-          {status === "ready" ? "Hazır" : "Bekleniyor"}
-        </Badge>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {body ? <div className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{body}</div> : <p className="text-sm text-muted-foreground">Analiz çıktısı bekleniyor. Bu kutu arka plandaki Python/Ollama çıktıları geldikçe güncellenir.</p>}
-        {items?.length ? (
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            {items.map((item, index) => <li key={index}>• {item}</li>)}
-          </ul>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
 
+function VisionAnalysisTab({ report }: { report: FeedbackReport }) {
+  const r = report.visionLlmAnalysis?.report;
 
-function AudioHighlights({ report }: { report: FeedbackReport }) {
-  const audio = report.audioAnalysis?.model;
-  if (!audio) return null;
-
-  const emotionItems = Object.entries(audio.overall_emotions || {});
-
-  return (
-    <Card className="rounded-2xl">
-      <CardHeader>
-        <CardTitle>Audio Skorları ve Duygu Özeti</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="rounded-2xl border p-4 space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium">Ses Netliği</span>
-            <Badge variant={metricTone(Number(audio.overall_clarity || 0))} className="rounded-full">{Number(audio.overall_clarity || 0)}/100</Badge>
-          </div>
-          <Progress value={Number(audio.overall_clarity || 0)} />
-          <p className="text-sm text-muted-foreground">Bu skor 0-100 ölçeğindedir; yüksek değer daha temiz ve anlaşılır ses anlamına gelir.</p>
-        </div>
-        {emotionItems.length ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {emotionItems.map(([key, value]) => (
-              <div key={key} className="rounded-2xl border p-4 space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium uppercase">{key}</span>
-                  <Badge variant="outline" className="rounded-full">%{Number(value)}</Badge>
-                </div>
-                <Progress value={Number(value)} />
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-function VisionHighlights({ report }: { report: FeedbackReport }) {
-  const vision = report.visionAnalysis;
-  const visionLlm = report.visionLlmAnalysis?.report;
-  if (!vision) return null;
-
-  const visionMetrics: FeedbackMetric[] = [
-    { key: "facePresence", label: "Yüz görünürlüğü", score: Number(vision.overview.facePresenceScore || 0), detail: `Örneklenen ${vision.overview.sampledFrames} frame içinde ${vision.overview.faceDetectedFrames} frame'de yüz bulundu.` },
-    { key: "centering", label: "Kadraj", score: Number(vision.overview.centeringScore || 0), detail: "0-100 ölçeğinde; yüksek değer yüzün merkeze daha yakın olduğunu gösterir." },
-    { key: "steadiness", label: "Stabilite", score: Number(vision.overview.steadinessScore || 0), detail: "0-100 ölçeğinde; yüksek değer daha stabil duruşu gösterir." },
-    { key: "stress", label: "Görsel gerginlik", score: Number(vision.tension.visualTensionScore || 0), detail: "Risk metriğidir; yüksek değer daha fazla gerginlik/risk sinyali anlamına gelir." },
-  ];
-
-  return (
-    <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
+  if (!r) {
+    const pending = !report.analysisStatus?.visionLlm;
+    return (
       <Card className="rounded-2xl">
-        <CardHeader>
-          <CardTitle>Vision Skorları ve Sample Özeti</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            {visionMetrics.map((metric) => (
-              <div key={metric.key} className="rounded-2xl border p-4 space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium">{metric.label}</span>
-                  <Badge variant={metricTone(metric.score)} className="rounded-full">{metric.score}/100</Badge>
-                </div>
-                <Progress value={metric.score} />
-                <p className="text-sm text-muted-foreground">{metric.detail}</p>
-              </div>
-            ))}
-          </div>
-          <div className="rounded-2xl border p-4 text-sm text-muted-foreground space-y-1">
-            <p>• Kaydedilen sample sayısı: {vision.overview.savedSampleCount}</p>
-            <p>• Sample seçimi artık sabit 3 kare değildir; önemli anlar (warn/danger, düşük göz görünürlüğü, belirgin kadraj değişimi) öncelikli saklanır.</p>
-            <p>• Kaynak: {vision.source}</p>
-            <p>• Durum: {vision.status}</p>
-          </div>
+        <CardContent className="pt-6">
+          <p className="text-sm text-muted-foreground">
+            {pending
+              ? "Görüntü analizi arka planda hazırlanıyor. Lütfen bekleyin..."
+              : "Görüntü analizi bu oturum için mevcut değil."}
+          </p>
         </CardContent>
       </Card>
+    );
+  }
 
-      <Card className="rounded-2xl">
-        <CardHeader>
-          <CardTitle>Vision LLM Analizi</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">{visionLlm?.summary || "Vision LLM analizi henüz hazır değil."}</p>
-          {Array.isArray(visionLlm?.scores) && visionLlm!.scores!.length > 0 ? (
-            <div className="space-y-3">
-              {visionLlm!.scores!.map((metric) => (
-                <div key={metric.key} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{metric.label}</span>
-                    <span className="text-muted-foreground">{metric.score}/100</span>
-                  </div>
-                  <Progress value={metric.score} />
-                  {metric.detail ? <div className="text-sm text-muted-foreground">{metric.detail}</div> : null}
-                </div>
-              ))}
+  const overallScore    = Number(r.overallScore   ?? 0);
+  const overallLabel    = r.overallLabel    ?? "";
+  const overallAnalysis = r.overallAnalysis ?? "";
+  const standardStatus  = r.standardStatus  ?? "";
+  const riskPoint       = r.riskPoint       ?? "";
+  const scores          = Array.isArray(r.scores)          ? r.scores          : [];
+  const strengths       = Array.isArray(r.strengths)       ? r.strengths       : [];
+  const improvementAreas= Array.isArray(r.improvementAreas)? r.improvementAreas: [];
+  const recs            = r.recommendations ?? {};
+  const nextInterview   = Array.isArray(recs.nextInterview)        ? recs.nextInterview        : [];
+  const perfDev         = Array.isArray(recs.performanceDevelopment)? recs.performanceDevelopment: [];
+
+  return (
+    <div className="space-y-5">
+      {/* ── Hero grid ───────────────────────────────────────────── */}
+      <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
+        {/* Sol: Büyük skor + mini-box'lar */}
+        <Card className="rounded-2xl">
+          <CardContent className="pt-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 min-h-[180px]">
+            <div>
+              <p className="text-sm text-muted-foreground mb-2.5">Genel Görsel Puan</p>
+              <p className="text-[64px] font-extrabold leading-none mb-3">
+                {overallScore}
+                <span className="text-2xl font-semibold">/100</span>
+              </p>
+              {overallLabel && (
+                <span className="inline-block px-3 py-2 rounded-full text-[13px] font-bold border border-green-200 bg-green-50 text-green-700">
+                  {overallLabel}
+                </span>
+              )}
             </div>
-          ) : null}
-          {visionLlm?.strengths?.length ? <div><p className="text-sm font-medium">Güçlü yanlar</p><ul className="mt-2 space-y-1 text-sm text-muted-foreground">{visionLlm.strengths.map((item, index) => <li key={index}>• {item}</li>)}</ul></div> : null}
-          {visionLlm?.risks?.length ? <div><p className="text-sm font-medium">Riskler</p><ul className="mt-2 space-y-1 text-sm text-muted-foreground">{visionLlm.risks.map((item, index) => <li key={index}>• {item}</li>)}</ul></div> : null}
-        </CardContent>
-      </Card>
+
+            <div className="grid gap-3 w-full md:w-[42%]">
+              {standardStatus && (
+                <div className="rounded-xl border bg-muted/40 p-3.5">
+                  <div className="text-[12px] uppercase text-muted-foreground tracking-wider mb-1.5">
+                    Standart Uygunluk
+                  </div>
+                  <div className="text-sm font-semibold leading-snug">{standardStatus}</div>
+                </div>
+              )}
+              {riskPoint && (
+                <div className="rounded-xl border bg-muted/40 p-3.5">
+                  <div className="text-[12px] uppercase text-muted-foreground tracking-wider mb-1.5">
+                    Risk Noktası
+                  </div>
+                  <div className="text-sm font-semibold leading-snug">{riskPoint}</div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Sağ: Genel Değerlendirme */}
+        {overallAnalysis && (
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle className="text-[20px]">Genel Değerlendirme</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-[15px] text-muted-foreground leading-[1.75]">
+                {overallAnalysis}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* ── 4 boyut kartı ───────────────────────────────────────── */}
+      {scores.length > 0 && (
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {scores.map((s) => (
+            <Card key={s.key} className="rounded-2xl">
+              <CardContent className="pt-5 flex flex-col min-h-[180px]">
+                <h4 className="font-semibold text-[15px] mb-2.5 min-h-[38px]">{s.label}</h4>
+                <div className="text-[28px] font-extrabold mb-2.5">{s.score}</div>
+                <div className="text-[13px] text-muted-foreground leading-[1.5] mb-3 flex-1 min-h-[42px]">
+                  {s.detail}
+                </div>
+                <Progress value={s.score} className="h-[10px] mt-auto" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* ── Standartta Olan / Riskler ────────────────────────────── */}
+      {(strengths.length > 0 || improvementAreas.length > 0) && (
+        <div className="grid gap-5 md:grid-cols-2">
+          {strengths.length > 0 && (
+            <Card className="rounded-2xl">
+              <CardHeader>
+                <CardTitle className="text-[20px]">Standartta Olan Noktalar</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2.5 pl-5 list-disc marker:text-muted-foreground">
+                  {strengths.map((item, i) => (
+                    <li key={i} className="text-sm leading-[1.6]">{item}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+          {improvementAreas.length > 0 && (
+            <Card className="rounded-2xl">
+              <CardHeader>
+                <CardTitle className="text-[20px]">Riskler</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2.5 pl-5 list-disc marker:text-muted-foreground">
+                  {improvementAreas.map((item, i) => (
+                    <li key={i} className="text-sm leading-[1.6]">{item}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ── Öneriler ────────────────────────────────────────────── */}
+      {(nextInterview.length > 0 || perfDev.length > 0) && (
+        <div className="grid gap-5 md:grid-cols-2">
+          {nextInterview.length > 0 && (
+            <Card className="rounded-2xl">
+              <CardHeader>
+                <CardTitle className="text-base">Bir Sonraki Mülakatta</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2.5 pl-5 list-disc marker:text-muted-foreground">
+                  {nextInterview.map((item, i) => (
+                    <li key={i} className="text-[15px] text-zinc-700 leading-[1.7]">{item}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+          {perfDev.length > 0 && (
+            <Card className="rounded-2xl">
+              <CardHeader>
+                <CardTitle className="text-base">Performans Geliştirme</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2.5 pl-5 list-disc marker:text-muted-foreground">
+                  {perfDev.map((item, i) => (
+                    <li key={i} className="text-[15px] text-zinc-700 leading-[1.7]">{item}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -237,12 +367,6 @@ export function FeedbackPage({ initialReport, sessionId, onNew }: { initialRepor
     };
   }, [sessionId]);
 
-  const transcriptRecommendationTitles = useMemo(() => {
-    return Array.isArray(report.transcriptAnalysis?.recommendations)
-      ? report.transcriptAnalysis!.recommendations!.map((item) => `${item.title}: ${item.text}`)
-      : [];
-  }, [report.transcriptAnalysis]);
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -257,38 +381,26 @@ export function FeedbackPage({ initialReport, sessionId, onNew }: { initialRepor
 
       {refreshError ? <div className="rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">{refreshError}</div> : null}
 
-      <AudioVisionScoreCards report={report} />
+      <Tabs defaultValue="transcript" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 rounded-xl">
+            <TabsTrigger value="transcript">Yanıt Analizi</TabsTrigger>
+            <TabsTrigger value="audio">Ses Analizi</TabsTrigger>
+            <TabsTrigger value="vision">Görüntü Analizi</TabsTrigger>
+          </TabsList>
 
-      <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
-        <FeedbackSummary report={report} />
-        <RecommendationList report={report} />
-      </div>
 
-      <ScoreBreakdown report={report} />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <AudioHighlights report={report} />
-        <VisionHighlights report={report} />
-      </div>
+        <TabsContent value="transcript" className="space-y-6 pt-4">
+          <TranscriptAnalysisTab report={report} />
+        </TabsContent>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <LlmAnalysisPanel
-          title="Audio LLM Analizi"
-          status={report.analysisStatus?.audioLlm ? "ready" : "pending"}
-          body={report.audioAnalysis?.llmReport}
-        />
-        <LlmAnalysisPanel
-          title="Transcript LLM Analizi"
-          status={report.analysisStatus?.transcript ? "ready" : "pending"}
-          body={report.transcriptAnalysis?.content?.map((item) => `${item.label}: ${item.score}/100 — ${item.detail || ""}`).join("\n")}
-          items={transcriptRecommendationTitles}
-        />
-        <LlmAnalysisPanel
-          title="Vision LLM Analizi"
-          status={report.analysisStatus?.visionLlm ? "ready" : "pending"}
-          body={report.visionLlmAnalysis?.report?.summary}
-          items={report.visionLlmAnalysis?.report?.recommendations?.map((item) => `${item.title}: ${item.text}`)}
-        />
-      </div>
+        <TabsContent value="audio" className="space-y-6 pt-4">
+          <AudioAnalysisTab report={report} />
+        </TabsContent>
+
+        <TabsContent value="vision" className="space-y-6 pt-4">
+          <VisionAnalysisTab report={report} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

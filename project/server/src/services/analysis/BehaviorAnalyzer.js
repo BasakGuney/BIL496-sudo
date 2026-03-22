@@ -7,7 +7,7 @@ export class BehaviorAnalyzer {
   }
 
   async generateReport(session, transcript, visionAnalysis = null) {
-    const transcriptBased = await this.transcriptEvaluator.evaluate({ sessionId: session.id, transcript });
+    const transcriptBased = await this.transcriptEvaluator.evaluate({ sessionId: session.id, transcript, session });
     const audio = this.audioSignalProcessor.fromTranscript(transcript || []);
     const vision = this.visionSignalProcessor.fromSession(session, visionAnalysis);
     const merged = this.signalAggregator.toReport(session, audio, vision, visionAnalysis);

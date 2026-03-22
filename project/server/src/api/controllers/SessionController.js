@@ -9,6 +9,44 @@ export class SessionController {
     this.backendOrchestrator = backendOrchestrator;
     this.createSession = this.createSession.bind(this);
     this.startSession = this.startSession.bind(this);
+    this.generatePreviewQuestions = this.generatePreviewQuestions.bind(this);
+    this.generateLiveHints = this.generateLiveHints.bind(this);
+    this.generateLiveFeedback = this.generateLiveFeedback.bind(this);
+  }
+
+  async generatePreviewQuestions(req, res, next) {
+    try {
+      const questions = await this.backendOrchestrator.generatePreviewQuestions(req.body || {});
+      return res.json({ questions });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async generateLiveHints(req, res, next) {
+    try {
+      const { question } = req.body;
+      if (!question) {
+        return res.status(400).json({ error: "question is required" });
+      }
+      const hints = await this.backendOrchestrator.generateLiveHints(question);
+      return res.json({ hints });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async generateLiveFeedback(req, res, next) {
+    try {
+      const { question, answer } = req.body;
+      if (!question || !answer) {
+        return res.status(400).json({ error: "question and answer are required" });
+      }
+      const feedback = await this.backendOrchestrator.generateLiveFeedback(question, answer);
+      return res.json({ feedback });
+    } catch (error) {
+      return next(error);
+    }
   }
 
   async createSession(req, res, next) {

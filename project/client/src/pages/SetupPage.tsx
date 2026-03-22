@@ -3,43 +3,35 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionSetupForm } from "@/components/setup/SessionSetupForm";
 import { ConsentPanel } from "@/components/setup/ConsentPanel";
 import type { SessionConfig } from "@/lib/types";
-import { startSession } from "@/lib/api";
 
 export function SetupPage({
   onPrepared,
 }: {
-  onPrepared: (config: SessionConfig, sessionId: string, previewQuestions: string[]) => void;
+  onPrepared: (config: SessionConfig) => void;
 }) {
   const [config, setConfig] = useState<SessionConfig>(() => ({
     firstName: "",
     lastName: "",
     gender: "Kadın",
     interviewType: "HR",
-    role: "Example: DevOps Engineer",
-    companyOrIndustry: "Example: Amazon",
-    domainInterest: "Example: Kubernetes",
+    role: "Örn: Full-Stack Developer",
+    companyOrIndustry: "Örn: Google",
+    domainInterest: "Örn: Kubernetes",
     difficulty: "Junior",
     mode: "Supportive",
     consent: { mic: false, camera: false },
   }));
 
-  const [starting, setStarting] = useState(false);
-
   async function handlePrepare(nextConfig: SessionConfig) {
     const canStart = nextConfig.consent.mic && nextConfig.consent.camera;
     if (!canStart) return;
-
-    setStarting(true);
-    const res = await startSession(nextConfig);
-    setStarting(false);
-
-    onPrepared(nextConfig, res.sessionId, res.previewQuestions);
+    onPrepared(nextConfig);
   }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_.9fr]">
       <Card className="rounded-2xl">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle>1) Oturum Kurulumu</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -47,7 +39,7 @@ export function SetupPage({
             value={config}
             onChange={setConfig}
             onStart={handlePrepare}
-            starting={starting}
+            starting={false}
           />
         </CardContent>
       </Card>

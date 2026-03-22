@@ -19,8 +19,8 @@ export class ReportView {
       visionAnalysis: feedbackArtifacts?.visionAnalysis || report?.visionAnalysis || null,
       audioAnalysis: {
         model: feedbackArtifacts?.audioModel || null,
-        llmReport: feedbackArtifacts?.audioLlmReport || "",
       },
+      audioLlmReport: feedbackArtifacts?.audioLlmReport || null,
       transcriptAnalysis: feedbackArtifacts?.transcriptAnalysis || null,
       visionLlmAnalysis: feedbackArtifacts?.visionLlmAnalysis || null,
       scoreMeta: feedbackArtifacts?.scoreMeta || null,

@@ -39,7 +39,6 @@ export function SessionSetupForm({
   // Zorunlu alan kontrolü: Select'ler value'dan, text input'lar draft'tan (boşsa doldurulmamış say)
   const isFilled =
     !!value.interviewType &&
-    !!value.difficulty &&
     !!value.mode &&
     !!value.gender &&
     draft.firstName.trim().length > 0 &&
@@ -105,76 +104,61 @@ export function SessionSetupForm({
       </div>
 
       <div className="grid gap-2">
-        <RequiredLabel>Interview Type</RequiredLabel>
+        <RequiredLabel>Mülakat Tipi</RequiredLabel>
         <Select
           value={value.interviewType}
           onValueChange={(v) => onChange({ ...value, interviewType: v as any })}
         >
           <SelectTrigger className="rounded-xl">
-            <SelectValue placeholder="Select type" />
+            <SelectValue placeholder="Tip Seçin" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="HR">HR</SelectItem>
-            <SelectItem value="Technical">Technical (non-coding)</SelectItem>
+            <SelectItem value="HR">İnsan Kaynakları (HR)</SelectItem>
+            <SelectItem value="Technical">Teknik</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div className="grid gap-2">
-        <RequiredLabel>Target role / position</RequiredLabel>
+        <RequiredLabel>Hedef rol / pozisyon</RequiredLabel>
         <Input
           className="rounded-xl"
           value={draft.role}
-          placeholder={value.role || "e.g., Backend Developer"}
+          placeholder={value.role || "Örn: Full-Stack Developer"}
           onChange={(e) => setDraft((p) => ({ ...p, role: e.target.value }))}
         />
       </div>
 
       <div className="grid gap-2">
-        <RequiredLabel>Company / industry context</RequiredLabel>
+        <RequiredLabel>Şirket / Sektör bağlamı</RequiredLabel>
         <Input
           className="rounded-xl"
           value={draft.companyOrIndustry}
-          placeholder={value.companyOrIndustry || "e.g., Fintech / Banking"}
+          placeholder={value.companyOrIndustry || "Örn: Google"}
           onChange={(e) => setDraft((p) => ({ ...p, companyOrIndustry: e.target.value }))}
         />
       </div>
 
       <div className="grid gap-2">
-        <RequiredLabel>Domain / interest area</RequiredLabel>
+        <RequiredLabel>Alan / İlgi alanı</RequiredLabel>
         <Input
           className="rounded-xl"
           value={draft.domainInterest}
-          placeholder={value.domainInterest || "e.g., Kubernetes / ML"}
+          placeholder={value.domainInterest || "Örn: Kubernetes / Makine Öğrenmesi"}
           onChange={(e) => setDraft((p) => ({ ...p, domainInterest: e.target.value }))}
         />
       </div>
 
-      <div className="grid gap-2">
-        <RequiredLabel>Difficulty</RequiredLabel>
-        <Select
-          value={value.difficulty}
-          onValueChange={(v) => onChange({ ...value, difficulty: v as any })}
-        >
-          <SelectTrigger className="rounded-xl">
-            <SelectValue placeholder="Difficulty" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Junior">Junior</SelectItem>
-            <SelectItem value="Intermediate">Intermediate</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       <div className="grid gap-2">
-        <RequiredLabel>Mode</RequiredLabel>
+        <RequiredLabel>Mod</RequiredLabel>
         <Select value={value.mode} onValueChange={(v) => onChange({ ...value, mode: v as any })}>
           <SelectTrigger className="rounded-xl">
-            <SelectValue placeholder="Mode" />
+            <SelectValue placeholder="Mod" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="Supportive">Supportive</SelectItem>
-            <SelectItem value="Neutral">Neutral</SelectItem>
+            <SelectItem value="Supportive">Supportive (Destekleyici)</SelectItem>
+            <SelectItem value="Neutral">Neutral (Tarafsız)</SelectItem>
           </SelectContent>
         </Select>
         <ModeBadge mode={value.mode} />

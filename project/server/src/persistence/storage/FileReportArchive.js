@@ -268,7 +268,7 @@ export class FileReportArchive {
       samples: savedSamples,
     };
 
-    const relativePath = "vision_analysis_out.json";
+    const relativePath = "vision_frames.json";
     await writeFile(path.join(sessionDir, relativePath), `${JSON.stringify(payload, null, 2)}
 `, "utf8");
     return {
@@ -322,18 +322,18 @@ export class FileReportArchive {
   async loadFeedbackArtifacts(sessionId) {
     const sessionDir = await this.ensureSessionDir(sessionId);
     const [audioModel, transcriptAnalysis, visionAnalysis, visionLlmAnalysis, audioLlmReport, transcriptText] = await Promise.all([
-      this.readJsonIfExists(path.join(sessionDir, "audio_model_out.json")),
-      this.readJsonIfExists(path.join(sessionDir, "transcript_analysis_out.json")),
-      this.readJsonIfExists(path.join(sessionDir, "vision_analysis_out.json")),
-      this.readJsonIfExists(path.join(sessionDir, "vision_llm_analysis_out.json")),
-      this.readTextIfExists(path.join(sessionDir, "audio_analysis_out.txt")),
+      this.readJsonIfExists(path.join(sessionDir, "audio_segments.json")),
+      this.readJsonIfExists(path.join(sessionDir, "transcript_report.json")),
+      this.readJsonIfExists(path.join(sessionDir, "vision_frames.json")),
+      this.readJsonIfExists(path.join(sessionDir, "vision_report.json")),
+      this.readJsonIfExists(path.join(sessionDir, "audio_report.json")),
       this.readTextIfExists(path.join(sessionDir, "transcript.txt")),
     ]);
 
     return {
       transcriptText: String(transcriptText || "").trim(),
       audioModel,
-      audioLlmReport: String(audioLlmReport || "").trim(),
+      audioLlmReport: audioLlmReport || null,
       transcriptAnalysis,
       visionAnalysis,
       visionLlmAnalysis,

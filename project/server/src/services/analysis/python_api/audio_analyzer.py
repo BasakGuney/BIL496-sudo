@@ -8,6 +8,16 @@ import numpy as np
 import torch.nn.functional as F
 from transformers import AutoModelForAudioClassification, AutoModelForCTC, Wav2Vec2Processor, AutoFeatureExtractor
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    try:
+        with open("../../../../../.env", "r") as _f:
+            for _line in _f:
+                if _line.startswith("OPENAI_API_KEY="):
+                    OPENAI_API_KEY = _line.split("=", 1)[1].strip()
+    except Exception:
+        pass
+
 class AudioAnalyzer:
     def __init__(self, 
                  emotion_model_name="superb/wav2vec2-base-superb-er",
@@ -94,255 +104,268 @@ class AudioAnalyzer:
             "speech": speech
         }
 
-def calculate_weighted_average_emotions(items):
-    total_duration = sum(item['duration'] for item in items)
-    if total_duration == 0: return {}
-    
-    overall_emotions = {}
-    label_keys = items[0]['emotions'].keys()
-    
-    for key in label_keys:
-        weighted_sum = sum(item['emotions'][key] * item['duration'] for item in items)
-        overall_emotions[key] = round(weighted_sum / total_duration, 1)
-        
-    return overall_emotions
-
-def calculate_weighted_average_clarity(items):
-    total_duration = sum(item['duration'] for item in items)
-    if total_duration == 0: return 0
-    weighted_sum = sum(item['clarity'] * item['duration'] for item in items)
-    return round(weighted_sum / total_duration, 1)
-
-def interpret_report_with_llama(report_text, overall_emotions):
-    label_translations = {
-        'neu': 'Özgüven',
-        'hap': 'Coşku',
-        'ang': 'Sert Ton',
-        'sad': 'Gerginlik'
-    }
-
-    # Compute all stats in Python - no room for LLM hallucination
-    sorted_emotions = sorted(overall_emotions.items(), key=lambda x: x[1], reverse=True)
-    dominant_key, dominant_score = sorted_emotions[0]
-    dominant_label = label_translations.get(dominant_key, dominant_key)
-    ozguven_score = overall_emotions.get('neu', 0)
-    gerginlik_score = overall_emotions.get('sad', 0)
-    cosku_score = overall_emotions.get('hap', 0)
-    sert_ton_score = overall_emotions.get('ang', 0)
-    prompt = f"""Sen üst düzey bir İK Stratejistisin. Görevin, adaya aşağıdaki KESİN MANTIKSAL SINIRLARA göre, duygusallıktan uzak ve YÜKSEK KALİTELİ DÜZGÜN TÜRKÇE ile dürüst bir geri bildirim raporu sunmaktır.
-
-    ### 🚫 KESİNLİKLE YASAKLI KELİMELER VE İFADELER (BUNLARI YAZARSAN CEZA KESİLİR):
-    - "Aday", "Adayın", "Görüyoruz", "Gördük", "Kıyasladığımızda", "Analizimiz", "Verilere göre", "Yüzdelere bakınca".
-    - "Senin" kelimesini ASLA kullanma. (Örn: "Senin mülakat performansın" yerine direkt "Mülakat performansın" de).
-    - "Sahipsin", "Sahibsiniz", "Yapıyorsun" gibi çeviri kokan kelimeler ASLA kullanılamaz. 
-
-    ### ⚠️ ZORUNLU TÜRKÇE DİLBİLGİSİ KURALLARI VE ÜSLUP:
-    - Kurumsal, acımasız ve son derece profesyonel bir İK dili kullan.
-    - DİKKAT: Verilerdeki 'pure_speech_time' değeri ve diğer bütün süre metrikleri isminin aksine DAKİKA DEĞİL SANİYEDİR. (Örn: "Mülakatın 5. saniyesinde..." de).
-
-    ### 📝 GÖRSEL FORMATLAMA (ZORUNLU):
-    - YAZDIĞIN HER BİR CÜMLEYİ (nokta ile biten her ifadeyi) MUTLAKA BİR MADDE İŞARETİ (TİRE '-') İLE YENİ BİR SATIRDA YAZ.
-    - Paragraf kullanmak YASAKTIR. Her başlığın altındaki her bir cümle alt alta tire (-) ile başlamalıdır.
-
-    ### ⚖️ DUYGU ANALİZ VE YORUMLAMA MANTIĞI:
-
-    1. SERT TON (ANG):
-       - %40 Üstü: "İletişiminde baskın bir sertlik ve çatışmacı bir enerji var. Bu tutum profesyonel imajın için ciddi bir engel teşkil ediyor."
-       - %15 - %40 Arası: "Zaman zaman fazla otoriter veya savunmacı bir üslup takınıyorsun. Bu durum iletişimi zorlaştırabilir."
-       - %15 Altı: "Uyumlu ve yapıcı bir iletişim tonu yakaladın."
-
-    2. ÖZGÜVEN (NEU) vs GERGİNLİK (SAD):
-       - Gerginlik > Özgüven (Fark %10+): "Heyecanın, profesyonel yetkinliğini yansıtmana engel oldu; özgüvenin bu baskı altında geride kaldı."
-       - Özgüven > Gerginlik: "Soğukkanlı ve özgüvenli bir duruş sergiledin."
-       - Fark %10'dan Azsa: "Mülakat heyecanı ile mesleki disiplin arasında dengeli bir seyir izledin."
-
-    3. COŞKU (HAP):
-       - %10 Altı: "Düşük enerji ve monoton bir anlatımın var. İsteksiz veya heyecansız bir izlenim bırakıyorsun."
-       - %30 Üstü: "Yüksek motivasyon ve ikna edici bir enerji seviyesiyle konuştun."
-
-    ### ✍️ KESİN YAZIM KURALLARI:
-    - BAŞLIKLA BAŞLA (## 🤖 Kariyer Koçu Analiz Raporu). Giriş cümlesi ASLA kullanma.
-    - HİTAP: Doğrudan ve İYELİK EKLERİNE dikkat ederek "Sen" dili kullan.
-    - Rakamları metinle doğal şekilde birleştir (Örn: "Sesindeki %76'lık bu sert tını...").
-
-    ### 📋 RAPOR FORMATI (BİREBİR UYGULA, HER CÜMLE TİRE İLE BAŞLAYACAK):
-
-    ## 🤖 Kariyer Koçu Analiz Raporu
-
-    ### 🎭 Genel Duruşun ve Karakter Analizin
-    - [Cümle 1]
-    - [Cümle 2]
-
-    ### ⚖️ Duygusal Dengelerin ve Stres Yönetimin
-    - [Cümle 1]
-    - [Cümle 2]
-
-    ### ⚡ İletişim Enerjin ve Üslubun
-    - [Cümle 1]
-    - [Cümle 2]
-
-    ### 📈 Mülakatın Zaman Çizelgesi ve Gelişimi
-    - [Cümle 1]
-    - [Cümle 2]
-
-    RAPOR VERİSİ:
-    {report_text}
+def compute_overall(items: list) -> dict:
     """
+    Computes overall duration-weighted averages for emotions, clarity, and speech metrics
+    across all processed audio segments.
+    """
+    if not items:
+        return {
+            "clarity": 0.0,
+            "emotions": {},
+            "speech": {"avg_wpm": 0.0, "avg_pause_ratio": 0.0, "total_speech_time": 0.0, "total_duration": 0.0}
+        }
 
-    url = "http://localhost:11434/api/generate"
-    payload = {
-        "model": "llama3.1",
-        "prompt": prompt,
-        "stream": False
+    total_duration = sum(item.get("duration", 0) for item in items)
+    if total_duration == 0:
+        return {
+            "clarity": 0.0,
+            "emotions": {},
+            "speech": {"avg_wpm": 0.0, "avg_pause_ratio": 0.0, "total_speech_time": 0.0, "total_duration": 0.0}
+        }
+
+    # 1. Overall Emotions
+    overall_emotions = {}
+    label_keys = items[0].get("emotions", {}).keys()
+    for key in label_keys:
+        weighted_sum = sum(item["emotions"].get(key, 0) * item.get("duration", 0) for item in items)
+        overall_emotions[key] = round(weighted_sum / total_duration, 1)
+
+    # 2. Overall Clarity
+    weighted_clarity_sum = sum(item.get("clarity", 0) * item.get("duration", 0) for item in items)
+    overall_clarity = round(weighted_clarity_sum / total_duration, 1)
+
+    # 3. Overall Speech Metrics
+    valid_speech_items = [i for i in items if i.get("speech")]
+    if valid_speech_items:
+        speech_duration = sum(i.get("duration", 0) for i in valid_speech_items)
+        if speech_duration > 0:
+            avg_wpm = sum(i["speech"].get("wpm", 0) * i.get("duration", 0) for i in valid_speech_items) / speech_duration
+            avg_pause = sum(i["speech"].get("pause_ratio", 0) * i.get("duration", 0) for i in valid_speech_items) / speech_duration
+        else:
+            avg_wpm = 0.0
+            avg_pause = 0.0
+            
+        total_speech_time = sum(i["speech"].get("pure_speech_time", 0) for i in valid_speech_items)
+    else:
+        avg_wpm = 0.0
+        avg_pause = 0.0
+        total_speech_time = 0.0
+
+    return {
+        "clarity": overall_clarity,
+        "emotions": overall_emotions,
+        "speech": {
+            "avg_wpm": round(avg_wpm, 1),
+            "avg_pause_ratio": round(avg_pause, 1),
+            "total_speech_time": round(total_speech_time, 2),
+            "total_duration": round(total_duration, 2)
+        }
     }
 
-    try:
-        # Increased timeout to 240 seconds for Ollama LLM to avoid local timeouts
-        response = requests.post(url, json=payload, timeout=240)
-        response.raise_for_status()
-        result = response.json()
-        return result.get("response", "Modelden boş bir yanıt döndü.")
-    except requests.exceptions.Timeout:
-        return "> ⚠️ **Zaman Aşımı:** LLM çok geç yanıt verdi (240sn saniye aşıldı). Lütfen daha güçlü bir model seçin veya bilgisayarınızın performansını kontrol edin."
-    except Exception as e:
-        return f"> ⚠️ **Ollama Bağlantı Hatası:** Yapay zeka değerlendirmesi alınamadı. Lütfen Ollama'nın çalıştığından (`ollama run llama3.1`) emin olun. Hata: {str(e)}"
+
+def _compute_emotional_balance_score(emotions: dict) -> int:
+    """Deterministik: dağılım ne kadar dengeli → skor o kadar yüksek."""
+    if not emotions:
+        return 50
+    values = list(emotions.values())
+    max_v = max(values)
+    # Tek bir duygu çok baskınsa (>%60) düşük skor
+    if max_v >= 60:
+        return 30
+    elif max_v >= 45:
+        return 50
+    elif max_v >= 35:
+        return 65
+    else:
+        return 80
 
 
-def interpret_vision_report_with_llama(vision_analysis):
-    overview = vision_analysis.get("overview", {}) if isinstance(vision_analysis, dict) else {}
-    tension = vision_analysis.get("tension", {}) if isinstance(vision_analysis, dict) else {}
-    diagnostics = vision_analysis.get("diagnostics", {}) if isinstance(vision_analysis, dict) else {}
-    samples = vision_analysis.get("samples", []) if isinstance(vision_analysis, dict) else []
 
-    prompt = f"""Sen kıdemli bir beden dili ve mülakat performansı koçusun. Aşağıdaki görsel mülakat metriklerini kullanarak yalnızca geçerli JSON döndür.
+def _compute_speech_rate_score(avg_wpm: float) -> int:
+    """İdeal: 110-150 WPM → en yüksek skor."""
+    if 110 <= avg_wpm <= 150:
+        return 80
+    elif 90 <= avg_wpm < 110 or 150 < avg_wpm <= 175:
+        return 60
+    elif 70 <= avg_wpm < 90 or 175 < avg_wpm <= 200:
+        return 45
+    else:
+        return 30
 
-JSON şeması:
+
+def _compute_fluency_score(pause_ratio: float) -> int:
+    """Duraklama oranı düşükse akıcılık skoru yüksek."""
+    if pause_ratio <= 15:
+        return 85
+    elif pause_ratio <= 25:
+        return 65
+    elif pause_ratio <= 40:
+        return 45
+    else:
+        return 25
+
+
+def interpret_report_with_gpt(overall: dict) -> dict:
+    """
+    Python computes ALL scores deterministically.
+    GPT only writes human-readable text strictly matching the UI schema.
+    No numbers are ever generated by GPT.
+    """
+    EMOTION_MAP = {
+        "neu": "Nötr ve dengeli ton", "hap": "Olumlu / canlı ifade",
+        "ang": "Gergin / sert ton", "sad": "Düşük enerjili / içe kapanık ton"
+    }
+    raw_emotions = overall.get("emotions", {})
+    emotion_dist = [
+        {"label": EMOTION_MAP.get(k, k), "score": v}
+        for k, v in sorted(raw_emotions.items(), key=lambda x: x[1], reverse=True)
+    ]
+    dominant_emotion = emotion_dist[0] if emotion_dist else {"label": "Bilinmiyor", "score": 0}
+    secondary_emotion = emotion_dist[1] if len(emotion_dist) > 1 else None
+
+    clarity_val = overall.get("clarity", 0)
+    speech_data = overall.get("speech", {})
+    avg_wpm = speech_data.get("avg_wpm", 0)
+    avg_pause_ratio = speech_data.get("avg_pause_ratio", 0)
+    total_speech_sec = speech_data.get("total_speech_time", 0)
+    total_dur_sec = speech_data.get("total_duration", 0)
+
+    # Saniyeyi okunabilir dakika:saniye formatına çevir
+    def _fmt_duration(sec: float) -> str:
+        sec = int(round(sec))
+        m, s = divmod(sec, 60)
+        return f"{m} dk {s} sn" if m else f"{s} sn"
+
+    # GPT'ye gidecek bağlam — saniye asla ham olarak gönderilmez
+    clarity_band = (
+        "Yüksek" if clarity_val >= 75
+        else "Orta" if clarity_val >= 50
+        else "Düşük"
+    )
+    wpm_band = (
+        "İdeal aralıkta" if 110 <= avg_wpm <= 150
+        else "Hızlı" if avg_wpm > 150
+        else "Yavaş" if avg_wpm > 0
+        else "Ölçülemedi"
+    )
+    pause_band = (
+        "Az (akıcı)" if avg_pause_ratio <= 15
+        else "Orta" if avg_pause_ratio <= 25
+        else "Fazla (sık durak)" if avg_pause_ratio <= 40
+        else "Çok Fazla"
+    )
+
+    # 2. Deterministik skorları hesapla
+    python_scores = [
+        {"label": "Ses Netliği",    "score": int(round(clarity_val))},
+        {"label": "Duygusal Denge", "score": _compute_emotional_balance_score(raw_emotions)},
+        {"label": "Konuşma Hızı",   "score": _compute_speech_rate_score(avg_wpm)},
+        {"label": "Akıcılık",       "score": _compute_fluency_score(avg_pause_ratio)},
+    ]
+    s0, s1, s2, s3 = (p["score"] for p in python_scores)
+
+    gpt_context = {
+        "clarity": {"value": round(clarity_val, 1), "band": clarity_band},
+        "avgWPM": {"value": avg_wpm, "band": wpm_band},
+        "pauseRatio": {"value": f"%{round(avg_pause_ratio, 1)}", "band": pause_band},
+        "totalSpeechTime": _fmt_duration(total_speech_sec),
+        "totalDuration": _fmt_duration(total_dur_sec),
+        "dominantEmotion": dominant_emotion,
+        "secondaryEmotion": secondary_emotion,
+        "emotionDistribution": emotion_dist,
+    }
+
+    prompt = f"""Sen bir mülakat performans raporu oluşturucususun. SADECE geçerli JSON döndür.
+
+Sana verilen veri, adayın konuşmasına ait ONCEDEN HESAPLANMIS sayısal metriklerdir.
+Görevin: Bu metrikleri yorumlayarak nesnel Türkçe metin alanları üretmek.
+
+ÖNEMLİ KURALLAR:
+- Sadece verilen veriyi kullan. Sayı veya skor üretme.
+- scores listesinde detail alanını ilgili skor için 1-2 cümlelik açıklama ile doldur.
+- Psikolojik analiz yapma ("özgüven", "karakter" vs). Emoji kullanma.
+- Çelişkili ifadeler yazma.
+- Süre ifadelerini SADECE verilen formatta ("3 dk 31 sn" gibi) yaz; verilen değeri olduğu gibi kullan.
+- overallAnalysis 3-4 cümle olsun; ses netliği, konuşma hızı, duraklama düzeni ve ton deseni hakkında ayrı birer gözlem içersin.
+
+Giriş Verisi:
+{json.dumps(gpt_context, ensure_ascii=False, indent=2)}
+
+SADECE şu JSON yapısını döndür:
 {{
-  "status": "ok" | "warning" | "unavailable",
-  "summary": "Kısa tek paragraf Türkçe özet",
+  "overallAnalysis": "Ses netliği, konuşma hızı, duraklama oranı ve ton dağılımını ayrı cümlelerle ele alan 3-4 cümlelik nesnel değerlendirme",
+  "clarityBadge": "Netlik durumunu belirten kısa rozet metni (örn: 'Netlik seviyesi yüksek')",
+  "dominantEmotion": "Baskın Duygu Özeti (örn: 'Düşük enerjili / içe kapanık ton')",
+  "secondaryEmotion": "İkinci Duygu Özeti (örn: 'Olumlu / canlı ifade' veya null)",
   "scores": [
-    {{"key": "camera_presence", "label": "Kamera Varlığı", "score": 0-100, "detail": "..."}},
-    {{"key": "framing", "label": "Kadraj ve Merkezleme", "score": 0-100, "detail": "..."}},
-    {{"key": "stability", "label": "Stabilite", "score": 0-100, "detail": "..."}},
-    {{"key": "visual_stress", "label": "Görsel Stres", "score": 0-100, "detail": "..."}}
+    {{"label": "Ses Netliği",    "score": {s0}, "detail": "..."}},
+    {{"label": "Duygusal Denge", "score": {s1}, "detail": "..."}},
+    {{"label": "Konuşma Hızı",   "score": {s2}, "detail": "..."}},
+    {{"label": "Akıcılık",       "score": {s3}, "detail": "..."}}
   ],
-  "strengths": ["..."],
-  "risks": ["..."],
-  "recommendations": [{{"title": "...", "text": "..."}}]
-}}
+  "tonDistribution": [
+    {{"label": "...", "score": 100.0}}
+  ],
+  "speechSummary": ["madde 1", "madde 2", "madde 3 (netlik, akış, ton)"],
+  "recommendations": {{
+    "nextInterview": "Bir Sonraki Mülakatta paragrafı...",
+    "performanceDevelopment": "Performans Geliştirme paragrafı..."
+  }}
+}}"""
 
-Kurallar:
-- Sadece JSON döndür, markdown kullanma.
-- Değerlendirmeyi yalnızca verilen sayısal verilerden türet.
-- Türkçe yaz.
-- recommendation listesinde 2-4 madde olsun.
-- strengths ve risks listelerinde 1-4 madde olsun.
-- Eğer status hazır değilse veya örnek sayısı çok düşükse bunu açıkça belirt.
-
-VERİLER:
-- status: {vision_analysis.get('status')}
-- source: {vision_analysis.get('source')}
-- sampledFrames: {overview.get('sampledFrames', 0)}
-- faceDetectedFrames: {overview.get('faceDetectedFrames', 0)}
-- missingFaceFrames: {overview.get('missingFaceFrames', 0)}
-- facePresenceScore: {overview.get('facePresenceScore', 0)}
-- focusScore: {overview.get('focusScore', 0)}
-- centeringScore: {overview.get('centeringScore', 0)}
-- steadinessScore: {overview.get('steadinessScore', 0)}
-- averageFaceAreaRatio: {overview.get('averageFaceAreaRatio', 0)}
-- averageCenterOffset: {overview.get('averageCenterOffset', 0)}
-- headMovementRaw: {overview.get('headMovementRaw', 0)}
-- visualTensionScore: {tension.get('visualTensionScore', 0)}
-- attentionRiskScore: {tension.get('attentionRiskScore', 0)}
-- movementRiskScore: {tension.get('movementRiskScore', 0)}
-- eyeTensionScore: {tension.get('eyeTensionScore', 0)}
-- attentionDriftRatio: {tension.get('attentionDriftRatio', 0)}
-- dangerFrameRatio: {tension.get('dangerFrameRatio', 0)}
-- lowEyeRatio: {tension.get('lowEyeRatio', 0)}
-- warnFrames: {tension.get('warnFrames', 0)}
-- dangerFrames: {tension.get('dangerFrames', 0)}
-- lowEyeFrames: {tension.get('lowEyeFrames', 0)}
-- detector: {json.dumps(diagnostics.get('detector'), ensure_ascii=False)}
-- sampleCount: {len(samples)}
-"""
-
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
     payload = {
-        "model": "llama3.1",
-        "prompt": prompt,
-        "format": "json",
-        "stream": False,
-        "options": {
-            "temperature": 0.1
-        }
+        "model": "gpt-4o-mini",
+        "messages": [
+            {"role": "system", "content": "You output valid JSON only. No markdown, no explanation."},
+            {"role": "user", "content": prompt},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.2,
     }
 
     try:
-        response = requests.post("http://localhost:11434/api/generate", json=payload, timeout=240)
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload, timeout=30)
         response.raise_for_status()
         result = response.json()
-        response_text = result.get("response", "{}")
-        parsed = json.loads(response_text)
+        try:
+            parsed = json.loads(result["choices"][0]["message"]["content"])
+            # Validate output matches the expected Python scores
+            for s in parsed.get("scores", []):
+                for ps in python_scores:
+                    if s["label"] == ps["label"]:
+                        s["score"] = ps["score"]
+                        break
+            return parsed
+        except Exception:
+            # Fallback if parsing fails but request succeeded
+            pass
+
         return {
-            "status": str(parsed.get("status") or "ok"),
-            "summary": str(parsed.get("summary") or "Görsel analiz özeti üretilemedi."),
-            "scores": parsed.get("scores") if isinstance(parsed.get("scores"), list) else [],
-            "strengths": parsed.get("strengths") if isinstance(parsed.get("strengths"), list) else [],
-            "risks": parsed.get("risks") if isinstance(parsed.get("risks"), list) else [],
-            "recommendations": parsed.get("recommendations") if isinstance(parsed.get("recommendations"), list) else [],
+            "overallAnalysis": "GPT yorumu işlenirken bir hata oluştu.",
+            "clarityBadge": "Analiz Edilemedi",
+            "dominantEmotion": dominant_emotion["label"],
+            "secondaryEmotion": secondary_emotion["label"] if secondary_emotion else None,
+            "scores": python_scores,
+            "tonDistribution": emotion_dist,
+            "speechSummary": [],
+            "recommendations": {"nextInterview": "", "performanceDevelopment": ""}
         }
+
     except Exception as e:
+        print(f"GPT Audio Interpret Error: {e}")
+        # Pure Python fallback — no GPT at all
         return {
-            "status": "warning" if vision_analysis.get("status") != "unavailable" else "unavailable",
-            "summary": "Ollama yorum raporu üretilemedi; ham görsel metrikler kaydedildi.",
-            "scores": [
-                {"key": "camera_presence", "label": "Kamera Varlığı", "score": int(overview.get("facePresenceScore", 0) or 0), "detail": "Yüz görünürlüğü temel alınarak hesaplandı."},
-                {"key": "framing", "label": "Kadraj ve Merkezleme", "score": int(overview.get("centeringScore", 0) or 0), "detail": "Merkezleme metriği temel alınarak hesaplandı."},
-                {"key": "stability", "label": "Stabilite", "score": int(overview.get("steadinessScore", 0) or 0), "detail": "Baş hareketi metriği temel alınarak hesaplandı."},
-                {"key": "visual_stress", "label": "Görsel Stres", "score": int(tension.get("visualTensionScore", 0) or 0), "detail": f"LLM bağlantı hatası nedeniyle doğrudan skor kullanıldı: {str(e)}"},
-            ],
-            "strengths": [],
-            "risks": [f"Yapay zeka görsel yorum raporu üretilemedi: {str(e)}"],
-            "recommendations": [
-                {"title": "Ollama Bağlantısını Kontrol Et", "text": "Görsel koçluk raporu için Ollama servisinin çalışır durumda olduğundan emin ol."}
-            ],
+            "overallAnalysis": f"Oturum ses metrikleri başarıyla çıkarıldı. Ancak GPT üretimi başarısız: {e}",
+            "clarityBadge": "Analiz Edilemedi",
+            "dominantEmotion": dominant_emotion["label"],
+            "secondaryEmotion": secondary_emotion["label"] if secondary_emotion else None,
+            "scores": python_scores,
+            "tonDistribution": emotion_dist,
+            "speechSummary": [],
+            "recommendations": {"nextInterview": "", "performanceDevelopment": ""}
         }
-
-
-
-def generate_final_radar_chart(stats):
-    """Compatibility helper kept inside audio analyzer to avoid a separate low-level helper file."""
-    try:
-        import matplotlib.pyplot as plt
-        import numpy as np
-    except Exception:
-        return None
-
-    import os
-    os.makedirs("results", exist_ok=True)
-
-    labels = ['Gerginlik', 'Özgüven', 'Coşku', 'Sert Ton']
-    num_vars = len(labels)
-    stats = np.array(stats)
-    stats = np.concatenate((stats, [stats[0]]))
-    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
-    angles += angles[:1]
-
-    fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
-    fig.patch.set_facecolor('white')
-    ax.set_facecolor('white')
-    grid_values = [20, 40, 60, 80, 100]
-    ax.set_rgrids(grid_values, labels=[f"%{x}" for x in grid_values], color="#2c3e50", size=10, fontweight='bold')
-    ax.set_ylim(0, 100)
-    ax.plot(angles, stats, color='#000080', linewidth=2.5, marker='o', markersize=8)
-    ax.fill(angles, stats, color='#000080', alpha=0.1)
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(labels, fontsize=13, fontweight='bold', color='black')
-
-    for angle, value in zip(angles[:-1], stats[:-1]):
-        ax.text(angle, value + 7, f"%{value:.1f}", ha='center', va='center', fontsize=11, fontweight='bold', color='#000080')
-
-    plt.title("Aday Duygu ve Özgüven Profili", size=15, pad=30, fontweight='bold', color='black')
-    file_path = "results/radar_chart_final.png"
-    plt.savefig(file_path, dpi=300, bbox_inches='tight', facecolor='white')
-    plt.close()
-    return file_path

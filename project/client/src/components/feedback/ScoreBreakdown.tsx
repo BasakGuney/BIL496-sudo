@@ -22,7 +22,6 @@ function MetricList({ title, items, description }: { title: string; items: Feedb
               <span className="text-muted-foreground">{m.score}/100</span>
             </div>
             <Progress value={m.score} />
-            {m.detail ? <div className="text-sm text-muted-foreground">{m.detail}</div> : null}
           </div>
         ))}
       </div>
@@ -36,10 +35,9 @@ export function ScoreBreakdown({ report }: { report: FeedbackReport }) {
       <CardHeader>
         <CardTitle>Detaylı Skor Kırılımı</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-3">
-        <MetricList title="İçerik" items={report.content} description="Soruya uygunluk ve cevap netliği." />
-        <MetricList title="İletişim" items={report.communication} description="Akış, tempo ve anlatım kalitesi." />
-        <MetricList title="Davranış / Vision" items={report.behavioral ?? []} description="Kamera görünürlüğü, kadraj ve görsel risk sinyalleri." />
+      <CardContent className="grid gap-4 md:grid-cols-2">
+        <MetricList title="İçerik" items={report.content || []} description="Soruya uygunluk ve cevap netliği." />
+        <MetricList title="İletişim" items={report.communication || []} description="Akış, tempo ve anlatım kalitesi." />
       </CardContent>
     </Card>
   );

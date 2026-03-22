@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Shell } from "@/components/layout/Shell";
+
 import { Stepper } from "@/components/layout/Stepper";
 import { SetupPage } from "@/pages/SetupPage";
 import { InterviewPage } from "@/pages/InterviewPage";
@@ -10,10 +11,8 @@ import type { RouteKey } from "./routes";
 
 export default function App() {
   const [route, setRoute] = useState<RouteKey>("setup");
-
   const [config, setConfig] = useState<SessionConfig | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [previewQuestions, setPreviewQuestions] = useState<string[]>([]);
   const [report, setReport] = useState<FeedbackReport | null>(null);
 
   const stepIndex = useMemo(() => {
@@ -32,24 +31,27 @@ export default function App() {
   return (
     <Shell>
       <div className="min-h-[calc(100vh-56px)] w-full p-4 md:p-6 space-y-6">
-        <Stepper step={stepIndex} />
+        <div className="flex justify-between items-center mb-4">
+          <Stepper step={stepIndex} />
+        </div>
         {route === "setup" && (
           <SetupPage
-            onPrepared={(cfg, sid, qs) => {
+            onPrepared={(cfg) => {
               setConfig(cfg);
-              setSessionId(sid);
-              setPreviewQuestions(qs);
               setRoute("preview");
             }}
           />
         )}
 
-        {route === "preview" && sessionId && (
+        {route === "preview" && config && (
           <PreviewPage
-            sessionId={sessionId}
-            questions={previewQuestions}
+            config={config}
+            setConfig={setConfig}
             onBack={() => setRoute("setup")}
-            onStartInterview={() => setRoute("interview")}
+            onStartInterview={(sid) => {
+              setSessionId(sid);
+              setRoute("interview");
+            }}
           />
         )}
 
@@ -72,7 +74,6 @@ export default function App() {
             onNew={() => {
               setConfig(null);
               setSessionId(null);
-              setPreviewQuestions([]);
               setReport(null);
               setRoute("setup");
             }}

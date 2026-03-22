@@ -12,14 +12,12 @@ Bu dosya, projeyi **Windows üzerinde sıfırdan** kurup çalıştırmak için g
 
 ## 1. Gerekli Kurulumlar
 
-Projeyi çalıştırmak için aşağıdaki bileşenler gereklidir:
-
 ### 1.1 Node.js
+
 - **Gerekli sürüm:** Node.js LTS (18+; tercihen güncel LTS)
 - **Ne için gerekli?**
-  - `project/server` içindeki Node.js backend
-  - `project/client` içindeki React/Vite frontend
-- **Yaklaşık indirme boyutu:** ~30-40 MB installer, kurulum sonrası daha fazla disk alanı kullanır.
+  - `project/server` — Node.js backend
+  - `project/client` — React/Vite frontend
 - **Nasıl indirilir?**
   - Resmi site: https://nodejs.org/
   - veya Windows Package Manager ile:
@@ -28,213 +26,155 @@ Projeyi çalıştırmak için aşağıdaki bileşenler gereklidir:
     ```
 
 ### 1.2 Python 3.12
-- **Gerekli sürüm:** **Python 3.12**
-- **Neden özellikle 3.12?**
-  - Vision tarafında kullanılan `mediapipe` için bu proje özelinde hedef sürüm olarak **Python 3.12** kabul edilmiştir.
-- **Yaklaşık indirme boyutu:** ~25-35 MB installer.
+
+- **Gerekli sürüm:** Python 3.12 (3.12.x)
+- **Neden 3.12?**
+  - `mediapipe` kütüphanesi Python 3.12'ye kadar resmi destek vermektedir.
 - **Nasıl indirilir?**
   - Resmi site: https://www.python.org/downloads/release/python-3120/
   - veya Windows Package Manager ile:
     ```powershell
     winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements
     ```
-- **Önemli not:**
-  - Kurulum sırasında mümkünse **Add Python to PATH** seçeneğini aktif et.
+- **Önemli:** Kurulum sırasında **"Add Python to PATH"** seçeneğini aktif et.
 
-### 1.3 Ollama
-- **Ne için gerekli?**
-  - Yerelde çalışan LLM yorumları için.
-  - Audio rapor yorumu, transcript yorumu ve vision yorumu burada kullanılır.
-- **Yaklaşık indirme boyutu:**
-  - Ollama uygulaması: ~1 GB altı kurulum alanı (ortama göre değişebilir)
-  - Model indirimi ayrıca yapılır.
-- **Nasıl indirilir?**
-  - Resmi site: https://ollama.com/download
-  - veya Windows Package Manager ile:
-    ```powershell
-    winget install Ollama.Ollama --accept-package-agreements --accept-source-agreements
-    ```
+### 1.3 OpenAI API Key
 
-### 1.4 Ollama Modeli: `llama3.1`
 - **Ne için gerekli?**
-  - Audio, transcript ve vision metriklerinin doğal dilde yorumlanması için.
-- **Yaklaşık indirme boyutu:**
-  - `llama3.1:8b` için yaklaşık **4.7 GB** model dosyası beklenmelidir.
-  - Çalışma sırasında ek RAM ihtiyacı olur.
-- **Nasıl indirilir?**
-  ```powershell
-  ollama pull llama3.1
-  ```
-
-### 1.5 OpenAI API Key
-- **Ne için gerekli?**
-  - Realtime interview oturumu
-  - transcription
-  - bazı backend değerlendirmeleri
-- `project/server/.env` dosyasında bulunmalıdır:
+  - OpenAI Realtime API — AI mülakatçı ses akışı
+  - `gpt-4o-mini` — canlı hint, canlı feedback, analiz yorumu (ses/transcript/görüntü)
+- `.env` dosyasını `project/server/` altında oluştur:
   ```env
   PORT=3001
   OPENAI_API_KEY=sk-...
   ```
 
----
-
-## 2. Python Tarafında İndirilecek Paketler
-
-Python virtual environment içinde şu büyük paketler kurulacaktır:
-
-- `torch`
-- `torchaudio`
-- `transformers`
-- `librosa`
-- `opencv-python-headless`
-- `mediapipe`
-- `fastapi`
-- `uvicorn`
-
-### Yaklaşık disk / indirme etkisi
-Bunlar birlikte birkaç yüz MB ile 1+ GB arasında alan kullanabilir. Özellikle:
-- `torch` oldukça büyüktür.
-- İlk model yüklemelerinde Hugging Face modelleri ayrıca disk alanı kullanır.
-- `mediapipe` ve `opencv-python-headless` vision tarafı için gereklidir.
+> **Not:** Önceki sürümlerde kullanılan Ollama / llama3.1 lokal modeli **kaldırıldı**. Tüm LLM çağrıları artık OpenAI API üzerinden yapılmaktadır.
 
 ---
 
-## 3. Repo İçindeki Klasörlerin Kısa Özeti
+## 2. Python Paketleri
 
-- `project/client`: React + Vite arayüzü
-- `project/server`: Node.js backend
-- `project/server/src/services/analysis/python_api`: Python analiz API'si
-- `project/server/reports`: session bazlı rapor çıktıları
-- `project/docs`: dokümantasyon dosyaları
-- `scripts`: kurulum / çalıştırma scriptleri
+Python virtual environment içinde `requirements.txt` ile şu paketler kurulur:
+
+| Paket | Ne İçin |
+|---|---|
+| `torch` | Ses modelleri (CPU/GPU) |
+| `torchaudio` | Ses dosyası işleme |
+| `transformers` | wav2vec2 modelleri (duygu + netlik) |
+| `librosa` | Ses analizi (WPM, duraklama oranı) |
+| `opencv-python-headless` | Görüntü frame işleme |
+| `mediapipe` | Yüz tespiti (BlazeFace) |
+| `fastapi` | Python HTTP API sunucusu |
+| `uvicorn` | ASGI sunucu (FastAPI için) |
+| `requests` | OpenAI API çağrıları |
+| `numpy` | Sayısal hesaplamalar |
+
+**Disk alanı notu:**
+- `torch` + `transformers` → ~1–2 GB
+- Hugging Face model önbelleği (wav2vec2 modelleri) → `.model-cache/` altında ilk çalıştırmada indirilir
+- MediaPipe BlazeFace modeli → `.model-cache/blaze_face_short_range.tflite`
+
+---
+
+## 3. Dizin Yapısı Özeti
+
+```
+project/
+├── client/                              ← React + Vite arayüzü
+├── server/                              ← Node.js backend
+│   ├── src/
+│   │   └── services/analysis/python_api/ ← Python analiz API'si
+│   └── reports/                         ← Oturum bazlı rapor çıktıları
+├── docs/                                ← Bu dosya ve sistem mimarisi
+└── scripts/                             ← Kurulum/çalıştırma scriptleri
+```
 
 ---
 
 ## 4. Manuel Başlatma Adımları
 
-Aşağıdaki komutlar, projenin **elle** nasıl başlatılacağını gösterir.
+3 ayrı terminal penceresi açılmalıdır.
 
-## TERMINAL 1
+### TERMINAL 1 — Python API
 
 ```powershell
 cd C:\Users\basak\BIL496-sudo\project\server\src\services\analysis\python_api
+
+# Sanal ortam oluştur (ilk seferinde)
 python -m venv .venv
 
+# Sanal ortamı aktif et
+.\.venv\Scripts\Activate.ps1
+
+# Paketleri güncelle ve kur (ilk seferinde)
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 
-'{"mode":"health"}' | python .\frame_face_analyzer.py
-
-python .\api.py
+# API sunucusunu başlat
+python api.py
 ```
 
-## TERMINAL 2
+> `http://localhost:8000` adresinde çalışmaya başlar.
+
+### TERMINAL 2 — Node.js Sunucusu
 
 ```powershell
 cd C:\Users\basak\BIL496-sudo\project\server
+
+# Python sanal ortamının yolunu bildir
 $env:PYTHON_BIN="C:\Users\basak\BIL496-sudo\project\server\src\services\analysis\python_api\.venv\Scripts\python.exe"
+
+# Paketleri kur (ilk seferinde)
 npm install
+
+# Sunucuyu başlat
 npm run dev
 ```
 
-## TERMINAL 3
+> `http://localhost:3001` adresinde çalışmaya başlar.
+
+### TERMINAL 3 — React İstemcisi
 
 ```powershell
 cd C:\Users\basak\BIL496-sudo\project\client
+
+# Paketleri kur (ilk seferinde)
 npm install
+
+# Geliştirme sunucusunu başlat
 npm run dev
 ```
+
+> `http://localhost:5173` adresinde çalışmaya başlar.
 
 ---
 
 ## 5. Beklenen Portlar
 
-- Python Analysis API: `http://localhost:8000`
-- Node.js Backend: `http://localhost:3001`
-- Client (Vite): genelde `http://localhost:5173`
+| Servis | URL |
+|---|---|
+| Python Analysis API | `http://localhost:8000` |
+| Node.js Backend | `http://localhost:3001` |
+| React İstemcisi (Vite) | `http://localhost:5173` |
 
 ---
 
-## 6. Rapor Klasör Yapısı
+## 6. Hızlı Başlatma (PS1 Script)
 
-Her oturum için `project/server/reports` altında bir session klasörü oluşur:
+Tüm adımları otomatik yapmak için tek komut:
 
-```text
-project/server/reports/
-  S-1773944323392/
-    audio/
-      answer_01.webm
-      answer_02.webm
-    vision/
-      frame_01.jpg
-      frame_02.jpg
-    audio_model_out.json
-    audio_analysis_out.txt
-    transcript_analysis_out.json
-    transcript.txt
-    vision_analysis_out.json
-    vision_llm_analysis_out.json
-```
-
-- `audio/`: aday cevap sesleri
-- `vision/`: seçilmiş vision sample JPEG'leri
-- session root: tüm rapor/artifact dosyaları
-
----
-
-## 7. Sık Karşılaşılan Sorunlar
-
-### Python yanlış sürümle açılıyor
-Şunu kontrol et:
 ```powershell
-python --version
-```
-Beklenen sonuç: `Python 3.12.x`
-
-### `mediapipe` çalışmıyor
-Health check komutunu tekrar çalıştır:
-```powershell
-'{"mode":"health"}' | python .\frame_face_analyzer.py
+cd C:\Users\basak\BIL496-sudo\project
+.\scripts\windows_full_setup_and_run.ps1
 ```
 
-### Ollama çalışmıyor
-Önce kurulu mu bak:
-```powershell
-ollama --version
-```
-Model var mı bak:
-```powershell
-ollama list
-```
-Yoksa indir:
-```powershell
-ollama pull llama3.1
-```
+Script şunları otomatik yapar:
 
-### Backend Python'ı bulamıyor
-Terminal 2'de şu environment variable'ın doğru olduğundan emin ol:
-```powershell
-$env:PYTHON_BIN="C:\Users\basak\BIL496-sudo\project\server\src\services\analysis\python_api\.venv\Scripts\python.exe"
-```
+- Node.js ve Python 3.12 varlığını kontrol eder
+- `.venv` sanal ortamı oluşturur (ilk seferde)
+- `requirements.txt` paketlerini kurar
+- `server/` ve `client/` için `npm install` çalıştırır
+- Python API, Node.js backend ve React istemcisi için **3 ayrı PowerShell penceresi** açar
 
----
-
-## 8. Otomatik Kurulum ve Başlatma
-
-Windows üzerinde gerekli şeyleri kurup 3 terminali açan script:
-
-```text
-scripts/windows_full_setup_and_run.ps1
-```
-
-Bu script:
-- Node.js kontrol eder / kurar
-- Python 3.12 kontrol eder / kurar
-- Ollama kontrol eder / kurar
-- `llama3.1` modelini indirir
-- Python `.venv` oluşturur
-- `requirements.txt` yükler
-- server/client `npm install` yapar
-- Python API, Node backend ve Vite client için ayrı PowerShell pencereleri açar
-
+> **Not:** İlk çalıştırmada `torch`, `transformers` ve diğer büyük paketler indirileceğinden birkaç dakika sürebilir.

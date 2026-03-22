@@ -61,6 +61,19 @@ export class BackendOrchestrator {
     return { turnIndex: 1, questionText: firstQuestion, sessionId };
   }
 
+  async generatePreviewQuestions(cfgInput) {
+    const cfg = cfgInput instanceof SessionConfig ? cfgInput : new SessionConfig(cfgInput);
+    return await this.ai.generatePreviewQuestions(cfg);
+  }
+
+  async generateLiveHints(question) {
+    return await this.ai.generateLiveHints(question);
+  }
+
+  async generateLiveFeedback(question, answer) {
+    return await this.ai.generateLiveFeedback(question, answer);
+  }
+
   buildAnswerKey(answer = {}) {
     return [
       Number(answer?.questionIndex || 0),
@@ -543,6 +556,7 @@ export class BackendOrchestrator {
           transcriptText: archiveResult.transcriptText || transcriptText,
           report: report,
           visionAnalysis: archiveResult.visionArtifacts,
+          interviewType: session.config?.interviewType || "Technical"
         }).catch(err => console.error("[BackendOrchestrator] PythonAnalysisClient Error:", err));
       }
     }

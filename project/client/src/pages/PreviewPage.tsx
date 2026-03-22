@@ -4,15 +4,26 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Play, Mic, MicOff, Video, VideoOff } from "lucide-react";
 
+import { generatePreviewQuestions, startSession } from "@/lib/api";
+import type { SessionConfig } from "@/lib/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
+
 export function PreviewPage({
-  sessionId,
-  questions,
+  config,
+  setConfig,
   onStartInterview,
   onBack,
 }: {
-  sessionId: string;
-  questions: string[];
-  onStartInterview: () => void;
+  config: SessionConfig;
+  setConfig: (cfg: SessionConfig) => void;
+  onStartInterview: (sessionId: string) => void;
   onBack: () => void;
 }) {
   // --- Camera preview state ---
@@ -129,6 +140,44 @@ export function PreviewPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [startingSession, setStartingSession] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    async function fetchQuestions() {
+      setLoadingQuestions(true);
+      try {
+        const qs = await generatePreviewQuestions(config);
+        if (mounted) {
+          setQuestions(qs);
+        }
+      } catch (e) {
+        console.error("Failed to generate questions", e);
+      } finally {
+        if (mounted) setLoadingQuestions(false);
+      }
+    }
+    fetchQuestions();
+    return () => {
+      mounted = false;
+    };
+  }, [config.interviewType, config.role, config.companyOrIndustry, config.domainInterest, config.difficulty]);
+
+  const handleStartInterview = async () => {
+    stopCamera();
+    stopMic();
+    setStartingSession(true);
+    try {
+      const res = await startSession(config);
+      onStartInterview(res.sessionId);
+    } catch (e) {
+      console.error("Failed to start session", e);
+      setStartingSession(false);
+    }
+  };
+
   return (
     <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr] lg:min-h-[calc(100vh-80px)]">
       {/* LEFT: Camera + Mic Panels */}
@@ -202,61 +251,105 @@ export function PreviewPage({
         </Card>
       </div>
 
-      {/* RIGHT: One Card contains (Sample Questions + Tip) stacked */}
-      <Card className="rounded-2xl">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Soru Önizleme</CardTitle>
-          <Badge variant="outline" className="rounded-full">
-            {sessionId}
-          </Badge>
-        </CardHeader>
-
-        <CardContent className="space-y-6">
-          {/* Sample questions section */}
-          <div className="space-y-3">
-            <div>
-              <div className="text-sm font-medium">Örnek Sorular (2 adet)</div>
-              <div className="text-sm text-muted-foreground">
-                Bunlar beklenti hizalamak içindir. Mülakatta birebir aynı soru gelmesi garanti değildir.
+        {/* RIGHT: Selected details + Sample Questions + Tip stacked */}
+      <div className="space-y-6 lg:h-full lg:flex lg:flex-col lg:overflow-y-auto pr-1">
+        
+        {/* Interview Setup Summary */}
+        <Card className="rounded-2xl shrink-0">
+          <CardHeader className="pb-3 border-b">
+            <CardTitle className="text-lg">Mülakat Özeti</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Tip:</span>
+              <Badge variant="secondary" className="font-medium">
+                {config.interviewType === "HR" ? "İnsan Kaynakları" : "Teknik"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Rol:</span>
+              <span className="font-medium text-right break-words max-w-[60%]">{config.role}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Şirket/Sektör:</span>
+              <span className="font-medium text-right break-words max-w-[60%]">{config.companyOrIndustry}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">İlgi Alanı:</span>
+              <span className="font-medium text-right break-words max-w-[60%]">{config.domainInterest}</span>
+            </div>
+            
+            {config.interviewType === "Technical" && (
+              <div className="pt-2 border-t mt-2 flex items-center justify-between text-sm gap-4">
+                <span className="text-muted-foreground font-medium shrink-0">Zorluk Seçin:</span>
+                <Select
+                  value={config.difficulty}
+                  onValueChange={(v) => setConfig({ ...config, difficulty: v as "Junior" | "Intermediate" })}
+                >
+                  <SelectTrigger className="h-8 text-xs w-[140px] rounded-xl">
+                    <SelectValue placeholder="Zorluk" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Junior">Junior (Başlangıç)</SelectItem>
+                    <SelectItem value="Intermediate">Intermediate (Orta)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Soru Önizleme</CardTitle>
+          </CardHeader>
+
+          <CardContent className="space-y-6">
+            <div className="space-y-3">
+              <div>
+                <div className="text-sm font-medium">Örnek Sorular</div>
+              </div>
+
+              {loadingQuestions ? (
+                <div className="py-8 flex flex-col items-center justify-center text-muted-foreground">
+                   <Loader2 className="h-6 w-6 animate-spin mb-2" />
+                   <span className="text-sm">Yapay zeka soruları hazırlıyor...</span>
+                </div>
+              ) : (
+                questions.map((q, i) => (
+                  <div key={i} className="rounded-2xl border p-4">
+                    <div className="text-sm font-medium">Örnek Soru {i + 1}</div>
+                    <div className="mt-2 text-base">{q}</div>
+                  </div>
+                ))
+              )}
             </div>
 
-            {questions.slice(0, 2).map((q, i) => (
-              <div key={i} className="rounded-2xl border p-4">
-                <div className="text-sm font-medium">Örnek Soru {i + 1}</div>
-                <div className="mt-2 text-base">{q}</div>
-              </div>
-            ))}
-          </div>
 
-          {/* Tip section */}
-          <div className="space-y-2">
-            <div className="text-sm font-medium">İpucu</div>
-            <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
-              1) Cevaba başlamadan 1 saniye durakla <br />
-              2) Tek cümle ana mesaj → örnek → sonuç <br />
-              3) Supportive modda mini yönlendirmeler alırsın
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button variant="outline" className="rounded-xl" onClick={onBack} disabled={startingSession}>
+                Kuruluma dön
+              </Button>
+              <Button
+                className="rounded-xl"
+                onClick={handleStartInterview}
+                disabled={startingSession || loadingQuestions}
+              >
+                {startingSession ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Başlatılıyor...
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" /> Mülakata Başla
+                  </>
+                )}
+              </Button>
             </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Button variant="outline" className="rounded-xl" onClick={onBack}>
-              Kuruluma dön
-            </Button>
-            <Button
-              className="rounded-xl"
-              onClick={() => {
-                stopCamera();
-                stopMic();
-                onStartInterview();
-              }}
-            >
-              <Play className="mr-2 h-4 w-4" /> Mülakata Başla
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

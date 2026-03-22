@@ -11,6 +11,11 @@ export function createSessionRouter({
   // Session lifecycle
   router.post("/session", sessionController.createSession);
   router.post("/session/:sessionId/start", sessionController.startSession);
+  router.post("/preview-questions", sessionController.generatePreviewQuestions);
+  
+  // Supportive Mode
+  router.post("/session/:sessionId/supportive/hints", sessionController.generateLiveHints);
+  router.post("/session/:sessionId/supportive/feedback", sessionController.generateLiveFeedback);
 
   // Consent
   router.patch("/session/:sessionId/consent", consentController.updateConsent);
@@ -24,6 +29,7 @@ export function createSessionRouter({
   router.post("/session/:sessionId/end", reportController.endSessionAndCreateReport);
   router.post("/session/:sessionId/report", reportController.endSessionAndCreateReport); // backward compatibility
   router.get("/session/:sessionId/report", reportController.getReport);
+  router.post("/session/:sessionId/mock-audio-llm", reportController.mockAudioLlm);
 
   return router;
 }

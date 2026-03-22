@@ -13,7 +13,7 @@ export function AISpeakerPanel({
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>AI Konuşuyor</CardTitle>
         <Badge variant={speaking ? "destructive" : "outline"} className="rounded-full">
-          {speaking ? "Speaking" : "Idle"}
+          {speaking ? "Konuşuyor" : "Beklemede"}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-3">

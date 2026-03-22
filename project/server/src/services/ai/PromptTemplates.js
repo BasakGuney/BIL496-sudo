@@ -35,7 +35,7 @@ export class PromptTemplates {
   }
 
   technicalQuestionRules(cfg) {
-    return `Technical modda ${cfg.role || "hedef rol"}, ${cfg.domain || "ilgi alanı"} ve şirket/sektör bağlamına uygun 5-6 teknik soru sor. Her soru için kendi kendine bir süre limiti (ideal olarak 2-3 dakika) belirle ve süreyi içinden takip et. Kuracağın cümlenin içinde 'süre, dakika, saniye' gibi kelimeler KULLANMA, süreyi adaya DİLLENDİRME. Süre aşılırsa nazikçe sonraki soruya geç.`;
+    return `Technical modda ${cfg.role || "hedef rol"} pozisyonu, ${cfg.companyOrIndustry || "belirtilen şirket/sektör"} bağlamı ve ${cfg.domain || "ilgi alanı"} konularına odaklanan, zorluk seviyesi ${cfg.difficulty || "Junior"} olan 5-6 teknik soru sor. Sorular doğrudan adayın seçtiği bu parametrelerle yakından ilgili olmalıdır. Her soru için kendi kendine bir süre limiti (ideal olarak 2-3 dakika) belirle ve süreyi içinden takip et. Kuracağın cümlenin içinde 'süre, dakika, saniye' gibi kelimeler KULLANMA, süreyi adaya DİLLENDİRME. Süre aşılırsa nazikçe sonraki soruya geç.`;
   }
 
   sessionInstructions(cfg) {
@@ -52,7 +52,11 @@ export class PromptTemplates {
     ].join(" ");
   }
 
-  transcriptEvaluationSystemPrompt() {
-    return "Türkçe mülakat değerlendirme uzmanısın. Verilen soru-cevap çiftleri için sadece geçerli JSON döndür. Şema: {overallScore:number, content:[{key,label,score,detail}], communication:[{key,label,score,detail}], recommendations:[{title,text}], notes:string[], qaEvaluations:[{index:number,question:string,answer:string,relevance:number,clarity:number,durationSec:number,timeLimitSec:number,exceededTimeLimit:boolean,summary:string}] }";
+  transcriptEvaluationSystemPrompt(interviewType = "Technical") {
+    const hrMetrics = "Davranışsal ve İK perspektifiyle: İletişim, Empati, Problem Çözme, Özgüven ve Kültürel Uyum metriklerini kullanarak";
+    const techMetrics = "Teknik perspektifle: İlgililik, Kapsam ve Derinlik, Teknik Terim Hakimiyeti metriklerini kullanarak";
+    const perspective = interviewType === "HR" ? hrMetrics : techMetrics;
+    
+    return `Türkçe mülakat değerlendirme uzmanısın. ${perspective} sadece geçerli JSON döndür. Şema: {overallScore:number, content:[{key,label,score,detail}], communication:[{key,label,score,detail}], recommendations:[{title,text}], notes:string[], qaEvaluations:[{index:number,question:string,answer:string,relevance:number,clarity:number,durationSec:number,timeLimitSec:number,exceededTimeLimit:boolean,summary:string}] }`;
   }
 }

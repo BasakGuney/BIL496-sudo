@@ -76,7 +76,7 @@ export class PythonAnalysisClient {
 
     this.logger.info(`Sending ${validPaths.length} file${validPaths.length === 1 ? "" : "s"} to Python API for audio analysis...`);
     try {
-      const audioResponse = await this.fetchImpl(`${this.baseUrl}/analyze-session`, {
+      const audioResponse = await this.fetchImpl(`${this.baseUrl}/analyze-audio`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -105,7 +105,7 @@ export class PythonAnalysisClient {
     }
   }
 
-  async analyzeTranscript({ sessionId, transcriptText = "", qaEvaluations = [] }) {
+  async analyzeTranscript({ sessionId, transcriptText = "", qaEvaluations = [], interviewType = "Technical" }) {
     if (!sessionId || (!transcriptText && qaEvaluations.length === 0)) {
       this.logger.warn("PythonAnalysisClient: Missing transcript content, skipping transcript analysis.");
       return false;
@@ -119,7 +119,8 @@ export class PythonAnalysisClient {
         body: JSON.stringify({
           qaPairs: qaEvaluations,
           transcriptText,
-          session_id: sessionId
+          session_id: sessionId,
+          interviewType: interviewType
         })
       });
 
@@ -190,7 +191,7 @@ export class PythonAnalysisClient {
     try {
       await fs.mkdir(sessionDir, { recursive: true });
       await fs.writeFile(
-        path.join(sessionDir, "transcript_analysis_out.json"),
+        path.join(sessionDir, "transcript_report.json"),
         `${JSON.stringify(fallbackPayload, null, 2)}\n`,
         "utf8"
       );
@@ -199,7 +200,7 @@ export class PythonAnalysisClient {
     }
   }
 
-  async analyzeSessionAndTranscript({ sessionId, baseDir, candidateAnswerAudioFiles = [], transcriptText = "", report = null, visionAnalysis = null }) {
+  async analyzeSessionAndTranscript({ sessionId, baseDir, candidateAnswerAudioFiles = [], transcriptText = "", report = null, visionAnalysis = null, interviewType = "Technical" }) {
     if (!sessionId || !baseDir) {
       this.logger.warn("PythonAnalysisClient: Missing sessionId or baseDir, skipping analysis.");
       return;
@@ -219,7 +220,7 @@ export class PythonAnalysisClient {
       }
     }
 
-    // 2. Call /analyze-session one file at a time so incremental item outputs are
+    // 2. Call /analyze-audio one file at a time so incremental item outputs are
     // appended/merged into the session artifact as each answer arrives.
     if (wavPaths.length > 0) {
       for (const wavPath of wavPaths) {
@@ -234,7 +235,7 @@ export class PythonAnalysisClient {
     // 3. Call /analyze-transcript
     const qaEvaluations = report?.qaEvaluations || [];
     if (qaEvaluations.length > 0 || transcriptText) {
-      const transcriptAnalysisSucceeded = await this.analyzeTranscript({ sessionId, transcriptText, qaEvaluations });
+      const transcriptAnalysisSucceeded = await this.analyzeTranscript({ sessionId, transcriptText, qaEvaluations, interviewType });
       if (!transcriptAnalysisSucceeded) {
         await this.writeTranscriptFallbackArtifact({ sessionDir, transcriptText, qaEvaluations });
       }
@@ -248,4 +249,5 @@ export class PythonAnalysisClient {
       this.logger.info("No vision analysis payload available. Skipping vision analysis.");
     }
   }
+
 }

@@ -7,6 +7,7 @@ export class ReportController {
     this.endSessionAndCreateReport = this.endSessionAndCreateReport.bind(this);
     this.ingestCandidateAnswer = this.ingestCandidateAnswer.bind(this);
     this.ingestVisionFrame = this.ingestVisionFrame.bind(this);
+    this.mockAudioLlm = this.mockAudioLlm.bind(this);
   }
 
   async getReport(req, res, next) {
@@ -48,6 +49,15 @@ export class ReportController {
   async ingestVisionFrame(req, res, next) {
     try {
       const result = await this.backendOrchestrator.ingestVisionFrame(req.params.sessionId, req.body || {});
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async mockAudioLlm(req, res, next) {
+    try {
+      const result = await this.backendOrchestrator.mockAudioLlm(req.params.sessionId);
       res.json(result);
     } catch (error) {
       next(error);

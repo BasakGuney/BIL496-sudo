@@ -1,492 +1,577 @@
-# Sistem Mimarisi ve Modül İşleyişi - Detaylı Teknik Doküman
+# Sistem Mimarisi — Detaylı Teknik Dokümantasyon
 
-Bu belge, projenin **uçtan uca nasıl çalıştığını**, her ana klasör ve modülün görevini, özellikle de **audio**, **vision**, **transcript**, **LLM yorumlama**, **rapor üretimi** ve **artifact akışını** detaylı şekilde anlatır.
-
----
-
-# 1. Genel Mimari
-
-Sistem 3 ana katmandan oluşur:
-
-1. **Client (React + Vite)**
-2. **Node.js Backend (Express + orchestration katmanı)**
-3. **Python Analysis API (FastAPI + model inference + Ollama yorumları)**
-
-Temel amaç:
-- aday ile gerçek zamanlı sesli mülakat yapmak,
-- transcript toplamak,
-- adayın ses cevaplarını arşivlemek,
-- görüntüden davranışsal sinyaller çıkarmak,
-- ses/görüntü/metin verilerini ayrı ayrı analiz etmek,
-- bunları son bir feedback ekranında göstermek.
+> **Proje:** AI Destekli Mülakat Simülatörü  
+> **Son Güncelleme:** Mart 2025  
+> **Stack:** Node.js (Express) + React (Vite) + Python 3.11 FastAPI  
 
 ---
 
-# 2. Yüksek Seviye Veri Akışı
+## 1. Genel Mimari
 
-## 2.1 Mülakat başlamadan önce
-- Kullanıcı setup ekranında bilgileri girer.
-- Backend yeni bir session oluşturur.
-- Session için benzersiz bir `S-...` id üretilir.
-
-## 2.2 Mülakat sırasında
-- Browser mikrofon ve kameraya bağlanır.
-- Realtime ses bağlantısı OpenAI üzerinden yürür.
-- Kamera kareleri belirli aralıklarla backend'e yollanır.
-- Backend bu kareleri Python vision analiz sürecine verir.
-- Realtime transcript ve candidate audio segmentleri tarayıcı tarafında tutulur.
-- Candidate cevap sesleri aralıklı olarak backend'e incremental biçimde yüklenir.
-
-## 2.3 Mülakat bittiğinde
-- Transcript ve candidate audio listesi backend'e gönderilir.
-- Backend raporun temel gövdesini üretir.
-- Session klasörü altında artifact dosyalarını yazar.
-- Python analysis client audio / transcript / vision analizlerini tetikler.
-- Python tarafında model çıktıları ve LLM yorumları üretilir.
-- Client hazır raporu polling ile bekler.
-- Rapor hazır olduğunda feedback ekranı gösterilir.
-
----
-
-# 3. Client Katmanı
-
-## 3.1 `project/client/src/app`
-Uygulamanın sayfa akışı burada toplanır.
-
-### `App.tsx`
-- route yönetir (`setup`, `preview`, `interview`, `feedback`)
-- session id ve rapor state'ini taşır
-- interview bitince feedback'e geçişi yönetir
-
-## 3.2 `project/client/src/pages`
-
-### `SetupPage.tsx`
-- aday bilgilerini toplar
-- backend'de session oluşturur
-
-### `InterviewPage.tsx`
-Bu sayfa canlı mülakat ekranıdır.
-
-Sorumlulukları:
-- realtime görüşmeyi başlatmak
-- kamerayı açmak
-- vision analyzer başlatmak
-- incremental audio upload yapmak
-- bitişte transcript + audio'yu backend'e göndermek
-- rapor hazır olana kadar beklemek
-
-### `FeedbackPage.tsx`
-- backend'den gelen zenginleştirilmiş raporu gösterir
-- audio skorları
-- vision skorları
-- transcript/vision/audio LLM panelleri
-- birleşik öneriler
-- skor açıklamaları
-
-## 3.3 `project/client/src/lib`
-
-### `realtimeClient.ts`
-Bu dosya canlı mülakatın ses omurgasıdır.
-
-Başlıca görevleri:
-- WebRTC session oluşturmak
-- OpenAI realtime ile sesli bağlantı kurmak
-- transcript parçalarını toplamak
-- candidate audio segmentlerini kaydetmek
-- gerektiğinde bunları base64'e dönüştürmek
-
-### `visionAnalysis.ts`
-- browser kamerasından belirli aralıklarla frame alır
-- frame'i JPEG/base64 olarak backend'e yollar
-- supportive mode için overlay state üretir
-
-### `api.ts`
-- setup, endSession, getReport gibi REST çağrılarını yapar
-- report hazır olana kadar polling yardımcıları içerir
-
-### `types.ts`
-- feedback rapor tipi
-- vision analysis tipi
-- score meta tipi
-- transcript / audio / recommendation yapıları
-
----
-
-# 4. Node.js Backend Katmanı
-
-
-## 4.1 `project/server/src/domain`
-Alan modelinin bulunduğu katmandır.
-
-- `entities/`: Session, report gibi çekirdek iş nesneleri
-- `enums/`: Session state, interview type gibi sabit kategoriler
-- `errors/`: Uygulama seviyesinde anlamlı hata tipleri
-- `value-objects/`: Session config, consent gibi kurallı veri paketleri
-
-## 4.2 `project/server/src/dto`
-API sınırındaki veri şekillerini tanımlar.
-
-- `requests/`: dışarıdan gelen payload şekilleri
-- `responses/`: dışarı dönen payload şekilleri
-- `responses/views/`: client'a uygun görünüm nesneleri (`ReportView` gibi)
-
-## 4.3 `project/server/src/persistence`
-Kalıcılaştırma ve repository abstraction katmanıdır.
-
-- `repositories/`: soyut repository arayüzleri
-- `storage/`: bu arayüzlerin dosya/in-memory implementasyonları
-
-## 4.4 `project/server/src/api`
-
-### Controllers
-- `SessionController`: session oluşturma / başlatma
-- `ConsentController`: izin güncelleme
-- `RealtimeController`: realtime offer/answer
-- `ReportController`: report alma, session bitirme, vision frame ingest
-
-### Routes
-- `sessionRoutes.js`: tüm HTTP uçlarını toplar
-
-## 4.5 `project/server/src/orchestration`
-
-### `BackendOrchestrator.js`
-Sistemin merkez koordinatörüdür.
-
-Görevleri:
-- session oluşturmak
-- runtime state tutmak
-- incremental audio merge etmek
-- transcript merge etmek
-- vision frame ingest etmek
-- session sonunda rapor üretmek
-- arşiv yazmak
-- Python analysis client çağırmak
-- getReport sırasında artifact'ları rapora eklemek
-
-### Vision runtime state içinde tutulan başlıca alanlar
-- `sampledFrames`
-- `faceDetectedFrames`
-- `totalFaceAreaRatio`
-- `totalCenterOffset`
-- `movementAccumulator`
-- `warnFrames`
-- `dangerFrames`
-- `lowEyeFrames`
-- `samples`
-
-Bu alanlar final `visionAnalysis` çıktısına dönüştürülür.
-
-## 4.6 `project/server/src/persistence/storage`
-
-### `FileReportArchive.js`
-Session klasörüne artifact yazan modüldür.
-
-Yazdığı temel şeyler:
-- `audio/answer_XX.webm`
-- `vision/frame_XX.jpg`
-- `transcript.txt`
-- `vision_analysis_out.json`
-- `audio_model_out.json`
-- `audio_analysis_out.txt`
-- `transcript_analysis_out.json`
-- `vision_llm_analysis_out.json`
-
-Ayrıca feedback ekranı için bu dosyaları tekrar okuyup `loadFeedbackArtifacts()` ile tek payload halinde döndürür.
-
-## 4.7 `project/server/src/services/analysis`
-
-### `PythonAnalysisClient.js`
-Node tarafı ile Python API arasında köprüdür.
-
-Görevleri:
-- `.webm` → `.wav` dönüşümü yapmak (`ffmpeg-static`)
-- `/analyze-session` çağırmak
-- `/analyze-transcript` çağırmak
-- `/analyze-vision` çağırmak
-- servis kapalıysa graceful fallback sağlamak
-
-### `VisionFrameAnalyzer.js`
-- Node içinden Python script (`frame_face_analyzer.py`) çalıştırır
-- frame bazlı bbox / faceCount / eyeCount / diagnostics çıktıları alır
-
-### `VisionSignalProcessor.js`
-`visionAnalysis` içinden üst seviye skorlar türetir.
-
-Örnek skorlar:
-- `focusScore`
-- `facePresenceScore`
-- `framingScore`
-- `headMovementScore`
-- `tensionScore`
-
-### `SignalAggregator.js`
-Audio + vision + transcript katmanlarından gelen sinyalleri tek rapor nesnesine çevirir.
-
-### `BehaviorAnalyzer.js`
-- transcript evaluator
-- audio signal processor
-- vision signal processor
-çıktılarını birleştirerek son rapor gövdesini oluşturur.
-
-### `TranscriptEvaluator.js`
-Transcript içeriğinden:
-- soru-cevap eşleşmeleri
-- ilgililik
-- netlik
-- pacing
-- öneriler
-üretir.
-
-OpenAI erişimi yoksa heuristic fallback üretir.
-
----
-
-# 5. Python Analysis API Katmanı
-
-Konum:
-
-```text
-project/server/src/services/analysis/python_api
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                          CLIENT (React/Vite)                     │
+│  SetupPage → PreviewPage → InterviewPage → FeedbackPage          │
+│  ─────────────────────────────────────────────────────────────── │
+│  WebRTC (SDP)   WebSocket (events)   REST (report/status)        │
+└──────────────┬──────────────────────────────┬────────────────────┘
+               │                              │
+               ▼                              ▼
+┌─────────────────────────┐     ┌─────────────────────────────────┐
+│   Node.js / Express     │     │   Python FastAPI (port 8000)     │
+│   AppServer.js          │────▶│   audio_analyzer.py             │
+│   BackendOrchestrator   │     │   transcript_analyzer.py        │
+│   AIServiceGateway      │     │   vision_analyzer.py (LLM part) │
+│   OpenAI Realtime API   │     │   api.py (HTTP endpoint)        │
+└─────────────────────────┘     └─────────────────────────────────┘
+               │
+               ▼
+      OpenAI Realtime API (WebRTC/WebSocket)
+      OpenAI Chat Completions API (gpt-4o-mini)
 ```
 
-## 5.1 `api.py`
-FastAPI uygulamasıdır.
-
-Endpoint'ler:
-- `/analyze-session`
-- `/analyze-transcript`
-- `/analyze-vision`
-- `/` health benzeri temel endpoint
-
-## 5.2 `audio_analyzer.py`
-Audio model inference ve Ollama yorumlarını içerir.
-
-## 5.3 `transcript_llm_analyzer.py`
-Transcript için LLM tabanlı JSON yapı üretir.
-
-## 5.4 `frame_face_analyzer.py`
-Tek frame üzerinden yüz/göz tespiti yapar.
-
-Öncelik sırası:
-1. MediaPipe
-2. MediaPipe Tasks
-3. OpenCV fallback
+Sistem üç ana katmandan oluşur:
+1. **React istemcisi** — kullanıcı arayüzü, oturum kurulumu, canlı mülakat, geri bildirim ekranı
+2. **Node.js sunucusu** — oturum yönetimi, OpenAI Realtime entegrasyonu, analiz koordinasyonu
+3. **Python API** — ağır makine öğrenmesi analizi (ses, görüntü, transcript) ve GPT yorum katmanı
 
 ---
 
-# 6. Audio İşleme Süreci
+## 2. Sunucu Dizin Yapısı ve Dosya İşlevleri
 
-## 6.1 Audio veri kaynağı
-Candidate konuşmaları browser tarafında segmentlenir ve backend'e gider.
-
-## 6.2 Saklama
-`audio/` altına cevap dosyaları yazılır.
-
-## 6.3 Python'a gönderim
-Node tarafı bunları WAV'a çevirir ve Python API'ye yollar.
-
-## 6.4 Kullanılan modeller
-
-### `superb/wav2vec2-base-superb-er`
-Emotion recognition modeli.
-
-Ürettiği temel emotion label'ları:
-- `neu`
-- `hap`
-- `ang`
-- `sad`
-
-### `mpoyraz/wav2vec2-xls-r-300m-cv7-turkish`
-Türkçe clarity analizi için kullanılır.
-
-## 6.5 Audio metrikleri
-Python tarafında bakılan başlıca metrikler:
-- duration
-- clarity
-- emotions
-- speech.wpm
-- pause_ratio
-- pure_speech_time
-
-## 6.6 Audio LLM yorumu
-Ham skorlar Ollama'ya gönderilir.
-
-LLM şunları yapar:
-- baskın duyguyu metinselleştirir
-- özgüven / gerginlik dengesini yorumlar
-- sert ton / coşku durumunu açıklar
-- kariyer koçu tarzında rapor üretir
-
-Çıktı dosyaları:
-- `audio_model_out.json`
-- `audio_analysis_out.txt`
-
----
-
-# 7. Vision İşleme Süreci
-
-## 7.1 Browser sampling
-`visionAnalysis.ts` belirli aralıklarla video elementinden kare alır.
-
-## 7.2 Backend ingest
-Bu kareler şu route'a gider:
-- `POST /session/:sessionId/vision/frame`
-
-## 7.3 Python frame analizi
-`frame_face_analyzer.py` şunlara bakar:
-- yüz var mı?
-- kaç yüz var?
-- bounding box nedir?
-- göz sayısı / göz görünürlüğü ne durumda?
-- hangi detector kullanıldı?
-
-## 7.4 Backend'te türetilen vision metrikleri
-`BackendOrchestrator` frame sonuçlarını biriktirerek şu metrikleri üretir:
-
-### Overview tarafı
-- `sampledFrames`
-- `faceDetectedFrames`
-- `missingFaceFrames`
-- `savedSampleCount`
-- `facePresenceRatio`
-- `facePresenceScore`
-- `focusScore`
-- `centeringScore`
-- `steadinessScore`
-- `averageFaceAreaRatio`
-- `averageCenterOffset`
-- `headMovementRaw`
-
-### Tension tarafı
-- `visualTensionScore`
-- `attentionRiskScore`
-- `movementRiskScore`
-- `eyeTensionScore`
-- `attentionDriftRatio`
-- `dangerFrameRatio`
-- `lowEyeRatio`
-- `warnFrames`
-- `dangerFrames`
-- `lowEyeFrames`
-
-## 7.5 Vision sample seçimi
-Her frame kalıcı tutulmaz.
-Sistem daha çok:
-- attention değişimi
-- önemli kadraj kayması
-- face count değişimi
-- belirgin merkez/alan farkı
-- önemli anlar
-üzerine sample seçer.
-
-Seçilen sample'lar `vision/` altında JPEG olarak yazılır.
-
-## 7.6 Vision LLM yorumu
-`vision_analysis_out.json` içindeki sayısal alanlar Ollama'ya gider.
-
-LLM şu tür çıktılar üretir:
-- kısa özet
-- camera presence / framing / stability / stress skor yorumları
-- güçlü yanlar
-- riskler
-- öneriler
-
-Çıktı dosyası:
-- `vision_llm_analysis_out.json`
+```
+server/
+├── index.js                          ← Giriş noktası (AppServer instanslagörüntüler ve listen)
+├── src/
+│   ├── AppServer.js                  ← Express kurulumu, route bağlantısı, middleware
+│   │
+│   ├── api/
+│   │   ├── controllers/
+│   │   │   ├── SessionController.js  ← POST /session, oturum başlatma/durdurma
+│   │   │   ├── ReportController.js   ← GET /session/:id/report
+│   │   │   ├── RealtimeController.js ← WebRTC SDP sunumu, WebSocket kurulumu
+│   │   │   └── ConsentController.js  ← PATCH /session/:id/consent
+│   │   ├── middleware/
+│   │   │   └── ErrorHandlerMiddleware.js
+│   │   └── routes/
+│   │       └── (route tanımları)
+│   │
+│   ├── orchestration/
+│   │   ├── BackendOrchestrator.js    ← Oturum yaşam döngüsü, analiz tetikleme, canlı hint/feedback
+│   │   ├── GuardrailsEngine.js       ← Consent ve state doğrulama kuralları
+│   │   ├── InterviewFlowPolicy.js    ← Mülakat akış politikası (OPENING → LOOP → CLOSING)
+│   │   └── InterviewSessionOrchestrator.js ← Tek oturum bazında akış yönetimi
+│   │
+│   ├── services/
+│   │   ├── ai/
+│   │   │   ├── AIServiceGateway.js   ← Preview sorular, canlı hint, canlı feedback, OpenAI çağrıları
+│   │   │   ├── OpenAIClientAdapter.js ← API key wrapper
+│   │   │   ├── OpenAiRealtimeGateway.js ← WebRTC SDP oluşturma, Realtime API bağlantısı
+│   │   │   └── PromptTemplates.js    ← Tüm sistem prompt'ları (interviewer, sorular, stil)
+│   │   │
+│   │   ├── analysis/
+│   │   │   ├── AudioSignalProcessor.js    ← Ses dosyalarını Python API'ye aktarır
+│   │   │   ├── BehaviorAnalyzer.js        ← Davranış sinyallerini değerlendirir
+│   │   │   ├── CandidateAudioTranscriber.js ← Aday ses segmentlerini transkripte çevirir
+│   │   │   ├── PythonAnalysisClient.js    ← Node↔Python HTTP köprüsü
+│   │   │   ├── SignalAggregator.js        ← Birden fazla analiz çıktısını birleştirir
+│   │   │   ├── TranscriptEvaluator.js     ← Transcript değerlendirme iş akışı
+│   │   │   ├── VisionFrameAnalyzer.js     ← Kamera frame'lerini Python'a gönderir
+│   │   │   └── VisionSignalProcessor.js   ← Vision sinyallerini işler
+│   │   │
+│   │   └── realtime/
+│   │       ├── RealtimeSessionManager.js  ← Aktif Realtime oturumlarını tutar
+│   │       ├── SessionConfigFactory.js    ← Oturum yapılandırma nesnesi üretir
+│   │       ├── SessionUpdateBuilder.js    ← Realtime session.update mesaj formatı
+│   │       └── TurnDetectionPolicy.js     ← VAD (Voice Activity Detection) parametreleri
+│   │
+│   ├── domain/
+│   │   ├── entities/
+│   │   │   └── InterviewSession.js   ← Oturum domain varlığı
+│   │   ├── value-objects/
+│   │   │   ├── SessionConfig.js      ← İsim, rol, zorluk, tip, mod gibi konfigürasyon
+│   │   │   └── Consent.js            ← Mikrofon ve kamera onayı
+│   │   ├── enums/
+│   │   │   └── SessionState.js       ← CONFIGURED → CONSENT_GRANTED → ACTIVE → ENDED
+│   │   └── errors/
+│   │       └── AppError.js
+│   │
+│   ├── persistence/
+│   │   ├── repositories/
+│   │   │   ├── IReportRepository.js  ← Arayüz: save / findById
+│   │   │   └── ISessionRepository.js
+│   │   └── storage/
+│   │       ├── InMemorySessionRepository.js ← Aktif oturumlar (sunucu süresi boyunca)
+│   │       ├── InMemoryReportRepository.js  ← Aktif raporlar (sunucu süresi boyunca)
+│   │       └── FileReportArchive.js         ← Oturum rapor JSON'larını diske yazar/okur
+│   │
+│   └── utils/
+│
+└── reports/
+    └── S-{timestamp}/
+        ├── audio_report.json         ← Ses analizi + GPT yorumu
+        ├── transcript_report.json   ← Transcript soru-cevap değerlendirmesi
+        └── vision_report.json        ← Görüntü analizi + GPT LLM raporu
+```
 
 ---
 
-# 8. Transcript İşleme Süreci
+## 3. Oturum Yaşam Döngüsü
 
-## 8.1 Transcript kaynağı
-Realtime session sırasında aday ve interviewer tarafı transcript olarak toplanır.
+```
+1. CONFIGURED   → POST /session        (SessionConfig oluşturulur, WebRTC SDP hazırlanır)
+2. CONSENT_GRANTED → PATCH /consent   (Mikrofon + kamera onayı alınır)
+3. ACTIVE       → POST /session/start  (OpenAI Realtime bağlantısı kurulur, mülakat başlar)
+4. ENDED        → POST /session/end    (Mülakat bitirilir, analiz pipeline'ı tetiklenir)
+```
 
-## 8.2 Soru-cevap eşleşmesi
-`TranscriptEvaluator` transcript'ten Q/A çiftleri çıkarır.
-
-## 8.3 Heuristic metrikler
-- relevance
-- clarity
-- durationSec
-- timeLimitSec
-- exceededTimeLimit
-- pacingScore
-
-## 8.4 LLM transcript yorumu
-Python tarafındaki `transcript_llm_analyzer.py`, transcript ve qaPairs verisini Ollama'ya yollar.
-
-Beklenen yapılandırılmış çıktı:
-- `overallScore`
-- `content`
-- `communication`
-- `recommendations`
-- `qaEvaluations`
-
-Çıktı dosyası:
-- `transcript_analysis_out.json`
+`BackendOrchestrator.js` bu dört geçişi koordine eder. Her geçişte `InMemorySessionRepository` güncellenir.
 
 ---
 
-# 9. Feedback Ekranına Veri Nasıl Gidiyor?
+## 4. OpenAI Realtime Entegrasyonu
 
-1. Backend session report nesnesini üretir.
-2. `FileReportArchive` artifact dosyalarını session klasörüne yazar.
-3. Python API ek artifact'ları üretir.
-4. `getReport()` çağrısında backend bu artifact'ları tekrar okuyup tek bir `ReportView` payload'ına dönüştürür.
-5. Client bu payload içinde şunları görür:
-   - `visionAnalysis`
-   - `audioAnalysis`
-   - `transcriptAnalysis`
-   - `visionLlmAnalysis`
-   - `scoreMeta`
-   - `analysisStatus`
-6. `FeedbackPage` bunları kutular ve skor kartları halinde gösterir.
+### 4.1 Bağlantı Modeli
+- **WebRTC SDP** aracılığıyla istemci ↔ OpenAI Realtime API bağlantısı kurulur
+- `OpenAiRealtimeGateway.js` SDP offer/answer değişimini yönetir
+- Ses akışı **doğrudan istemci ↔ OpenAI** arasında WebRTC üzerinden gerçekleşir (sunucu sadece sinyal görevi görür)
 
----
+### 4.2 Interviewer System Prompt'u
+`PromptTemplates.js` → `sessionInstructions(cfg)` şunları birleştirir:
 
-# 10. Klasör Bazında İşlevler
+| Bileşen | İçerik |
+|---|---|
+| `baseInterviewerInstructions()` | Türkçe zorunluluğu, OPENING→LOOP→CLOSING akışı |
+| `turkishInterviewerOpening(cfg)` | İsimli selamlama, mülakat türü/süresi açıklaması, "Hazırsanız başlayalım mı?" |
+| `hrQuestionRules()` / `technicalQuestionRules(cfg)` | STAR tekniği (HR) veya rol/domain/zorluk bazlı teknik sorular (Technical) |
+| `supportiveStyle()` / `neutralStyle()` | Mod bazlı davranış kuralları |
 
-## `project/client`
-Kullanıcı arayüzü.
+**Mülakat Tipleri:**
+- **HR:** STAR yaklaşımı, 5–6 davranışsal soru, 1–2 dk/soru
+- **Technical:** Rol + şirket/sektör + domain + zorluk seviyesine özel, 5–6 teknik soru, 2–3 dk/soru
 
-## `project/server`
-Node backend, orchestration, realtime ve report API katmanı.
+**Zorluk Seviyeleri:** Junior (temel/kavramsal) · Intermediate (senaryo/optimizasyon)
 
-## `project/server/src/api`
-HTTP endpoint yönetimi.
-
-## `project/server/src/orchestration`
-Akış koordinasyonu.
-
-## `project/server/src/services/analysis`
-Audio / vision / transcript analiz köprüleri.
-
-## `project/server/src/services/analysis/python_api`
-Model inference + LLM yorumlama + FastAPI.
-
-## `project/server/src/persistence/storage`
-Session artifact arşivi ve in-memory repository'ler.
-
-## `project/server/reports`
-Her oturumun kalıcı çıktıları.
-
-## `scripts`
-Kurulum / çalıştırma kolaylaştırma scriptleri.
+### 4.3 Turn Detection (VAD)
+`TurnDetectionPolicy.js` → `server_vad` modu, OpenAI'nın ses aktivite tespiti
 
 ---
 
-# 11. Sonuç
+## 5. Canlı Hint ve Feedback (Supportive Mod)
 
-Bu proje klasik bir CRUD uygulaması değildir; gerçek zamanlı sesli görüşme, frame tabanlı vision analizi, offline/yerel LLM yorumları, transcript analizi ve arşivlenmiş artifact'ların tek bir feedback ekranında birleştirilmesi üzerine kurulmuş çok katmanlı bir sistemdir.
+Sadece `mode: "Supportive"` seçildiğinde aktif olur.
 
-Özellikle kritik akış şudur:
+### 5.1 Canlı Hint (`generateLiveHints`)
+- **Ne zaman tetiklenir:** Mülakat sırasında mülakatçı yeni bir soru sorduğunda
+- **Model:** `gpt-4o-mini` · `temperature: 0.6`
+- **Filtreleme:** `isIntroQuestion()` — "hazırsanız başlayalım mı", "merhaba" gibi intro sorular için hint üretilmez
+- **Çıktı:** 3 adet kısa yönlendirici ipucu (3–6 kelime)
+  ```json
+  {"hints": ["Önce problemi tanımla", "Kullandığın teknolojiyi detaylandır", "Somut bir sonuçtan bahset"]}
+  ```
 
-**Browser → Node realtime/backend → Python model analizi → Ollama yorumları → Node report view → React feedback ekranı**
+### 5.2 Canlı Feedback (`generateLiveFeedback`)
+- **Ne zaman tetiklenir:** Aday soruyu yanıtladıktan sonra (cevap işlendiğinde)
+- **Model:** `gpt-4o-mini` · `temperature: 0.6`
+- **Filtreleme:**
+  - Intro soru ise → feedback yok (`isIntroQuestion`)
+  - Çok kısa/basit cevap ise (< 15 karakter, "evet", "hayır") → feedback yok (`isShortOrSimpleAnswer`)
+- **Çıktı:** Tek bir toast (popup bildirimi) — puan verilmez, sadece kaliteli metin
+  ```json
+  {
+    "type": "success | info | warning",
+    "title": "Harika Cevap! | Şuna Dikkat Et | Gelişim Alanı",
+    "message": "State yönetiminden bahsettin ama Context API gibi araçlardan da örnek vermeliydin."
+  }
+  ```
+- **Kural:** Asla `+10 puan` tarzı ifade kullanılmaz. Yapıcı, yönlendirici, motivasyon odaklı.
 
-Bu yüzden kurulum sırasında:
-- Python 3.12
-- Node.js
-- Ollama + `llama3.1`
-- OpenAI API key
+---
 
-olmadan sistem tam kapasite çalışmaz.
+## 6. Analiz Pipeline'ı (Oturum Sonu)
+
+Mülakat bittiğinde `BackendOrchestrator.endSession()` şu adımları sırayla tetikler:
+
+```
+endSession()
+  ├─ CandidateAudioTranscriber → ses segmentlerini birleştirir
+  ├─ PythonAnalysisClient.analyzeAudio() → Python API /audio-analyze
+  ├─ PythonAnalysisClient.analyzeTranscript() → Python API /transcript-analyze
+  ├─ VisionFrameAnalyzer → birikmiş vision frame'lerini Python API'ye gönderir
+  └─ FileReportArchive.save() → reports/S-{id}/ altına JSON'lar yazılır
+```
+
+---
+
+## 7. Python API (`python_api/`)
+
+### 7.1 `api.py` — FastAPI HTTP Sunucusu
+
+| Endpoint | Metot | İşlev |
+|---|---|---|
+| `/health` | GET | Servis sağlık kontrolü |
+| `/audio-analyze` | POST | Ses dosyası analizi |
+| `/transcript-analyze` | POST | Transcript değerlendirmesi |
+| `/vision-report` | POST | Vision LLM raporu |
+| `/frame-analyze` | POST | Canlı frame yüz tespiti |
+
+---
+
+## 8. Ses Analizi (`audio_analyzer.py`)
+
+### 8.1 Kullanılan Modeller
+
+| Model | Hugging Face ID | Görev |
+|---|---|---|
+| **SUPERB Emotion** | `superb/wav2vec2-base-superb-er` | Duygu sınıflandırması (neu/hap/ang/sad) |
+| **Wav2Vec2 Base** | `facebook/wav2vec2-base-960h` | Ses netliği (CTC confidence tabanlı) |
+
+Her iki model de `torch` ile çalışır; GPU varsa CUDA, yoksa CPU kullanılır. Modeller ilk çalıştırmada `.model-cache/` altına indirilir.
+
+### 8.2 Ham Metrik Çıkarımı
+
+`AudioAnalyzer.process_audio(filepath)` → her ses segmenti için:
+
+```
+{
+  "duration": float (saniye),
+  "emotions": {"neu": 45.2, "hap": 30.1, "ang": 15.0, "sad": 9.7},
+  "clarity": float (0-100),
+  "speech": {
+    "wpm": float,         ← Onset detection ile konuşma hızı
+    "pause_ratio": float, ← Sessiz süre / toplam süre %
+    "pure_speech_time": float
+  }
+}
+```
+
+**Netlik hesabı:** Wav2Vec2 CTC logitlerine softmax uygulanır → her zaman adımında max olasılık alınır → süre boyunca ortalanır → `(avg_confidence - 0.5) / 0.5 * 100` formülüyle 0–100 aralığına ölçeklenir.
+
+**Konuşma hızı:** `librosa.onset.onset_strength` + `peak_pick` ile onset sayısı tahmin edilir, `/2.2` sabitiyle kelimeye dönüştürülür.
+
+### 8.3 Ağırlıklı Ortalama (`compute_overall`)
+
+Birden fazla ses segmenti varsa **süre ağırlıklı** ortalama alınır:
+- Duygu dağılımı, netlik ve konuşma metrikleri her segment için segment süresiyle çarpılıp toplama bölünür.
+
+### 8.4 Deterministik Skorlama (Python)
+
+GPT'ye **hiçbir zaman** skor üretme görevi verilmez. Tüm sayısal skorlar Python tarafında hesaplanır:
+
+| Skor | Hesap Mantığı |
+|---|---|
+| **Ses Netliği** | Wav2Vec2 CTC confidence → doğrudan 0–100 |
+| **Duygusal Denge** | Baskın duygu yüzdesi: >60% → 30, >45% → 50, >35% → 65, diğer → 80 |
+| **Konuşma Hızı** | İdeal: 110–150 WPM → 80; 90–110 veya 150–175 → 60; 70–90 veya 175–200 → 45; diğer → 30 |
+| **Akıcılık** | Duraklama oranı: ≤15% → 85; ≤25% → 65; ≤40% → 45; diğer → 25 |
+
+### 8.5 GPT Yorum Katmanı (`interpret_report_with_gpt`)
+
+Python skorları hesaplandıktan sonra GPT'ye yalnızca **insan okunabilir metin** ürettirmek için şu bağlam gönderilir:
+
+```
+clarity: {value, band: "Yüksek/Orta/Düşük"}
+avgWPM: {value, band: "İdeal aralıkta/Hızlı/Yavaş"}
+pauseRatio: {value: "%40.6", band: "Fazla (sık durak)"}
+totalSpeechTime: "3 dk 31 sn"   ← Saniye asla ham gönderilmez
+totalDuration: "5 dk 12 sn"
+dominantEmotion: {label, score}
+```
+
+**Model:** `gpt-4o-mini` · `temperature: 0.2` · `response_format: json_object`
+
+GPT'nin ürettiği `scores` dizisindeki sayısal değerler Python'un deterministik sonuçlarıyla **üzerine yazılır** — GPT sadece `detail` alanını doldurur.
+
+**Çıktı şeması:**
+```json
+{
+  "overallAnalysis": "3-4 cümlelik metin (netlik, hız, duraklama, ton)",
+  "clarityBadge": "Netlik seviyesi yüksek",
+  "dominantEmotion": "Nötr ve dengeli ton",
+  "secondaryEmotion": "Olumlu / canlı ifade",
+  "scores": [
+    {"label": "Ses Netliği", "score": 78, "detail": "..."},
+    {"label": "Duygusal Denge", "score": 65, "detail": "..."},
+    {"label": "Konuşma Hızı", "score": 60, "detail": "..."},
+    {"label": "Akıcılık", "score": 45, "detail": "..."}
+  ],
+  "tonDistribution": [{"label": "...", "score": 45.2}],
+  "speechSummary": ["madde 1", "madde 2", "madde 3"],
+  "recommendations": {
+    "nextInterview": "...",
+    "performanceDevelopment": "..."
+  }
+}
+```
+
+---
+
+## 9. Transcript Analizi (`transcript_analyzer.py`)
+
+### 9.1 Genel Akış
+
+```
+Ham Transcript (metin dosyası)
+  ↓
+_merge_consecutive_candidate_lines()   ← Üst üste [Candidate] satırlarını birleştirir
+  ↓
+parse_transcript_python()              ← [Interviewer]/[Candidate] satır bazlı parse
+  ↓
+parse_transcript_to_structured_blocks_gpt()  ← GPT hangi bloklar "setup_or_meta"?
+  ↓
+Blok tipi birleştirme (substring eşleşme)
+  ↓
+Her "question" bloğu için analyze_single_qa_gpt()
+  ↓
+Genel değerlendirme için generate_overall_analysis_gpt()
+```
+
+### 9.2 İki Katmanlı Parse Stratejisi
+
+**Neden iki parser?**
+- `parse_transcript_python` — GPT'ye bağımlı değildir, hiçbir soru-cevap çiftini düşürmez. Güvenlik ağı görevi görür.
+- `parse_transcript_to_structured_blocks_gpt` — GPT hangi blokların "setup_or_meta" (selamlama, hazırlık soruları, kapanış teşekkürleri) olduğuna karar verir.
+
+**Eşleştirme:** GPT'nin kısaltılmış sorusu ile Python parser'ın ham metni **substring** karşılaştırmasıyla eşleştirilir (tam eşleşme yapılmaz — GPT geçiş ifadelerini atabilir).
+
+### 9.3 Meta Soru Tespiti
+
+GPT prompt'unda **açık kural listesi** verilmiştir. `setup_or_meta` olarak işaretlenmesi beklenenler:
+
+- Selamlama: "Merhaba", "Hoş geldiniz", "İyi günler"
+- Hazırlık teyidi: "Hazırsanız başlayalım mı?", "Başlayalım mı?"
+- Süre/kural açıklaması: "Mülakatımız 30 dk sürecek"
+- Akış yönlendirmesi: "Bir sonraki soruya geçelim"
+- Kapanış/teşekkür: "Görüşmek üzere", "Başka sorunuz var mı?"
+
+Bu ifadeler `excludedFromOverall: true, visibleInReport: false` olur.
+
+### 9.4 Soru-Cevap Değerlendirmesi (`analyze_single_qa_gpt`)
+
+**Model:** `gpt-4o-mini` · `temperature: 0.0` · `response_format: json_object`
+
+**Soru Tipleri:**
+
+| Tip | Açıklama |
+|---|---|
+| `self_presentation` | Kendini tanıtma |
+| `motivation` | Motivasyon soruları |
+| `behavioral` | Davranışsal (STAR) |
+| `experience` | Deneyim odaklı |
+| `technical_knowledge` | Teknik bilgi |
+| `technical_experience` | Teknik deneyim |
+| `problem_solving` | Problem çözme |
+
+**Metrikler:**
+
+| Metrik | Ne Zaman Aktif |
+|---|---|
+| `relevance` | Her zaman (zorunlu) |
+| `clarity` | Her zaman (zorunlu) |
+| `depth` | Her zaman (zorunlu) |
+| `evidenceExample` | Sadece behavioral/experience sorularında |
+| `technicalAccuracy` | Sadece technical_knowledge/technical_experience'da |
+
+Uygunsuz metrikler **kesinlikle null** olur (0 değil).
+
+### 9.5 Soru Skoru Hesaplama (Deterministik)
+
+```python
+self_presentation / motivation:
+  score = rel*0.40 + clar*0.30 + dep*0.30
+
+behavioral / experience:
+  score = rel*0.30 + clar*0.20 + dep*0.25 + ev*0.25
+
+technical_knowledge:
+  score = rel*0.25 + clar*0.20 + dep*0.25 + tech*0.30
+
+technical_experience / problem_solving:
+  score = rel*0.20 + clar*0.15 + dep*0.20 + ev*0.25 + tech*0.20
+```
+
+Zayıf cevap eşiklerı: `score < 55` veya `depth < 50` veya `evidenceExample < 45` veya `technicalAccuracy < 50`.
+
+### 9.6 Genel Analiz (`generate_overall_analysis_gpt`)
+
+Tüm soru-cevap çiftleri ve birleşik skor verisi GPT'ye gönderilir. Kural listesi:
+
+- Tek tek soruları tekrar anlatma — **pattern** bul
+- `overallAnalysis` en az 3 paragraf (güçlü yönler, zayıf yönler, role uygunluk)
+- `strengths` — tekrarlayan güçlü davranış örüntüleri
+- `improvementAreas` — tekrarlayan zayıf noktalar (konu adı değil, davranış)
+- `focusTopics` — somut konu başlıkları ("JWT Yapısı", "CSS Flexbox")
+- `recommendations` — 3 kategori: "Bir Sonraki Mülakatta", "Performans Geliştirme", "Çalışma Planı"
+
+### 9.7 Genel Skor Weighting
+
+```python
+Ağırlıklar:
+  behavioral / experience / technical_knowledge / self_presentation / motivation → 1.2
+  technical_experience / problem_solving → 1.4
+
+overallScore = sum(score * weight) / sum(weight)
+```
+
+---
+
+## 10. Görüntü Analizi (`vision_analyzer.py`)
+
+Dosya iki ayrı sorumluluğa sahiptir:
+
+### 10.1 Canlı Frame Analizi (Bölüm 1)
+
+Mülakat sırasında her ~1 saniyede bir kamera frame'i `VisionFrameAnalyzer.js` tarafından Python'a gönderilir.
+
+**Araçlar:**
+- **MediaPipe BlazeFace** (TFLite) — yüz tespiti ve konumlandırma (primary)
+- **OpenCV Haar Cascade** — MediaPipe mevcut değilse fallback
+- **BlazeFace modeli:** `blaze_face_short_range.tflite` (`.model-cache/` altında otomatik indirilir)
+
+**Çıktı (her frame):**
+```json
+{
+  "faceCount": 1,
+  "eyeCount": 2,
+  "bbox": {"x": 0.3, "y": 0.2, "w": 0.4, "h": 0.5},
+  "faceCropBase64": "...",
+  "source": "mediapipe",
+  "detector": {"used": "mediapipe", "mediapipeAvailable": true}
+}
+```
+
+### 10.2 Oturum Sonu LLM Raporu (Bölüm 2)
+
+`interpret_vision_report_with_gpt()` — birikmiş frame verilerinden GPT destekli final raporu.
+
+**Model:** `gpt-4o-mini`
+
+Rapor şeması (`vision_report.json`):
+```json
+{
+  "report": {
+    "overallScore": 72,
+    "overallLabel": "İyi",
+    "overallAnalysis": "...",
+    "posture": {"score": 75, "label": "...", "detail": "..."},
+    "eyeContact": {"score": 80, "label": "...", "detail": "..."},
+    "facialExpression": {"score": 65, "label": "...", "detail": "..."},
+    "composure": {"score": 70, "label": "...", "detail": "..."},
+    "strengths": ["..."],
+    "improvements": ["..."],
+    "recommendations": ["..."]
+  }
+}
+```
+
+---
+
+## 11. Kalıcılık ve Dosya Arşivi
+
+### 11.1 InMemory Depolama
+- `InMemorySessionRepository` ve `InMemoryReportRepository` — sadece sunucu çalışırken tutulur
+- Sunucu restart edildiğinde kaybolur
+
+### 11.2 `FileReportArchive.js`
+
+Oturum sonunda raporları diske yazar:
+
+```
+reports/
+  S-{timestamp}/
+    audio_report.json        ← AudioAnalyzer çıktısı + GPT yorumu
+    transcript_report.json   ← QA değerlendirmeleri + genel analiz
+    vision_report.json        ← Frame özeti + GPT LLM raporu
+```
+
+`loadFeedbackArtifacts(sessionId)` bu JSON dosyalarını okuyarak tek bir nesne döndürür.
+
+---
+
+## 12. Feedback Ekranı (FeedbackPage)
+
+Üç sekme: **Yanıt Analizi** · **Ses Analizi** · **Görüntü Analizi**
+
+### 12.1 Veri Okuma Alanları
+
+| Sekme | FeedbackReport Alanı |
+|---|---|
+| Yanıt Analizi | `report.transcriptReport` |
+| Ses Analizi | `report.audioLlmReport` |
+| Görüntü Analizi | `report.visionLlmAnalysis.report` |
+
+### 12.2 `analysisStatus` ile Polling
+
+`FeedbackPage` analizlerin tamamlanıp tamamlanmadığını `analysisStatus` ile takip eder:
+
+```json
+{
+  "audio": true,        ← Ham ses analizi tamamlandı
+  "audioLlm": true,     ← GPT yorum katmanı tamamlandı
+  "transcript": true,   ← Transcript değerlendirmesi tamamlandı
+  "vision": true,       ← Frame birikimi tamamlandı
+  "visionLlm": true     ← Vision LLM raporu tamamlandı
+}
+```
+
+Tüm alanlar `true` olana kadar belirli aralıklarla `GET /session/:id/report` çağrısı yapılır.
+
+---
+
+## 13. Kullanılan Tüm Modeller / API'lar — Özet Tablosu
+
+| Servis | Model / Sürüm | Nerede | Amaç |
+|---|---|---|---|
+| OpenAI Realtime | `gpt-4o-realtime-preview` | Node.js | Canlı AI mülakatçı ses akışı |
+| OpenAI Chat | `gpt-4o-mini` | Node.js | Preview sorular |
+| OpenAI Chat | `gpt-4o-mini` | Node.js | Canlı hint (Supportive mod) |
+| OpenAI Chat | `gpt-4o-mini` | Node.js | Canlı feedback (Supportive mod) |
+| OpenAI Chat | `gpt-4o-mini` | Python | Audio GPT yorum katmanı |
+| OpenAI Chat | `gpt-4o-mini` | Python | Transcript blok parse |
+| OpenAI Chat | `gpt-4o-mini` | Python | Transcript soru değerlendirmesi |
+| OpenAI Chat | `gpt-4o-mini` | Python | Transcript genel analiz |
+| OpenAI Chat | `gpt-4o-mini` | Python | Vision LLM raporu |
+| `superb/wav2vec2-base-superb-er` | Wav2Vec2 Fine-tuned | Python | Ses duygu sınıflandırması |
+| `facebook/wav2vec2-base-960h` | Wav2Vec2 Base | Python | Ses netliği (CTC confidence) |
+| MediaPipe BlazeFace | `blaze_face_short_range.tflite` | Python | Canlı yüz tespiti |
+| OpenCV Haar | `haarcascade_frontalface_default.xml` | Python | Yüz tespiti fallback |
+
+---
+
+## 14. Geliştirici Notları
+
+### Kurulum ve Çalıştırma
+
+**Terminal 1 — Python API:**
+```powershell
+cd server/src/services/analysis/python_api
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python api.py
+```
+
+**Terminal 2 — Node.js Sunucusu:**
+```powershell
+cd server
+$env:PYTHON_BIN="...\.venv\Scripts\python.exe"
+npm install
+npm run dev
+```
+
+**Terminal 3 — React İstemcisi:**
+```powershell
+cd client
+npm install
+npm run dev
+```
+
+### Önemli Tasarım Kararları
+
+1. **Skor üretimi her zaman Python'da (deterministik)** — GPT asla skor üretmez, yalnızca metin yorumlama yapar. Bu GPT halüsinasyonunun sayısal sonuçlara yansımasını engeller.
+
+2. **İki katmanlı transcript parse** — Python parser güvenlik ağıdır; GPT meta etiketleyicidir. GPT blok düşürse bile Python listesindeki bloklar korunur.
+
+3. **Supportive mod** — Gerçek zamanlı geri bildirim verirken kural: puan/not ifadesi yasak. Yapıcı ve motive edici ton zorunludur.
+
+4. **InMemory → FileArchive ayrımı** — Aktif oturumlar bellekte, tamamlanan raporlar diskte. Bu iki sistemin karışmaması için ayrı repository katmanları tutulmuştur.
