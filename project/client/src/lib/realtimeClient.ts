@@ -38,7 +38,7 @@ export type RealtimeConnection = {
   audioEl: HTMLAudioElement;
   audioCtx: AudioContext;
   getTranscript: () => TranscriptEntry[];
-  getCandidateAnswerAudios: () => Promise<CandidateAnswerAudio[]>;
+  getCandidateAnswerAudios: (stopActive?: boolean) => Promise<CandidateAnswerAudio[]>;
   close: () => void;
 };
 
@@ -563,8 +563,8 @@ export async function connectRealtimeInterview(opts: {
     audioEl,
     audioCtx,
     getTranscript: () => [...transcript],
-    getCandidateAnswerAudios: async () => {
-      if (isCandidateSegmentActive) {
+    getCandidateAnswerAudios: async (stopActive: boolean = false) => {
+      if (stopActive && isCandidateSegmentActive) {
         stopCandidateSegment();
       }
       if (activeSegmentStopPromise) {

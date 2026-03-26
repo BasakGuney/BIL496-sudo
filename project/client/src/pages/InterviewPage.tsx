@@ -176,7 +176,7 @@ export function InterviewPage({
     const conn = connRef.current;
     if (!conn?.getCandidateAnswerAudios) return;
 
-    const audios = (await conn.getCandidateAnswerAudios()) as CandidateAnswerAudio[];
+    const audios = (await conn.getCandidateAnswerAudios(false)) as CandidateAnswerAudio[];
     for (const answer of audios) {
       const key = buildAnswerUploadKey(answer);
       if (uploadedAnswerKeysRef.current.has(key)) continue;
@@ -240,7 +240,7 @@ export function InterviewPage({
     const transcript = connRef.current?.getTranscript() || [];
     let candidateAnswerAudios: any[] = [];
     if (connRef.current?.getCandidateAnswerAudios) {
-      candidateAnswerAudios = await connRef.current.getCandidateAnswerAudios();
+      candidateAnswerAudios = await connRef.current.getCandidateAnswerAudios(true);
     }
 
     stopMedia();
