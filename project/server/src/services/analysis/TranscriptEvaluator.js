@@ -82,10 +82,16 @@ export class TranscriptEvaluator {
       if (!outputText) return heuristicReport;
 
       const parsed = JSON.parse(outputText);
+      const normalizedQaEvaluations = this.mergeModelQaWithOriginalPairs({
+        qaPairs,
+        modelQaEvaluations: Array.isArray(parsed.qaEvaluations) ? parsed.qaEvaluations : [],
+        fallbackQaEvaluations: heuristicReport.qaEvaluations,
+      });
+
       return {
         sessionId,
-        qaEvaluations: Array.isArray(parsed.qaEvaluations) ? parsed.qaEvaluations : heuristicReport.qaEvaluations,
         ...parsed,
+        qaEvaluations: normalizedQaEvaluations,
       };
     } catch (_error) {
       return heuristicReport;
@@ -129,6 +135,38 @@ export class TranscriptEvaluator {
     }
 
     return pairs;
+  }
+
+  mergeModelQaWithOriginalPairs({ qaPairs = [], modelQaEvaluations = [], fallbackQaEvaluations = [] }) {
+    const safePairs = Array.isArray(qaPairs) ? qaPairs : [];
+    const safeFallback = Array.isArray(fallbackQaEvaluations) ? fallbackQaEvaluations : [];
+    const sourceRows = Array.isArray(modelQaEvaluations) && modelQaEvaluations.length > 0
+      ? modelQaEvaluations
+      : safeFallback;
+
+    return safePairs.map((pair, index) => {
+      const modelRow = sourceRows[index] || {};
+      const fallbackRow = safeFallback[index] || {};
+
+      return {
+        index: index + 1,
+        // Critical: question/answer must come from original transcript pairing so
+        // the UI never loses context and never keeps only the last question sentence.
+        question: pair.question,
+        answer: pair.answer,
+        relevance: this.clamp(Number(modelRow.relevance ?? fallbackRow.relevance ?? 60), 0, 100),
+        clarity: this.clamp(Number(modelRow.clarity ?? fallbackRow.clarity ?? 60), 0, 100),
+        durationSec: Math.max(0, Number(modelRow.durationSec ?? fallbackRow.durationSec ?? 0)),
+        timeLimitSec: Math.max(30, Number(modelRow.timeLimitSec ?? fallbackRow.timeLimitSec ?? 90)),
+        exceededTimeLimit: Boolean(
+          modelRow.exceededTimeLimit
+          ?? fallbackRow.exceededTimeLimit
+          ?? false
+        ),
+        summary: String(modelRow.summary ?? fallbackRow.summary ?? "").trim()
+          || "Cevap değerlendirildi.",
+      };
+    });
   }
 
   buildFallbackPairsFromTranscript(transcript) {

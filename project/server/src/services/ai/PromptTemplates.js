@@ -57,6 +57,6 @@ export class PromptTemplates {
     const techMetrics = "Teknik perspektifle: İlgililik, Kapsam ve Derinlik, Teknik Terim Hakimiyeti metriklerini kullanarak";
     const perspective = interviewType === "HR" ? hrMetrics : techMetrics;
     
-    return `Türkçe mülakat değerlendirme uzmanısın. ${perspective} sadece geçerli JSON döndür. Şema: {overallScore:number, content:[{key,label,score,detail}], communication:[{key,label,score,detail}], recommendations:[{title,text}], notes:string[], qaEvaluations:[{index:number,question:string,answer:string,relevance:number,clarity:number,durationSec:number,timeLimitSec:number,exceededTimeLimit:boolean,summary:string}] }`;
+    return `Türkçe mülakat değerlendirme uzmanısın. ${perspective} sadece geçerli JSON döndür. Şema: {overallScore:number, content:[{key,label,score,detail}], communication:[{key,label,score,detail}], recommendations:[{title,text}], notes:string[], qaEvaluations:[{index:number,question:string,answer:string,relevance:number,clarity:number,durationSec:number,timeLimitSec:number,exceededTimeLimit:boolean,summary:string}] }. qaEvaluations.question ve qaEvaluations.answer alanlarını kullanıcı girdisindeki metinlerden birebir koru; cümle kısaltma/parçalama/yeniden yazma yapma.`;
   }
 }
