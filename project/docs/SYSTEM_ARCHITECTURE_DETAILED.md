@@ -48,73 +48,163 @@ Sistem 3 katmandan oluşur:
 
 ## 2. Sunucu Dizin Yapısı ve Dosya İşlevleri
 
-Aşağıdaki yapı `project/server/src` güncel akışına göre özetlenmiştir:
+Bu bölüm iki katmanda hazırlanmıştır:
+1. **Proje kök klasörlerinin kısa işlev özeti**
+2. **`server/src` altındaki tüm klasör ve dosyaların detaylı işlev listesi**
 
-```text
-server/
-├── index.js
-├── src/
-│   ├── AppServer.js
-│   │   ├── dependency wiring (AIServiceGateway, BackendOrchestrator, PythonAnalysisClient)
-│   │   ├── CORS + JSON/body parser
-│   │   └── router + global error handler
-│   │
-│   ├── api/
-│   │   ├── controllers/
-│   │   │   ├── SessionController.js
-│   │   │   ├── ConsentController.js
-│   │   │   ├── RealtimeController.js
-│   │   │   └── ReportController.js
-│   │   ├── middleware/
-│   │   │   └── ErrorHandlerMiddleware.js
-│   │   └── routes/
-│   │       └── sessionRoutes.js
-│   │
-│   ├── orchestration/
-│   │   ├── BackendOrchestrator.js
-│   │   ├── GuardrailsEngine.js
-│   │   └── InterviewFlowPolicy.js
-│   │
-│   ├── services/
-│   │   ├── ai/
-│   │   │   ├── AIServiceGateway.js
-│   │   │   ├── OpenAIClientAdapter.js
-│   │   │   ├── OpenAiRealtimeGateway.js
-│   │   │   └── PromptTemplates.js
-│   │   ├── analysis/
-│   │   │   ├── BehaviorAnalyzer.js
-│   │   │   ├── CandidateAudioTranscriber.js
-│   │   │   ├── PythonAnalysisClient.js
-│   │   │   ├── TranscriptEvaluator.js
-│   │   │   ├── TranscriptSignalProcessor.js
-│   │   │   ├── VisionFrameAnalyzer.js
-│   │   │   ├── VisionSignalProcessor.js
-│   │   │   └── InterviewSignalAggregator.js
-│   │   └── realtime/
-│   │       ├── RealtimeSessionManager.js
-│   │       ├── SessionUpdateBuilder.js
-│   │       └── TurnDetectionPolicy.js
-│   │
-│   ├── dto/responses/views/
-│   │   └── ReportView.js
-│   │
-│   ├── persistence/
-│   │   ├── repositories/
-│   │   └── storage/
-│   │       ├── InMemorySessionRepository.js
-│   │       ├── InMemoryReportRepository.js
-│   │       └── FileReportArchive.js
-│   │
-│   ├── domain/
-│   │   ├── entities/InterviewSession.js
-│   │   ├── enums/SessionState.js
-│   │   ├── errors/AppError.js
-│   │   └── value-objects/{SessionConfig, Consent}.js
-│   └── config/env.js
-└── reports/
-```
+### 2.1 Proje Kök Klasörleri (Kısa Özet)
 
-**Önemli not:** `reports/S-...` altında sadece final rapor değil, incremental ses dosyaları, transcript ve vision artifacts da tutulur.
+| Klasör | Kısa İşlev |
+|---|---|
+| `project/client` | React + Vite arayüzü (setup, preview, interview, feedback ekranları). |
+| `project/server` | Node.js API, realtime orkestrasyon, analiz entegrasyonları ve rapor üretimi. |
+| `project/docs` | Mimari/teknik dökümantasyon dosyaları. |
+| `project/reports` | Session bazlı artifact arşivi (`S-...` dizinleri, transcript/audio/vision çıktıları). |
+
+### 2.2 `server/src` — Klasör Bazında Detay
+
+| Klasör | İşlev |
+|---|---|
+| `api` | HTTP controller, route ve middleware katmanı. |
+| `config` | Ortam değişkenleri ve konfigürasyon okuma. |
+| `domain` | Entity, enum, value-object ve domain error tanımları. |
+| `dto` | Request/response görünüm eşlemeleri (View modelleri). |
+| `orchestration` | Session lifecycle ve iş akışı koordinasyonu. |
+| `persistence` | In-memory repository’ler ve file archive katmanı. |
+| `services/ai` | OpenAI entegrasyonu, prompt şablonları ve gateway işlemleri. |
+| `services/analysis` | Transcript/audio/vision analiz adaptörleri ve sinyal işlem katmanı. |
+| `services/analysis/python_api` | Python FastAPI analiz servisi ve model tabanlı hesaplamalar. |
+| `services/realtime` | Realtime oturum update, VAD ve session manager bileşenleri. |
+| `utils` | Yardımcı sınıflar (`IdGenerator`, `Logger`). |
+
+### 2.3 `server/src` — Tüm Dosyalar ve Kısa İşlevleri
+
+#### 2.3.1 Kök
+
+| Dosya | İşlev |
+|---|---|
+| `AppServer.js` | Uygulamanın composition root’u; dependency wiring, router mount ve server listen işlemleri. |
+
+#### 2.3.2 `api/`
+
+| Dosya | İşlev |
+|---|---|
+| `api/controllers/SessionController.js` | Session create/start + preview/hints/feedback endpoint işlemleri. |
+| `api/controllers/ConsentController.js` | Consent update endpoint’ini domain katmanına taşır. |
+| `api/controllers/RealtimeController.js` | Realtime SDP offer/answer akışını yönetir. |
+| `api/controllers/ReportController.js` | Answer/frame ingestion, end session ve report retrieval endpoint’leri. |
+| `api/middleware/ErrorHandlerMiddleware.js` | Uygulama geneli error mapping ve HTTP hata cevabı standardizasyonu. |
+| `api/routes/sessionRoutes.js` | Session/realtime/report route haritası ve endpoint bağlama noktası. |
+
+#### 2.3.3 `config/`
+
+| Dosya | İşlev |
+|---|---|
+| `config/env.js` | Ortam değişkenlerini (port, API key, reports path vb.) normalize eder. |
+
+#### 2.3.4 `domain/`
+
+| Dosya | İşlev |
+|---|---|
+| `domain/entities/InterviewSession.js` | Session’ın temel domain modeli ve state transition davranışları. |
+| `domain/entities/FeedbackReport.js` | Üretilen rapor verisinin domain temsili. |
+| `domain/enums/InterviewType.js` | Interview tip sabitleri (HR/Technical). |
+| `domain/enums/SessionMode.js` | Mod tanımları (ör. supportive/neutral). |
+| `domain/enums/SessionState.js` | Session state sabitleri (configured, active, completed vb.). |
+| `domain/errors/AppError.js` | Kod + statusCode taşıyan standart uygulama hatası. |
+| `domain/value-objects/SessionConfig.js` | Session konfigürasyon değer nesnesi (role, difficulty, mode vb.). |
+| `domain/value-objects/Consent.js` | Mikrofon/kamera onayı için value object doğrulaması. |
+
+#### 2.3.5 `dto/`
+
+| Dosya | İşlev |
+|---|---|
+| `dto/requests/CreateSessionRequest.js` | Create session istek gövdesi normalizasyon/doğrulama yapısı. |
+| `dto/requests/StartSessionRequest.js` | Start session isteği için request modelleme. |
+| `dto/requests/UpdateConsentRequest.js` | Consent update request modelleme. |
+| `dto/responses/views/SessionView.js` | Session domain modelini API response görünümüne dönüştürür. |
+| `dto/responses/views/SessionConfigView.js` | Session config alanlarını istemciye uygun görünümde sunar. |
+| `dto/responses/views/ConsentView.js` | Consent bilgisinin response sunumu. |
+| `dto/responses/views/SdpAnswerView.js` | Realtime SDP answer payload görünümü. |
+| `dto/responses/views/TurnView.js` | Turn bazlı response alanlarının görünüm adaptörü. |
+| `dto/responses/views/EvidenceItemView.js` | Evidence öğelerinin API response formatı. |
+| `dto/responses/views/ReportView.js` | Rapor + feedback artifacts + analysisStatus alanlarını birleştirerek döner. |
+
+#### 2.3.6 `orchestration/`
+
+| Dosya | İşlev |
+|---|---|
+| `orchestration/BackendOrchestrator.js` | Ana orkestratör; session lifecycle, incremental audio/vision runtime, endSession pipeline. |
+| `orchestration/GuardrailsEngine.js` | Consent/state kurallarını enforce eden guardrail katmanı. |
+| `orchestration/InterviewFlowPolicy.js` | Mülakat akış kurallarını ve izinli geçişleri tanımlar. |
+
+#### 2.3.7 `persistence/`
+
+| Dosya | İşlev |
+|---|---|
+| `persistence/repositories/ISessionRepository.js` | Session repository sözleşmesi. |
+| `persistence/repositories/IReportRepository.js` | Report repository sözleşmesi. |
+| `persistence/storage/InMemorySessionRepository.js` | Bellek içi session saklama ve erişim. |
+| `persistence/storage/InMemoryReportRepository.js` | Bellek içi report saklama ve erişim. |
+| `persistence/storage/FileReportArchive.js` | Disk artifact yazma/okuma; transcript/audio/vision çıktılarının arşivlenmesi. |
+
+#### 2.3.8 `services/ai/`
+
+| Dosya | İşlev |
+|---|---|
+| `services/ai/AIServiceGateway.js` | Preview soru üretimi, live hints/feedback ve AI çağrı orkestrasyonu. |
+| `services/ai/OpenAIClientAdapter.js` | OpenAI istemci çağrılarını tek bir adaptör altında toplar. |
+| `services/ai/OpenAiRealtimeGateway.js` | Realtime offer/answer exchange işlemlerini yürütür. |
+| `services/ai/PromptTemplates.js` | Interviewer/system prompt şablonları ve kural metinleri. |
+
+#### 2.3.9 `services/analysis/`
+
+| Dosya | İşlev |
+|---|---|
+| `services/analysis/BehaviorAnalyzer.js` | Transcript/vision sinyallerini birleştirip ana rapor üretimini tetikler. |
+| `services/analysis/TranscriptEvaluator.js` | QA çıkarımı, heuristik değerlendirme ve LLM destekli transcript raporlama. |
+| `services/analysis/TranscriptSignalProcessor.js` | Transcript’ten filler ratio gibi temel sinyal metrikleri çıkarır. |
+| `services/analysis/VisionSignalProcessor.js` | Vision payload’ından aggregate davranış metrikleri üretir. |
+| `services/analysis/InterviewSignalAggregator.js` | Farklı sinyal kaynaklarını tek rapor modelinde birleştirir. |
+| `services/analysis/CandidateAudioTranscriber.js` | Candidate answer audio’larını STT ile metne dönüştürür (primary + fallback model). |
+| `services/analysis/PythonAnalysisClient.js` | Node → Python API köprüsü; audio/transcript/vision çağrıları ve WAV dönüşümü. |
+| `services/analysis/VisionFrameAnalyzer.js` | Canlı frame’leri Python frame endpoint’ine gönderip sonuçları normalize eder. |
+
+#### 2.3.10 `services/analysis/python_api/`
+
+| Dosya | İşlev |
+|---|---|
+| `services/analysis/python_api/api.py` | FastAPI servis giriş noktası ve HTTP endpoint tanımları. |
+| `services/analysis/python_api/audio_analyzer.py` | Ses segment analizi, overall hesaplama ve ses LLM raporu. |
+| `services/analysis/python_api/transcript_analyzer.py` | Transcript parse/sınıflandırma, soru bazlı metrik ve overall analiz üretimi. |
+| `services/analysis/python_api/vision_analyzer.py` | Frame-level inference yardımcıları + vision final raporu yorumlama. |
+| `services/analysis/python_api/requirements.txt` | Python analiz servisinin bağımlılık listesi. |
+
+#### 2.3.11 `services/realtime/`
+
+| Dosya | İşlev |
+|---|---|
+| `services/realtime/RealtimeSessionManager.js` | Realtime session create/update/offer-answer yönetimi. |
+| `services/realtime/SessionUpdateBuilder.js` | Realtime `session.update` payload’larını oluşturur. |
+| `services/realtime/TurnDetectionPolicy.js` | Turn detection (VAD) parametre politikasını belirler. |
+
+#### 2.3.12 `utils/`
+
+| Dosya | İşlev |
+|---|---|
+| `utils/IdGenerator.js` | Session ve benzeri kimliklerin üretimi. |
+| `utils/Logger.js` | Standart log arayüzü ve log seviyeleri. |
+
+### 2.4 `reports/` Arşiv Yapısı (Kısa)
+
+`reports/S-<sessionId>/` altında tipik artifact’lar:
+- `transcript.txt`
+- `audio_segments.json`
+- `audio_report.json`
+- `transcript_report.json`
+- `vision_frames.json`
+- `vision_report.json`
+- incremental candidate answer audio dosyaları
 
 ---
 
