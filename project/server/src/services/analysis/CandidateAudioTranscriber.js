@@ -32,10 +32,39 @@ export class CandidateAudioTranscriber {
     const bytes = Buffer.from(audioBase64, "base64");
     if (bytes.length === 0) return "";
 
+    const primaryText = await this.transcribeWithModel({
+      bytes,
+      ext,
+      mimeType,
+      model: "gpt-4o-transcribe",
+    });
+    if (!primaryText) return "";
+
+    const primaryWordCount = primaryText.split(/\s+/).filter(Boolean).length;
+    const primaryFillerCount = this.countFillers(primaryText);
+    const shouldRetryWithFallback = primaryWordCount >= 8 && primaryFillerCount === 0;
+    if (!shouldRetryWithFallback) return primaryText;
+
+    // Bazı STT çıktıları dolgu seslerini normalize edebiliyor.
+    // Bu durumda ikinci bir modelle (whisper-1) dener ve daha "ham" görünen metni seçeriz.
+    const fallbackText = await this.transcribeWithModel({
+      bytes,
+      ext,
+      mimeType,
+      model: "whisper-1",
+    });
+    if (!fallbackText) return primaryText;
+
+    const fallbackScore = this.scoreTranscriptForVerbatimness(fallbackText);
+    const primaryScore = this.scoreTranscriptForVerbatimness(primaryText);
+    return fallbackScore > primaryScore ? fallbackText : primaryText;
+  }
+
+  async transcribeWithModel({ bytes, ext, mimeType, model }) {
     const file = new File([bytes], `candidate.${ext}`, { type: mimeType || "audio/webm" });
     const formData = new FormData();
     formData.set("file", file);
-    formData.set("model", "gpt-4o-transcribe");
+    formData.set("model", model);
     formData.set("language", "tr");
     formData.set(
       "prompt",
@@ -51,10 +80,25 @@ export class CandidateAudioTranscriber {
     });
 
     if (!response.ok) return "";
-
     const payload = await response.json().catch(() => null);
-    const text = String(payload?.text || "").trim();
-    return text;
+    return String(payload?.text || "").trim();
+  }
+
+  countFillers(text = "") {
+    const tokens = String(text || "")
+      .toLocaleLowerCase("tr-TR")
+      .split(/\s+/)
+      .map((token) => token.replace(/[^\p{L}\p{N}]+/gu, ""))
+      .filter(Boolean);
+    const fillerRegex = /^(?:ı{2,}|i{2,}|a{2,}|e{2,}|h+m+|h+ı+m+|h+i+m+|şey+|yani|bilmiyorum)$/u;
+    return tokens.reduce((sum, token) => sum + (fillerRegex.test(token) ? 1 : 0), 0);
+  }
+
+  scoreTranscriptForVerbatimness(text = "") {
+    const words = String(text || "").split(/\s+/).filter(Boolean).length;
+    const fillers = this.countFillers(text);
+    // Dolgu yakalama + yeterli uzunluk = daha "ham" transcript olasılığı yüksek.
+    return fillers * 100 + words;
   }
 
   async transcribeCandidateAnswerAudios(candidateAnswerAudios = []) {
