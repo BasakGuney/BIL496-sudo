@@ -52,11 +52,47 @@ def _extract_question(text: str) -> str:
         return text
 
     # Nokta/ünlem/soru işaretinden sonra boşluk varsa cümle sınırı say
-    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-    question_sentences = [s for s in sentences if "?" in s]
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s.strip()]
+    question_indices = [i for i, s in enumerate(sentences) if "?" in s]
 
-    if question_sentences:
-        return " ".join(question_sentences)
+    if question_indices:
+        def _normalize(s: str) -> str:
+            return re.sub(r"[^\wçğıöşü\s]", "", s.lower()).strip()
+
+        def _is_meta_transition(s: str) -> bool:
+            n = _normalize(s)
+            meta_markers = [
+                "anlıyorum", "sorun değil", "teşekkür ederim", "teşekkürler",
+                "tamam", "peki", "güzel", "harika", "anladım",
+                "başka bir örnek üzerinden ilerleyebiliriz",
+                "devam edelim", "bir sonraki soruya geçelim",
+            ]
+            return any(marker in n for marker in meta_markers)
+
+        def _is_context_sentence(s: str) -> bool:
+            n = _normalize(s)
+            context_markers = [
+                "mesela", "örneğin", "örnek", "durum", "senaryo", "proje",
+                "zorluk", "çözüm", "tecrübe", "deneyim", "olabilir"
+            ]
+            return any(marker in n for marker in context_markers)
+
+        first_q_idx = question_indices[0]
+        selected = []
+
+        # İlk soru cümlesinden hemen önceki bağlam cümlesini (varsa) da al.
+        # Böylece "Mesela ... olabilir. Böyle bir örnek verebilir misiniz?"
+        # gibi yapılar tek soru metni olarak korunur.
+        for idx in range(first_q_idx - 1, -1, -1):
+            candidate = sentences[idx]
+            if _is_meta_transition(candidate):
+                continue
+            if _is_context_sentence(candidate):
+                selected.insert(0, candidate)
+            break
+
+        selected.extend([sentences[i] for i in question_indices])
+        return " ".join(selected)
     return text
 
 
