@@ -34,34 +34,6 @@ async function request(path: string, init: RequestInit = {}) {
   return payload;
 }
 
-
-function isReportReady(report: FeedbackReport | null | undefined) {
-  if (!report) return false;
-  const status = report.analysisStatus || {};
-  return Boolean(
-    status.audio
-    && status.transcript
-    && (!status.visionExpected || status.visionLlm)
-  );
-}
-
-export async function waitForReadyReport(sessionId: string, { maxAttempts = 24, delayMs = 2500 } = {}) {
-  let latest: FeedbackReport | null = null;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    latest = await getReport(sessionId);
-    if (isReportReady(latest)) {
-      return latest;
-    }
-
-    if (attempt < maxAttempts - 1) {
-      await new Promise((resolve) => window.setTimeout(resolve, delayMs));
-    }
-  }
-
-  return latest;
-}
-
 export async function startSession(config: SessionConfig) {
   const payload = await request("/session", {
     method: "POST",

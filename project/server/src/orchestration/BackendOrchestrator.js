@@ -229,11 +229,6 @@ export class BackendOrchestrator {
     return out.sort((a, b) => Number(a?.startedAt || 0) - Number(b?.startedAt || 0));
   }
 
-  filterTranscriptByRole(transcript = [], role = "candidate") {
-    return (Array.isArray(transcript) ? transcript : []).filter((item) => item?.role === role);
-  }
-
-
   computeAttentionLevel({ bbox, imageWidth, imageHeight, faceCount }) {
     if (!bbox || !imageWidth || !imageHeight) return "danger";
     if (Number(faceCount || 0) > 1) return "warn";
