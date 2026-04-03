@@ -77,17 +77,28 @@ def _extract_question(text: str) -> str:
             ]
             return any(marker in n for marker in context_markers)
 
+        def _question_needs_context(question_sentence: str) -> bool:
+            n = _normalize(question_sentence)
+            context_dependent_markers = [
+                "böyle", "bu", "benzer", "bu tür", "buna dair", "öyle"
+            ]
+            return any(marker in n for marker in context_dependent_markers)
+
         first_q_idx = question_indices[0]
         selected = []
 
         # İlk soru cümlesinden hemen önceki bağlam cümlesini (varsa) da al.
         # Böylece "Mesela ... olabilir. Böyle bir örnek verebilir misiniz?"
         # gibi yapılar tek soru metni olarak korunur.
+        first_question_sentence = sentences[first_q_idx]
+        needs_context = _question_needs_context(first_question_sentence)
+
         for idx in range(first_q_idx - 1, -1, -1):
             candidate = sentences[idx]
             if _is_meta_transition(candidate):
                 continue
-            if _is_context_sentence(candidate):
+            candidate_word_count = len(candidate.split())
+            if _is_context_sentence(candidate) or (needs_context and candidate_word_count >= 5):
                 selected.insert(0, candidate)
             break
 
