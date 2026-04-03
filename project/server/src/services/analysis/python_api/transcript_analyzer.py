@@ -429,26 +429,60 @@ def parse_transcript_python(transcript_text: str) -> list:
 
     blocks = []
     pending_question = None
+    pending_type = "question"
+
+    def _looks_like_interviewer_question(text: str) -> bool:
+        """
+        Soru işareti yoksa da bazı cümleler soru olabilir.
+        Örn: "Kendinizden biraz bahseder misiniz"
+        """
+        import re
+        t = (text or "").strip().lower()
+        if not t:
+            return False
+        if "?" in t:
+            return True
+
+        # Türkçede soru kipleri / soru kalıpları
+        question_markers = [
+            r"\b(mı|mi|mu|mü)\b",
+            r"\b(mısın|misin|musun|müsün)\b",
+            r"\b(mıyım|miyim|muyum|müyüm)\b",
+            r"\b(mıyız|miyiz|muyuz|müyüz)\b",
+            r"\b(mısınız|misiniz|musunuz|müsünüz)\b",
+            r"\b(verebilir misin|verebilir misiniz|anlatabilir misin|anlatabilir misiniz)\b",
+            r"\b(hazır mısın|hazır mısınız|başlayalım mı)\b",
+        ]
+
+        return any(re.search(pattern, t) for pattern in question_markers)
 
     for line in lines:
         if line.startswith("[Interviewer]"):
             text = line[len("[Interviewer]"):].strip()
             if pending_question and text:
                 # Önceki cevapsız soruyu boş yanıtla kapat
-                blocks.append({"type": "question", "question": pending_question, "answer": ""})
-            # Geçiş ifadelerini at, sadece soru cümlelerini al
-            pending_question = _extract_question(text)
+                blocks.append({"type": pending_type, "question": pending_question, "answer": ""})
+
+            # Soru işareti yok + soru kalıbı yoksa bu satırı meta/setup kabul et.
+            # Böylece aday araya girdiğinde yarım kalan cümleler soru analizine girmez.
+            if _looks_like_interviewer_question(text):
+                pending_question = _extract_question(text)
+                pending_type = "question"
+            else:
+                pending_question = text
+                pending_type = "setup_or_meta"
 
         elif line.startswith("[Candidate]"):
             text = line[len("[Candidate]"):].strip()
             if pending_question is not None:
-                blocks.append({"type": "question", "question": pending_question, "answer": text})
+                blocks.append({"type": pending_type, "question": pending_question, "answer": text})
                 pending_question = None
+                pending_type = "question"
             # Soru gelmeden cevap geldiyse (ilk selamlama vb.) atla
 
     # Dosya soru ortasında bittiyse son soruyu boş yanıtla kapat
     if pending_question:
-        blocks.append({"type": "question", "question": pending_question, "answer": ""})
+        blocks.append({"type": pending_type, "question": pending_question, "answer": ""})
 
     return blocks
 
