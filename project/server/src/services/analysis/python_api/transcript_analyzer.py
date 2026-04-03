@@ -451,10 +451,30 @@ def parse_transcript_python(transcript_text: str) -> list:
             r"\b(mıyız|miyiz|muyuz|müyüz)\b",
             r"\b(mısınız|misiniz|musunuz|müsünüz)\b",
             r"\b(verebilir misin|verebilir misiniz|anlatabilir misin|anlatabilir misiniz)\b",
-            r"\b(hazır mısın|hazır mısınız|başlayalım mı)\b",
+            r"\b(hazır mısın|hazır mısınız)\b",
         ]
 
         return any(re.search(pattern, t) for pattern in question_markers)
+
+    def _is_setup_or_meta_text(text: str) -> bool:
+        import re
+        t = (text or "").strip().lower()
+        if not t:
+            return True
+
+        setup_meta_patterns = [
+            r"\bhazırsanız başlayalım mı\b",
+            r"\bbaşlayabilir miyiz\b",
+            r"\bbaşlayalım\b",
+            r"\bmerhaba\b",
+            r"\bhoş geldiniz\b",
+            r"\bteşekkür ederim\b",
+            r"\bgörüşmek üzere\b",
+            r"\biyi günler\b",
+            r"\bbir sonraki soruya geçelim\b",
+            r"\bdevam edelim\b",
+        ]
+        return any(re.search(pattern, t) for pattern in setup_meta_patterns)
 
     for line in lines:
         if line.startswith("[Interviewer]"):
@@ -465,7 +485,10 @@ def parse_transcript_python(transcript_text: str) -> list:
 
             # Soru işareti yok + soru kalıbı yoksa bu satırı meta/setup kabul et.
             # Böylece aday araya girdiğinde yarım kalan cümleler soru analizine girmez.
-            if _looks_like_interviewer_question(text):
+            if _is_setup_or_meta_text(text):
+                pending_question = text
+                pending_type = "setup_or_meta"
+            elif _looks_like_interviewer_question(text):
                 pending_question = _extract_question(text)
                 pending_type = "question"
             else:
