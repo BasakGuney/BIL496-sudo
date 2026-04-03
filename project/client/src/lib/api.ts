@@ -40,9 +40,8 @@ function isReportReady(report: FeedbackReport | null | undefined) {
   const status = report.analysisStatus || {};
   return Boolean(
     status.audio
-    && status.audioLlm
     && status.transcript
-    && (!status.vision || status.visionLlm)
+    && (!status.visionExpected || status.visionLlm)
   );
 }
 

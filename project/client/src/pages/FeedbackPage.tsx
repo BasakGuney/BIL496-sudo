@@ -346,12 +346,11 @@ export function FeedbackPage({ initialReport, sessionId, onNew }: { initialRepor
         }
         const done = Boolean(
           latest.analysisStatus?.audio
-          && latest.analysisStatus?.audioLlm
           && latest.analysisStatus?.transcript
-          && (!latest.analysisStatus?.vision || latest.analysisStatus?.visionLlm)
+          && (!latest.analysisStatus?.visionExpected || latest.analysisStatus?.visionLlm)
         );
         attempts += 1;
-        if (!cancelled && !done && attempts < 20) {
+        if (!cancelled && !done && attempts < 120) {
           window.setTimeout(refresh, 2500);
         }
       } catch (error: any) {

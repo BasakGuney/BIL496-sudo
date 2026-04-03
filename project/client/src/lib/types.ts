@@ -165,6 +165,7 @@ export type FeedbackReport = {
     transcript?: boolean;
     vision?: boolean;
     visionLlm?: boolean;
+    visionExpected?: boolean;
   };
   [key: string]: unknown;
 };

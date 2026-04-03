@@ -50,6 +50,7 @@ export class ReportView {
     const feedbackArtifacts = report?.feedbackArtifacts || {};
     const analysisNotes = this.buildAnalysisNotes(feedbackArtifacts);
     const mergedNotes = [...(Array.isArray(report?.notes) ? report.notes : []), ...analysisNotes];
+    const hasVisionData = Boolean(feedbackArtifacts?.visionAnalysis || report?.visionAnalysis);
 
     return {
       id: report?.id || `R-${report?.sessionId || "unknown"}`,
@@ -75,8 +76,9 @@ export class ReportView {
         audio: Boolean(feedbackArtifacts?.audioModel),
         audioLlm: Boolean(feedbackArtifacts?.audioLlmReport),
         transcript: Boolean(feedbackArtifacts?.transcriptAnalysis),
-        vision: Boolean(feedbackArtifacts?.visionAnalysis),
+        vision: hasVisionData,
         visionLlm: Boolean(feedbackArtifacts?.visionLlmAnalysis),
+        visionExpected: hasVisionData,
       },
       analysisNotes,
       evidence: Array.isArray(report?.evidence)

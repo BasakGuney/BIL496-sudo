@@ -90,8 +90,11 @@ export class CandidateAudioTranscriber {
       .split(/\s+/)
       .map((token) => token.replace(/[^\p{L}\p{N}]+/gu, ""))
       .filter(Boolean);
-    const fillerRegex = /^(?:ı{2,}|i{2,}|a{2,}|e{2,}|h+m+|h+ı+m+|h+i+m+|şey+|yani|bilmiyorum)$/u;
-    return tokens.reduce((sum, token) => sum + (fillerRegex.test(token) ? 1 : 0), 0);
+    const fillerRegex = /^(?:[ıi]{2,}|[ae]{2,}|h+[ıi]?m+|ş+e+y+|y+a+n+i+|b+i+l+m+i+y+o+r+u+m+|h+a+n+i+|i+ş+t+e+)$/u;
+    return tokens.reduce((sum, token) => {
+      const compact = token.replace(/(.)\1{2,}/gu, "$1$1");
+      return sum + (fillerRegex.test(compact) ? 1 : 0);
+    }, 0);
   }
 
   scoreTranscriptForVerbatimness(text = "") {
