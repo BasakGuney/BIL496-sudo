@@ -1,4 +1,4 @@
-export class AudioSignalProcessor {
+export class TranscriptSignalProcessor {
   fromTranscript(transcript) {
     const text = transcript.map((item) => String(item?.text || "")).join(" ");
     const fillerCount = (text.match(/\b(ıı+|eee+|şey|yani|hımm|hmm|bilmiyorum)\b/gi) || []).length;

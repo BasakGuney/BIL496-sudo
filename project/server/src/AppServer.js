@@ -21,9 +21,9 @@ import { AIServiceGateway } from "./services/ai/AIServiceGateway.js";
 import { TurnDetectionPolicy } from "./services/realtime/TurnDetectionPolicy.js";
 import { SessionUpdateBuilder } from "./services/realtime/SessionUpdateBuilder.js";
 import { RealtimeSessionManager } from "./services/realtime/RealtimeSessionManager.js";
-import { AudioSignalProcessor } from "./services/analysis/AudioSignalProcessor.js";
+import { TranscriptSignalProcessor } from "./services/analysis/TranscriptSignalProcessor.js";
 import { VisionSignalProcessor } from "./services/analysis/VisionSignalProcessor.js";
-import { SignalAggregator } from "./services/analysis/SignalAggregator.js";
+import { InterviewSignalAggregator } from "./services/analysis/InterviewSignalAggregator.js";
 import { BehaviorAnalyzer } from "./services/analysis/BehaviorAnalyzer.js";
 import { CandidateAudioTranscriber } from "./services/analysis/CandidateAudioTranscriber.js";
 import { InterviewFlowPolicy } from "./orchestration/InterviewFlowPolicy.js";
@@ -69,9 +69,9 @@ export class AppServer {
       promptTemplates: prompts,
     });
     const analyzer = new BehaviorAnalyzer({
-      audioSignalProcessor: new AudioSignalProcessor(),
+      transcriptSignalProcessor: new TranscriptSignalProcessor(),
       visionSignalProcessor: new VisionSignalProcessor(),
-      signalAggregator: new SignalAggregator(),
+      interviewSignalAggregator: new InterviewSignalAggregator(),
       transcriptEvaluator,
     });
 

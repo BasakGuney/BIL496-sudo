@@ -1,4 +1,4 @@
-export class SignalAggregator {
+export class InterviewSignalAggregator {
   toReport(session, audio, vision, visionAnalysis = null) {
     const metricsForScore = [audio.pacingScore, vision.focusScore, vision.headMovementScore].filter(
       (value) => Number.isFinite(value)
