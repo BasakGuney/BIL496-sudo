@@ -2,8 +2,8 @@
 server/reports/
 
 # Python caching and compiled files
-server/__pycache__/
-server/*.py[cod]
+**/__pycache__/
+**/*.py[cod]
 server/*$py.class
 server/*.so
 server/.Python
@@ -64,7 +64,6 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
-!server/.env
 
 # Logs
 logs/
