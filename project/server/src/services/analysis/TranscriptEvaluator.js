@@ -183,8 +183,7 @@ export class TranscriptEvaluator {
     const qaEvaluations = qaPairs.map((pair, index) => {
       const words = pair.answer.split(/\s+/).filter(Boolean);
       const uniqueWords = new Set(words.map((w) => w.toLowerCase()));
-      const fillerRegex = /\b(ı+|ee+|aa+|aaa+|eee+|şey|yani|hımm|hmm|bilmiyorum)\b/gi;
-      const fillerCount = (pair.answer.match(fillerRegex) || []).length;
+      const fillerCount = this.countFillers(pair.answer);
       const fillerRatio = words.length ? fillerCount / words.length : 0;
       const lexicalRichness = words.length ? uniqueWords.size / words.length : 0;
       const durationSec = Math.max(0, Math.round((pair.answerTs - pair.questionTs) / 1000));
@@ -231,8 +230,7 @@ export class TranscriptEvaluator {
 
     const allAnswersText = qaPairs.map((p) => p.answer).join(" ");
     const allWords = allAnswersText.split(/\s+/).filter(Boolean);
-    const allFillerCount = (allAnswersText.match(/\b(ı+|ee+|aa+|aaa+|eee+|şey|yani|hımm|hmm|bilmiyorum)\b/gi) || [])
-      .length;
+    const allFillerCount = this.countFillers(allAnswersText);
     const fillerRatio = allWords.length ? allFillerCount / allWords.length : 0;
 
     const exceededCount = qaEvaluations.filter((item) => item.exceededTimeLimit).length;
@@ -307,6 +305,17 @@ export class TranscriptEvaluator {
 
   clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
+  }
+
+  countFillers(text = "") {
+    const tokens = String(text || "")
+      .toLocaleLowerCase("tr-TR")
+      .split(/\s+/)
+      .map((token) => token.replace(/[^\p{L}\p{N}]+/gu, ""))
+      .filter(Boolean);
+
+    const fillerTokenRegex = /^(?:ı{2,}|i{2,}|a{2,}|e{2,}|h+m+|h+ı+m+|h+i+m+|şey+|yani|bilmiyorum)$/u;
+    return tokens.reduce((sum, token) => sum + (fillerTokenRegex.test(token) ? 1 : 0), 0);
   }
 
   extractTimeLimitSec(questionText) {
