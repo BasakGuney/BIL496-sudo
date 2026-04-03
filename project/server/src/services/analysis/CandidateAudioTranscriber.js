@@ -39,7 +39,7 @@ export class CandidateAudioTranscriber {
     formData.set("language", "tr");
     formData.set(
       "prompt",
-      "Türkçe cümle içindeki teknik İngilizce terimleri orijinal yazımıyla koru: Jenkins, Kubernetes, Docker, GitHub, CI/CD."
+      "Dökümü mümkün olduğunca söylenene sadık (verbatim) yaz. Dolgu ifadeleri (ıı, ııı, aa, aaa, eee, şey, hımm) silme; duyulduğu gibi koru. Türkçe cümle içindeki teknik İngilizce terimleri orijinal yazımıyla koru: Jenkins, Kubernetes, Docker, GitHub, CI/CD."
     );
 
     const response = await this.fetchImpl("https://api.openai.com/v1/audio/transcriptions", {

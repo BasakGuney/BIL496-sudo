@@ -150,6 +150,69 @@ export class BackendOrchestrator {
     return out.sort((a, b) => Number(a?.ts || 0) - Number(b?.ts || 0));
   }
 
+  normalizeTranscriptText(text = "") {
+    return String(text || "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  mergeTranscriptWithCandidateAudio(transcriptEntries = [], transcribedCandidateTurns = []) {
+    const merged = (Array.isArray(transcriptEntries) ? transcriptEntries : []).map((item) => ({ ...item }));
+    const candidateIndexes = merged
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item?.role === "candidate")
+      .map(({ index }) => index);
+    const usedCandidateIndexes = new Set();
+
+    const normalizedTurns = (Array.isArray(transcribedCandidateTurns) ? transcribedCandidateTurns : [])
+      .map((turn) => ({
+        role: "candidate",
+        text: String(turn?.text || "").trim(),
+        ts: Number(turn?.ts || Date.now()),
+        source: "candidate_audio_transcription",
+      }))
+      .filter((turn) => turn.text.length > 0)
+      .sort((a, b) => a.ts - b.ts);
+
+    for (const turn of normalizedTurns) {
+      let bestIndex = -1;
+      let bestDiff = Number.POSITIVE_INFINITY;
+
+      for (const candidateIndex of candidateIndexes) {
+        if (usedCandidateIndexes.has(candidateIndex)) continue;
+        const current = merged[candidateIndex];
+        const diff = Math.abs(Number(current?.ts || 0) - turn.ts);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestIndex = candidateIndex;
+        }
+      }
+
+      const canReplaceExisting = bestIndex >= 0 && bestDiff <= 30000;
+      if (canReplaceExisting) {
+        const existing = merged[bestIndex];
+        const existingNorm = this.normalizeTranscriptText(existing?.text || "");
+        const transcribedNorm = this.normalizeTranscriptText(turn.text);
+        const shouldReplace = Boolean(transcribedNorm) && existingNorm !== transcribedNorm;
+        if (shouldReplace) {
+          merged[bestIndex] = {
+            ...existing,
+            text: turn.text,
+            source: "candidate_audio_transcription",
+          };
+        }
+        usedCandidateIndexes.add(bestIndex);
+        continue;
+      }
+
+      merged.push(turn);
+    }
+
+    return this.mergeUniqueTranscriptEntries(merged);
+  }
+
   mergeUniqueSavedAudioFiles(...groups) {
     const out = [];
     const seen = new Set();
@@ -512,9 +575,21 @@ export class BackendOrchestrator {
       candidateAnswerAudios
     );
     const transcriptEntries = this.mergeUniqueTranscriptEntries(transcript);
+    let effectiveTranscriptEntries = transcriptEntries;
+    if (this.candidateAudioTranscriber && mergedCandidateAnswerAudios.length > 0) {
+      const transcribedCandidateTurns = await this.candidateAudioTranscriber
+        .transcribeCandidateAnswerAudios(mergedCandidateAnswerAudios)
+        .catch(() => []);
+      if (transcribedCandidateTurns.length > 0) {
+        effectiveTranscriptEntries = this.mergeTranscriptWithCandidateAudio(
+          transcriptEntries,
+          transcribedCandidateTurns
+        );
+      }
+    }
     const effectiveVisionAnalysis = visionAnalysis || this.buildVisionAnalysisFromRuntime(runtime);
-    const report = await this.analyzer.generateReport(session, transcriptEntries, effectiveVisionAnalysis);
-    const transcriptText = transcriptEntries
+    const report = await this.analyzer.generateReport(session, effectiveTranscriptEntries, effectiveVisionAnalysis);
+    const transcriptText = effectiveTranscriptEntries
       .map((item) => {
         const role = item?.role === "interviewer" ? "Interviewer" : "Candidate";
         return `[${role}] ${String(item?.text || "").trim()}`;
@@ -522,7 +597,7 @@ export class BackendOrchestrator {
       .filter(Boolean)
       .join("\n");
 
-    report.transcript = transcriptEntries;
+    report.transcript = effectiveTranscriptEntries;
     report.transcriptText = transcriptText;
 
     session.report = report;
@@ -536,7 +611,7 @@ export class BackendOrchestrator {
     if (this.reportArchive?.save) {
       const archiveResult = await this.reportArchive.save({
         sessionId,
-        transcript: transcriptEntries,
+        transcript: effectiveTranscriptEntries,
         report,
         candidateAnswerAudios: mergedCandidateAnswerAudios,
         existingCandidateAnswerAudioFiles: runtime.incrementalSavedAudioFiles,

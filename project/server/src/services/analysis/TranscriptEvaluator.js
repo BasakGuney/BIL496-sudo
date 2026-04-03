@@ -183,7 +183,7 @@ export class TranscriptEvaluator {
     const qaEvaluations = qaPairs.map((pair, index) => {
       const words = pair.answer.split(/\s+/).filter(Boolean);
       const uniqueWords = new Set(words.map((w) => w.toLowerCase()));
-      const fillerRegex = /\b(ıı+|eee+|şey|yani|hımm|hmm|bilmiyorum)\b/gi;
+      const fillerRegex = /\b(ı+|ee+|aa+|aaa+|eee+|şey|yani|hımm|hmm|bilmiyorum)\b/gi;
       const fillerCount = (pair.answer.match(fillerRegex) || []).length;
       const fillerRatio = words.length ? fillerCount / words.length : 0;
       const lexicalRichness = words.length ? uniqueWords.size / words.length : 0;
@@ -231,7 +231,7 @@ export class TranscriptEvaluator {
 
     const allAnswersText = qaPairs.map((p) => p.answer).join(" ");
     const allWords = allAnswersText.split(/\s+/).filter(Boolean);
-    const allFillerCount = (allAnswersText.match(/\b(ıı+|eee+|şey|yani|hımm|hmm|bilmiyorum)\b/gi) || [])
+    const allFillerCount = (allAnswersText.match(/\b(ı+|ee+|aa+|aaa+|eee+|şey|yani|hımm|hmm|bilmiyorum)\b/gi) || [])
       .length;
     const fillerRatio = allWords.length ? allFillerCount / allWords.length : 0;
 

@@ -462,9 +462,14 @@ def parse_transcript_python(transcript_text: str) -> list:
         if not t:
             return True
 
-        setup_meta_patterns = [
+        setup_or_closing_question_patterns = [
             r"\bhazırsanız başlayalım mı\b",
             r"\bbaşlayabilir miyiz\b",
+            r"\bbaşlayalım mı\b",
+            r"\bbaşka sorunuz var mı\b",
+        ]
+
+        setup_meta_patterns = [
             r"\bbaşlayalım\b",
             r"\bmerhaba\b",
             r"\bhoş geldiniz\b",
@@ -474,7 +479,28 @@ def parse_transcript_python(transcript_text: str) -> list:
             r"\bbir sonraki soruya geçelim\b",
             r"\bdevam edelim\b",
         ]
-        return any(re.search(pattern, t) for pattern in setup_meta_patterns)
+        all_setup_patterns = setup_or_closing_question_patterns + setup_meta_patterns
+        return any(re.search(pattern, t) for pattern in all_setup_patterns)
+
+    def _is_pure_setup_or_closing_question(text: str) -> bool:
+        """
+        Cümlede soru olsa bile, soru gerçek mülakat içeriği değilse meta/setup say.
+        Örn: "Hazırsanız başlayalım mı?", "Başka sorunuz var mı?"
+        """
+        import re
+        t = (text or "").strip().lower()
+        if not t:
+            return True
+
+        pure_patterns = [
+            r"\bhazırsanız başlayalım mı\b",
+            r"\bbaşlayabilir miyiz\b",
+            r"\bbaşlayalım mı\b",
+            r"\bbaşka sorunuz var mı\b",
+            r"\bgörüşmek üzere\b",
+            r"\biyi günler\b",
+        ]
+        return any(re.search(pattern, t) for pattern in pure_patterns)
 
     for line in lines:
         if line.startswith("[Interviewer]"):
@@ -483,14 +509,15 @@ def parse_transcript_python(transcript_text: str) -> list:
                 # Önceki cevapsız soruyu boş yanıtla kapat
                 blocks.append({"type": pending_type, "question": pending_question, "answer": ""})
 
-            # Soru işareti yok + soru kalıbı yoksa bu satırı meta/setup kabul et.
-            # Böylece aday araya girdiğinde yarım kalan cümleler soru analizine girmez.
-            if _is_setup_or_meta_text(text):
-                pending_question = text
-                pending_type = "setup_or_meta"
-            elif _looks_like_interviewer_question(text):
+            # Önce gerçek soru niyeti var mı bak:
+            # "teşekkür ederim ... kendinizden bahsedebilir misiniz?" gibi
+            # cümleler geçiş ifadesi içerdiği için meta'ya düşmemeli.
+            if _looks_like_interviewer_question(text) and not _is_pure_setup_or_closing_question(text):
                 pending_question = _extract_question(text)
                 pending_type = "question"
+            elif _is_setup_or_meta_text(text):
+                pending_question = text
+                pending_type = "setup_or_meta"
             else:
                 pending_question = text
                 pending_type = "setup_or_meta"
@@ -518,31 +545,29 @@ def analyze_transcript_with_gpt(qa_pairs, transcript_text, interview_type: str =
     cq_list, cc_list, es_list, tu_list = [], [], [], []
     rr_scores, rr_weights = [], []
 
-    # 1. Blokları Python parser ile deterministik oluştur (hiçbir cevabı düşürmez).
-    #    Ardından GPT parser'ı çalıştır: yalnızca GPT'nin "setup_or_meta" etiketlediği
-    #    bloklara o etiketi uygula. GPT'nin listesinde OLMAYAN bloklar (yani GPT düşürdüyse)
-    #    Python listesinden "question" tipiyle korunur.
+    # 1) GPT parser'ı ana kaynak olarak kullan.
+    # 2) GPT yanıt veremezse / geçersizse Python parser'a fallback yap.
+    # Bu yaklaşım, regex kaynaklı soru kaçırma riskini azaltır.
     if transcript_text:
-        py_blocks = parse_transcript_python(transcript_text)
         try:
             gpt_blocks = parse_transcript_to_structured_blocks_gpt(transcript_text)
-            # GPT'nin "setup_or_meta" etiketlediği soruları bir listeye al
-            gpt_meta_questions = [
-                b.get("question", "").strip().lower()
-                for b in gpt_blocks
-                if b.get("type") == "setup_or_meta"
-            ]
-            # Python bloklarında tipi GPT'den al:
-            # Substring eşleşme kullan (tam eşleşme yerine) çünkü GPT soruyu kısaltabilir
-            for b in py_blocks:
-                q_lower = b.get("question", "").strip().lower()
-                for gpt_q in gpt_meta_questions:
-                    if gpt_q and (gpt_q in q_lower or q_lower in gpt_q):
-                        b["type"] = "setup_or_meta"
-                        break
-            blocks = py_blocks
+            normalized_gpt_blocks = []
+            for b in gpt_blocks if isinstance(gpt_blocks, list) else []:
+                q = str((b or {}).get("question", "")).strip()
+                a = str((b or {}).get("answer", "")).strip()
+                t = str((b or {}).get("type", "question")).strip().lower()
+                if not q:
+                    continue
+                block_type = "setup_or_meta" if t == "setup_or_meta" else "question"
+                normalized_gpt_blocks.append({
+                    "type": block_type,
+                    "question": q,
+                    "answer": a
+                })
+
+            blocks = normalized_gpt_blocks if normalized_gpt_blocks else parse_transcript_python(transcript_text)
         except Exception:
-            blocks = py_blocks
+            blocks = parse_transcript_python(transcript_text)
     else:
         blocks = qa_pairs  # transcript_text yoksa TranscriptEvaluator'dan gelen çiftler
 
