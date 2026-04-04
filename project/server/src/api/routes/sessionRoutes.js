@@ -16,6 +16,7 @@ export function createSessionRouter({
   // Supportive Mode
   router.post("/session/:sessionId/supportive/hints", sessionController.generateLiveHints);
   router.post("/session/:sessionId/supportive/feedback", sessionController.generateLiveFeedback);
+  router.post("/session/:sessionId/usage", sessionController.recordUsage);
 
   // Consent
   router.patch("/session/:sessionId/consent", consentController.updateConsent);
@@ -24,6 +25,7 @@ export function createSessionRouter({
   router.post("/realtime/offer", realtimeController.createOfferAnswer);
 
   // Report
+  router.get("/reports", reportController.listReports);
   router.post("/session/:sessionId/answer", reportController.ingestCandidateAnswer);
   router.post("/session/:sessionId/vision/frame", reportController.ingestVisionFrame);
   router.post("/session/:sessionId/end", reportController.endSessionAndCreateReport);

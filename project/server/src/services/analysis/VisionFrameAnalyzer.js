@@ -13,6 +13,13 @@ export class VisionFrameAnalyzer {
       const child = spawn(this.pythonBin, [this.scriptPath], { stdio: ["pipe", "pipe", "pipe"] });
       let stdout = "";
       let stderr = "";
+      let settled = false;
+
+      const finalize = (result) => {
+        if (settled) return;
+        settled = true;
+        resolve(result);
+      };
 
       child.stdout.on("data", (chunk) => {
         stdout += chunk.toString();
@@ -20,9 +27,19 @@ export class VisionFrameAnalyzer {
       child.stderr.on("data", (chunk) => {
         stderr += chunk.toString();
       });
+      child.stdin.on("error", (error) => {
+        this.logger.warn("Vision frame analyzer stdin error", error);
+        finalize({
+          status: "unavailable",
+          message: `Vision analyzer stdin error: ${error.message}`,
+          faceCount: 0,
+          bbox: null,
+          faceCropBase64: "",
+        });
+      });
       child.on("error", (error) => {
         this.logger.warn("Vision frame analyzer process error", error);
-        resolve({
+        finalize({
           status: "unavailable",
           message: `Python vision analyzer unavailable: ${error.message}`,
           faceCount: 0,
@@ -31,12 +48,13 @@ export class VisionFrameAnalyzer {
         });
       });
       child.on("close", () => {
+        if (settled) return;
         if (!stdout.trim()) {
           const detail = stderr.trim();
           if (detail) {
             this.logger.warn("Vision frame analyzer produced no JSON output", detail);
           }
-          resolve({
+          finalize({
             status: "unavailable",
             message: detail
               ? `Vision analyzer exited without JSON output: ${detail.split("\n")[0]}`
@@ -48,10 +66,10 @@ export class VisionFrameAnalyzer {
           return;
         }
         try {
-          resolve(JSON.parse(stdout));
+          finalize(JSON.parse(stdout));
         } catch {
           this.logger.warn("Vision frame analyzer returned invalid JSON", stderr || stdout);
-          resolve({
+          finalize({
             status: "unavailable",
             message: stderr?.trim()
               ? `Vision analyzer returned invalid output: ${stderr.trim().split("\n")[0]}`
@@ -63,8 +81,19 @@ export class VisionFrameAnalyzer {
         }
       });
 
-      child.stdin.write(JSON.stringify(payload));
-      child.stdin.end();
+      try {
+        child.stdin.write(JSON.stringify(payload));
+        child.stdin.end();
+      } catch (error) {
+        this.logger.warn("Vision frame analyzer failed to send payload", error);
+        finalize({
+          status: "unavailable",
+          message: `Vision analyzer write failed: ${error.message}`,
+          faceCount: 0,
+          bbox: null,
+          faceCropBase64: "",
+        });
+      }
     });
   }
 

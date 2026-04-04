@@ -219,6 +219,7 @@ export async function connectRealtimeInterview(opts: {
   const transcript: TranscriptEntry[] = [];
   const candidateAnswerAudios: CandidateAnswerAudio[] = [];
   const pendingAudioConversions: Promise<void>[] = [];
+  const usageResponseIds = new Set<string>();
 
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -458,6 +459,23 @@ export async function connectRealtimeInterview(opts: {
     );
   };
 
+  const postUsage = async (usage: any, responseId?: string) => {
+    if (!usage) return;
+    if (responseId) {
+      if (usageResponseIds.has(responseId)) return;
+      usageResponseIds.add(responseId);
+    }
+    try {
+      await fetch(`${opts.backendBaseUrl}/session/${encodeURIComponent(opts.sessionId)}/usage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "realtimeApi", usage }),
+      });
+    } catch (error) {
+      console.debug("[RTC] usage upload failed", error);
+    }
+  };
+
   dc.onmessage = (e) => {
     let msg: RealtimeEvent;
     try {
@@ -497,6 +515,11 @@ export async function connectRealtimeInterview(opts: {
       if (fullTextText && opts.onInterviewerFinished) {
         opts.onInterviewerFinished(fullTextText);
       }
+    }
+
+    if (msg?.response?.usage) {
+      const responseId = msg?.response?.id || msg?.response_id || msg?.item_id;
+      postUsage(msg.response.usage, responseId);
     }
 
     const isSpeechStarted = msg?.type === "input_audio_buffer.speech_started";

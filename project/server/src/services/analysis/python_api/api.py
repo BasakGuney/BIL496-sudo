@@ -11,7 +11,7 @@ from audio_analyzer import AudioAnalyzer, compute_overall, interpret_report_with
 from vision_analyzer import interpret_vision_report_with_gpt
 from transcript_analyzer import analyze_transcript_with_gpt
 
-REPORTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../reports"))
+REPORTS_DIR = os.getenv("REPORTS_DIR") or os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../reports"))
 
 def normalize_session_folder_name(session_id: str):
     safe_session_id = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in str(session_id or "unknown-session"))

@@ -12,6 +12,7 @@ export class SessionController {
     this.generatePreviewQuestions = this.generatePreviewQuestions.bind(this);
     this.generateLiveHints = this.generateLiveHints.bind(this);
     this.generateLiveFeedback = this.generateLiveFeedback.bind(this);
+    this.recordUsage = this.recordUsage.bind(this);
   }
 
   async generatePreviewQuestions(req, res, next) {
@@ -29,7 +30,7 @@ export class SessionController {
       if (!question) {
         return res.status(400).json({ error: "question is required" });
       }
-      const hints = await this.backendOrchestrator.generateLiveHints(question);
+      const hints = await this.backendOrchestrator.generateLiveHints(req.params.sessionId, question);
       return res.json({ hints });
     } catch (error) {
       return next(error);
@@ -42,8 +43,21 @@ export class SessionController {
       if (!question || !answer) {
         return res.status(400).json({ error: "question and answer are required" });
       }
-      const feedback = await this.backendOrchestrator.generateLiveFeedback(question, answer);
+      const feedback = await this.backendOrchestrator.generateLiveFeedback(req.params.sessionId, question, answer);
       return res.json({ feedback });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async recordUsage(req, res, next) {
+    try {
+      const { kind, usage } = req.body || {};
+      if (!kind || !usage) {
+        return res.status(400).json({ error: "kind and usage are required" });
+      }
+      const tokenUsage = await this.backendOrchestrator.recordUsage(req.params.sessionId, kind, usage);
+      return res.json({ tokenUsage });
     } catch (error) {
       return next(error);
     }

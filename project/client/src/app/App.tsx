@@ -7,6 +7,7 @@ import { InterviewPage } from "@/pages/InterviewPage";
 import { FeedbackPage } from "@/pages/FeedbackPage";
 import { PreviewPage } from "@/pages/PreviewPage";
 import type { FeedbackReport, SessionConfig } from "@/lib/types";
+import { getReport } from "@/lib/api";
 import type { RouteKey } from "./routes";
 
 export default function App() {
@@ -39,6 +40,17 @@ export default function App() {
             onPrepared={(cfg) => {
               setConfig(cfg);
               setRoute("preview");
+            }}
+            onOpenReport={async (sid) => {
+              try {
+                const rep = await getReport(sid);
+                setConfig(null);
+                setSessionId(sid);
+                setReport(rep);
+                setRoute("feedback");
+              } catch (error) {
+                console.error("Failed to open report", error);
+              }
             }}
           />
         )}

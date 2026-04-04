@@ -17,7 +17,7 @@ export class AIServiceGateway {
     return `${lastTopic} konusunda biraz daha somut bir örnek paylaşır mısınız?`;
   }
 
-  async generatePreviewQuestions(cfg) {
+  async generatePreviewQuestions(cfg, options = {}) {
     let promptText = "";
     if (cfg.interviewType === "HR") {
       promptText = `Sen bir İnsan Kaynakları mülakatçısısın. Adaya sorulabilecek, STAR (Situation, Task, Action, Result) tekniğine uygun, tamamen Türkçe 3 adet genel İK / davranışsal soru hazırla. Sorular genel karakter ve tecrübe odaklı olmalıdır. SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında JSON objesi döndür, markdown veya açıklama ekleme.`;
@@ -52,6 +52,9 @@ SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında geçerli bir
       }
 
       const result = await response.json();
+      if (result?.usage && typeof options?.onUsage === "function") {
+        options.onUsage(result.usage);
+      }
       const content = result.choices?.[0]?.message?.content || "{}";
       
       try {
@@ -100,7 +103,7 @@ SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında geçerli bir
     return false;
   }
 
-  async generateLiveHints(question) {
+  async generateLiveHints(question, options = {}) {
     if (this.isIntroQuestion(question)) return [];
     if (!this.client?.apiKey) return [];
     const prompt = `Sen destekleyici bir mülakat koçusun. Soru: "${question}"
@@ -120,6 +123,9 @@ SADECE JSON FORMATINDA YANIT VER:
       });
       if (!response.ok) return [];
       const result = await response.json();
+      if (result?.usage && typeof options?.onUsage === "function") {
+        options.onUsage(result.usage);
+      }
       const content = result.choices?.[0]?.message?.content || "{}";
       return JSON.parse(content).hints || [];
     } catch(e) {
@@ -128,7 +134,7 @@ SADECE JSON FORMATINDA YANIT VER:
     }
   }
 
-  async generateLiveFeedback(question, answer) {
+  async generateLiveFeedback(question, answer, options = {}) {
     if (this.isIntroQuestion(question) || this.isShortOrSimpleAnswer(answer)) return null;
     if (!this.client?.apiKey) return null;
     const prompt = `Sen destekleyici bir mülakat koçusun.
@@ -162,6 +168,9 @@ SADECE JSON FORMATINDA YANIT VER:
       });
       if (!response.ok) return null;
       const result = await response.json();
+      if (result?.usage && typeof options?.onUsage === "function") {
+        options.onUsage(result.usage);
+      }
       const content = result.choices?.[0]?.message?.content || "{}";
       return JSON.parse(content);
     } catch(e) {

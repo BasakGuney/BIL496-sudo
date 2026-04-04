@@ -17,6 +17,8 @@ export class ReportView {
       transcript: Array.isArray(report?.transcript) ? report.transcript : [],
       transcriptText: feedbackArtifacts?.transcriptText || report?.transcriptText || "",
       visionAnalysis: feedbackArtifacts?.visionAnalysis || report?.visionAnalysis || null,
+      tokenUsage: report?.tokenUsage || null,
+      estimatedCost: report?.estimatedCost || null,
       audioAnalysis: {
         model: feedbackArtifacts?.audioModel || null,
       },

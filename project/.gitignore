@@ -3,11 +3,14 @@ server/reports/
 
 # Python caching and compiled files
 server/__pycache__/
+**/__pycache__/
 server/*.py[cod]
+**/*.py[cod]
 server/*$py.class
 server/*.so
 server/.Python
 server/.pytest_cache/
+server/.env/
 **/.model-cache/
 
 # Python packaging
@@ -64,7 +67,7 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
-!server/.env
+server/.env
 
 # Logs
 logs/

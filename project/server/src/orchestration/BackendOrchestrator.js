@@ -5,7 +5,7 @@ import { Consent } from "../domain/value-objects/Consent.js";
 import { AppError } from "../domain/errors/AppError.js";
 
 export class BackendOrchestrator {
-  constructor({ sessions, reports, ai, analyzer, guardrails, realtimeManager, idGenerator, reportArchive, candidateAudioTranscriber = null, pythonAnalysisClient = null, visionFrameAnalyzer = null }) {
+  constructor({ sessions, reports, ai, analyzer, guardrails, realtimeManager, idGenerator, reportArchive, candidateAudioTranscriber = null, pythonAnalysisClient = null, visionFrameAnalyzer = null, costEstimator = null }) {
     this.sessions = sessions;
     this.reports = reports;
     this.ai = ai;
@@ -17,6 +17,7 @@ export class BackendOrchestrator {
     this.candidateAudioTranscriber = candidateAudioTranscriber;
     this.pythonAnalysisClient = pythonAnalysisClient;
     this.visionFrameAnalyzer = visionFrameAnalyzer;
+    this.costEstimator = costEstimator;
   }
 
   async createSession(cfgInput, offerSdp = "", sessionId = null) {
@@ -66,12 +67,38 @@ export class BackendOrchestrator {
     return await this.ai.generatePreviewQuestions(cfg);
   }
 
-  async generateLiveHints(question) {
-    return await this.ai.generateLiveHints(question);
+  async generateLiveHints(sessionId, question) {
+    const session = await this.sessions.findById(sessionId);
+    return await this.ai.generateLiveHints(question, {
+      onUsage: (usage) => {
+        if (session?.addTokenUsage) {
+          session.addTokenUsage("liveHints", usage);
+          this.sessions.update(session);
+        }
+      },
+    });
   }
 
-  async generateLiveFeedback(question, answer) {
-    return await this.ai.generateLiveFeedback(question, answer);
+  async generateLiveFeedback(sessionId, question, answer) {
+    const session = await this.sessions.findById(sessionId);
+    return await this.ai.generateLiveFeedback(question, answer, {
+      onUsage: (usage) => {
+        if (session?.addTokenUsage) {
+          session.addTokenUsage("liveFeedback", usage);
+          this.sessions.update(session);
+        }
+      },
+    });
+  }
+
+  async recordUsage(sessionId, kind, usage) {
+    const session = await this.sessions.findById(sessionId);
+    if (!session) throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", statusCode: 404 });
+    if (session?.addTokenUsage) {
+      session.addTokenUsage(kind, usage);
+      await this.sessions.update(session);
+    }
+    return session?.tokenUsage || null;
   }
 
   buildAnswerKey(answer = {}) {
@@ -524,6 +551,10 @@ export class BackendOrchestrator {
 
     report.transcript = transcriptEntries;
     report.transcriptText = transcriptText;
+    report.tokenUsage = session?.tokenUsage || null;
+    report.estimatedCost = this.costEstimator
+      ? this.costEstimator.estimate(session?.tokenUsage || null)
+      : null;
 
     session.report = report;
     session.state = reason ? SessionState.ABORTED : SessionState.COMPLETED;
@@ -566,13 +597,37 @@ export class BackendOrchestrator {
 
   async getReport(sessionId) {
     const report = await this.reports.findBySessionId(sessionId);
-    if (!report) {
-      throw new AppError("Report not found", { code: "REPORT_NOT_FOUND", statusCode: 404 });
-    }
-
     const feedbackArtifacts = this.reportArchive?.loadFeedbackArtifacts
       ? await this.reportArchive.loadFeedbackArtifacts(sessionId)
       : null;
+
+    if (!report && !feedbackArtifacts) {
+      throw new AppError("Report not found", { code: "REPORT_NOT_FOUND", statusCode: 404 });
+    }
+
+    if (!report) {
+      const overallScore =
+        feedbackArtifacts?.transcriptAnalysis?.overallScore
+        ?? feedbackArtifacts?.transcriptAnalysis?.overall?.overallScore
+        ?? 0;
+      return {
+        id: `R-${sessionId}`,
+        sessionId,
+        overallScore,
+        content: [],
+        communication: [],
+        behavioral: [],
+        recommendations: [],
+        notes: [],
+        qaEvaluations: feedbackArtifacts?.transcriptAnalysis?.qaEvaluations || [],
+        transcript: [],
+        transcriptText: feedbackArtifacts?.transcriptText || "",
+        visionAnalysis: feedbackArtifacts?.visionAnalysis || null,
+        feedbackArtifacts,
+        tokenUsage: null,
+        estimatedCost: null,
+      };
+    }
 
     return {
       ...report,
@@ -580,5 +635,10 @@ export class BackendOrchestrator {
       visionAnalysis: feedbackArtifacts?.visionAnalysis || report?.visionAnalysis || null,
       feedbackArtifacts,
     };
+  }
+
+  async listReports({ limit = 50 } = {}) {
+    if (!this.reportArchive?.listSessionSummaries) return [];
+    return await this.reportArchive.listSessionSummaries({ limit });
   }
 }

@@ -3,11 +3,11 @@ import type { CandidateAnswerAudio, SessionConfig } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Flag, Mic, ScanFace, Volume2 } from "lucide-react";
 import { VoiceWaveCanvas } from "@/components/interview/VoiceWaveCanvas";
+import { AvatarVideo } from "@/components/interview/AvatarVideo";
 import { connectRealtimeInterview } from "@/lib/realtimeClient";
 import { endSession, uploadCandidateAnswerIncremental } from "@/lib/api";
 import { createVisionAnalyzer, type VisionOverlayState } from "@/lib/visionAnalysis";
-
-const BACKEND_URL = "http://localhost:3001";
+import { BACKEND_URL } from "@/lib/config";
 
 const DEFAULT_OVERLAY: VisionOverlayState = {
   supported: false,
@@ -36,6 +36,7 @@ export function InterviewPage({
   const [isFinishing, setIsFinishing] = useState(false);
   const [finishingMessage, setFinishingMessage] = useState("Lütfen bekleyin, raporunuz hazırlanıyor.");
   const [overlay, setOverlay] = useState<VisionOverlayState>(DEFAULT_OVERLAY);
+  const [visualMode, setVisualMode] = useState<"avatar" | "wave">("avatar");
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
@@ -421,6 +422,25 @@ export function InterviewPage({
             <span>{overlay.message}</span>
           </div>
 
+          <div className="flex justify-center pb-4">
+            <div className="inline-flex rounded-full border border-white/15 bg-white/5 p-1 text-xs text-white/70 backdrop-blur">
+              <button
+                type="button"
+                onClick={() => setVisualMode("avatar")}
+                className={`rounded-full px-3 py-1 transition ${visualMode === "avatar" ? "bg-white/20 text-white" : "text-white/60 hover:text-white"}`}
+              >
+                Avatar
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisualMode("wave")}
+                className={`rounded-full px-3 py-1 transition ${visualMode === "wave" ? "bg-white/20 text-white" : "text-white/60 hover:text-white"}`}
+              >
+                Ses Dalga
+              </button>
+            </div>
+          </div>
+
           <div className="flex h-[300px] w-full flex-col items-center justify-center rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur md:h-[360px]">
             {isFinishing ? (
               <div className="animate-in fade-in flex flex-col items-center gap-4 duration-500">
@@ -429,7 +449,9 @@ export function InterviewPage({
                 <div className="text-sm text-white/50">{finishingMessage}</div>
               </div>
             ) : (
-              <VoiceWaveCanvas speaking={aiSpeaking} level={level} />
+              visualMode === "avatar"
+                ? <AvatarVideo speaking={aiSpeaking} />
+                : <VoiceWaveCanvas speaking={aiSpeaking} level={level} />
             )}
           </div>
 

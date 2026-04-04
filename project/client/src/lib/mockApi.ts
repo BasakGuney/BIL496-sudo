@@ -1,6 +1,6 @@
 import type { CandidateAnswerAudio, SessionConfig } from "./types";
+import { BACKEND_URL } from "./config";
 
-const BACKEND_URL = "http://localhost:3001";
 
 async function parseJsonSafe(response: Response) {
   const text = await response.text();

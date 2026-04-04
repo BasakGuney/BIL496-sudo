@@ -1,6 +1,6 @@
-import type { CandidateAnswerAudio, FeedbackReport, SessionConfig } from "./types";
+import type { CandidateAnswerAudio, FeedbackReport, SessionConfig, SessionSummary } from "./types";
+import { BACKEND_URL } from "./config";
 
-const BACKEND_URL = "http://localhost:3001";
 
 async function parseJsonSafe(response: Response) {
   const text = await response.text();
@@ -122,4 +122,11 @@ export async function getReport(sessionId: string) {
   return request(`/session/${encodeURIComponent(sessionId)}/report`, {
     method: "GET",
   }) as Promise<FeedbackReport>;
+}
+
+export async function listReports(limit = 50) {
+  const payload = await request(`/reports?limit=${encodeURIComponent(String(limit))}`, {
+    method: "GET",
+  });
+  return Array.isArray((payload as any)?.items) ? (payload as any).items as SessionSummary[] : [];
 }

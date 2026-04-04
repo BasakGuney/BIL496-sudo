@@ -52,6 +52,45 @@ export class TranscriptEvaluator {
     const heuristicReport = this.buildHeuristicReport({ sessionId, qaPairs, interviewType: session.config?.interviewType });
     if (!this.apiKey) return heuristicReport;
 
+    const systemPrompt = this.promptTemplates.transcriptEvaluationSystemPrompt(session.config?.interviewType);
+    const inputPayload = { qaPairs, transcript: safeTranscript };
+
+    const responseResult = await this.tryResponsesApi({
+      systemPrompt,
+      inputPayload,
+      model: "gpt-4.1-mini",
+    });
+    if (responseResult?.parsed) {
+      if (responseResult.usage && typeof session?.addTokenUsage === "function") {
+        session.addTokenUsage("transcriptEvaluation", responseResult.usage);
+      }
+      return this.mergeParsedReport(sessionId, responseResult.parsed, heuristicReport);
+    }
+
+    const chatResult = await this.tryChatCompletionsApi({
+      systemPrompt,
+      inputPayload,
+      model: "gpt-4.1-mini",
+    });
+    if (chatResult?.parsed) {
+      if (chatResult.usage && typeof session?.addTokenUsage === "function") {
+        session.addTokenUsage("transcriptEvaluation", chatResult.usage);
+      }
+      return this.mergeParsedReport(sessionId, chatResult.parsed, heuristicReport);
+    }
+
+    return heuristicReport;
+  }
+
+  mergeParsedReport(sessionId, parsed, heuristicReport) {
+    return {
+      sessionId,
+      ...parsed,
+      qaEvaluations: Array.isArray(parsed?.qaEvaluations) ? parsed.qaEvaluations : heuristicReport.qaEvaluations,
+    };
+  }
+
+  async tryResponsesApi({ systemPrompt, inputPayload, model }) {
     try {
       const response = await this.fetchImpl("https://api.openai.com/v1/responses", {
         method: "POST",
@@ -60,35 +99,53 @@ export class TranscriptEvaluator {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4.1-mini",
+          model,
           input: [
-            {
-              role: "system",
-              content: this.promptTemplates.transcriptEvaluationSystemPrompt(session.config?.interviewType),
-            },
-            {
-              role: "user",
-              content: JSON.stringify({ qaPairs, transcript: safeTranscript }),
-            },
+            { role: "system", content: systemPrompt },
+            { role: "user", content: JSON.stringify(inputPayload) },
           ],
           text: { format: { type: "json_object" } },
         }),
       });
 
-      if (!response.ok) return heuristicReport;
-
+      if (!response.ok) return null;
       const body = await response.json();
       const outputText = body?.output_text;
-      if (!outputText) return heuristicReport;
-
+      if (!outputText) return null;
       const parsed = JSON.parse(outputText);
-      return {
-        sessionId,
-        qaEvaluations: Array.isArray(parsed.qaEvaluations) ? parsed.qaEvaluations : heuristicReport.qaEvaluations,
-        ...parsed,
-      };
+      return { parsed, usage: body?.usage };
     } catch (_error) {
-      return heuristicReport;
+      return null;
+    }
+  }
+
+  async tryChatCompletionsApi({ systemPrompt, inputPayload, model }) {
+    try {
+      const response = await this.fetchImpl("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: JSON.stringify(inputPayload) },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.2,
+        }),
+      });
+
+      if (!response.ok) return null;
+      const body = await response.json();
+      const content = body?.choices?.[0]?.message?.content;
+      if (!content) return null;
+      const parsed = JSON.parse(content);
+      return { parsed, usage: body?.usage };
+    } catch (_error) {
+      return null;
     }
   }
 

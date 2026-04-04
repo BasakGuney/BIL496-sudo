@@ -7,11 +7,13 @@ import ffmpegPath from "ffmpeg-static";
 const execAsync = promisify(exec);
 
 export class PythonAnalysisClient {
-  constructor({ baseUrl = "http://localhost:8000", fetchImpl = fetch, logger = console } = {}) {
+  constructor({ baseUrl = "http://localhost:8000", fetchImpl = fetch, logger = console, timeoutMs = 30000 } = {}) {
     this.baseUrl = baseUrl;
     this.fetchImpl = fetchImpl;
     this.logger = logger;
+    this.timeoutMs = timeoutMs;
     this.connectionRefusedWarnings = new Set();
+    this.timeoutWarnings = new Set();
   }
 
   sanitizeSessionId(sessionId = "") {
@@ -39,6 +41,23 @@ export class PythonAnalysisClient {
     this.logger.warn(`Python ${scope} service is unavailable at ${this.baseUrl}. Skipping ${scope} analysis until it is back online.`);
     if (error?.cause?.code && error.cause.code !== "ECONNREFUSED") {
       this.logger.warn(`Python ${scope} connection detail: ${error.cause.code}`);
+    }
+  }
+
+  logServiceTimeout(scope) {
+    const key = `timeout:${scope}:${this.baseUrl}`;
+    if (this.timeoutWarnings.has(key)) return;
+    this.timeoutWarnings.add(key);
+    this.logger.warn(`Python ${scope} service timed out at ${this.baseUrl}. Skipping ${scope} analysis for this session.`);
+  }
+
+  async fetchWithTimeout(url, options = {}, timeoutMs = this.timeoutMs) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await this.fetchImpl(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -76,7 +95,7 @@ export class PythonAnalysisClient {
 
     this.logger.info(`Sending ${validPaths.length} file${validPaths.length === 1 ? "" : "s"} to Python API for audio analysis...`);
     try {
-      const audioResponse = await this.fetchImpl(`${this.baseUrl}/analyze-audio`, {
+      const audioResponse = await this.fetchWithTimeout(`${this.baseUrl}/analyze-audio`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -96,7 +115,9 @@ export class PythonAnalysisClient {
       this.logger.info("Audio analysis completed successfully.");
       return true;
     } catch (error) {
-      if (this.isConnectionRefused(error)) {
+      if (error?.name === "AbortError") {
+        this.logServiceTimeout("audio");
+      } else if (this.isConnectionRefused(error)) {
         this.logServiceUnavailable("audio", error);
       } else {
         this.logger.error("Failed to call Python audio analysis API:", error);
@@ -113,7 +134,7 @@ export class PythonAnalysisClient {
 
     this.logger.info("Sending transcript for analysis to Python API...");
     try {
-      const transcriptResponse = await this.fetchImpl(`${this.baseUrl}/analyze-transcript`, {
+      const transcriptResponse = await this.fetchWithTimeout(`${this.baseUrl}/analyze-transcript`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -133,7 +154,9 @@ export class PythonAnalysisClient {
       this.logger.info("Transcript analysis completed successfully.");
       return true;
     } catch (error) {
-      if (this.isConnectionRefused(error)) {
+      if (error?.name === "AbortError") {
+        this.logServiceTimeout("transcript");
+      } else if (this.isConnectionRefused(error)) {
         this.logServiceUnavailable("transcript", error);
       } else {
         this.logger.error("Failed to call Python transcript analysis API:", error);
@@ -150,7 +173,7 @@ export class PythonAnalysisClient {
 
     this.logger.info("Sending vision analysis for interpretation to Python API...");
     try {
-      const visionResponse = await this.fetchImpl(`${this.baseUrl}/analyze-vision`, {
+      const visionResponse = await this.fetchWithTimeout(`${this.baseUrl}/analyze-vision`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -168,7 +191,9 @@ export class PythonAnalysisClient {
       this.logger.info("Vision analysis completed successfully.");
       return true;
     } catch (error) {
-      if (this.isConnectionRefused(error)) {
+      if (error?.name === "AbortError") {
+        this.logServiceTimeout("vision");
+      } else if (this.isConnectionRefused(error)) {
         this.logServiceUnavailable("vision", error);
       } else {
         this.logger.error("Failed to call Python vision analysis API:", error);

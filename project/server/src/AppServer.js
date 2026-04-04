@@ -31,6 +31,7 @@ import { GuardrailsEngine } from "./orchestration/GuardrailsEngine.js";
 import { BackendOrchestrator } from "./orchestration/BackendOrchestrator.js";
 import { PythonAnalysisClient } from "./services/analysis/PythonAnalysisClient.js";
 import { VisionFrameAnalyzer } from "./services/analysis/VisionFrameAnalyzer.js";
+import { CostEstimator } from "./services/CostEstimator.js";
 
 export class AppServer {
   constructor({ env = getEnv(), logger = new Logger() } = {}) {
@@ -87,11 +88,13 @@ export class AppServer {
       apiKey: this.env.openAiApiKey,
     });
     const pythonAnalysisClient = new PythonAnalysisClient({
-      logger: this.logger
+      logger: this.logger,
+      baseUrl: this.env.pythonApiBaseUrl,
     });
     const visionFrameAnalyzer = new VisionFrameAnalyzer({
       logger: this.logger,
     });
+    const costEstimator = new CostEstimator();
 
     const backendOrchestrator = new BackendOrchestrator({
       sessions,
@@ -105,6 +108,7 @@ export class AppServer {
       candidateAudioTranscriber,
       pythonAnalysisClient,
       visionFrameAnalyzer,
+      costEstimator,
     });
 
     const sessionController = new SessionController({ backendOrchestrator });

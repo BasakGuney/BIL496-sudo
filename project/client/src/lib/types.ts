@@ -154,6 +154,25 @@ export type FeedbackReport = {
   transcript?: Array<{ role: string; text: string; ts?: number }>;
   transcriptText?: string;
   visionAnalysis?: VisionAnalysis | null;
+  tokenUsage?: {
+    previewQuestions?: { prompt: number; completion: number };
+    liveHints?: { prompt: number; completion: number };
+    liveFeedback?: { prompt: number; completion: number };
+    transcriptEvaluation?: { prompt: number; completion: number };
+    audioLlmInterpretation?: { prompt: number; completion: number };
+    visionLlmReport?: { prompt: number; completion: number };
+    realtimeApi?: {
+      inputTokens: number;
+      outputTokens: number;
+      audioInputSeconds: number;
+      audioOutputSeconds: number;
+    };
+  } | null;
+  estimatedCost?: {
+    currency?: string;
+    total?: number;
+    breakdown?: Record<string, number>;
+  } | null;
   audioAnalysis?: AudioAnalysisPayload;
   audioLlmReport?: AudioLlmReport;
   transcriptAnalysis?: TranscriptAnalysisPayload;
@@ -175,4 +194,14 @@ export type CandidateAnswerAudio = {
   startedAt: number;
   endedAt: number;
   audioBase64: string;
+};
+
+export type SessionSummary = {
+  sessionId: string;
+  createdAt: string;
+  overallScore: number | null;
+  hasTranscript: boolean;
+  hasAudio: boolean;
+  hasVision: boolean;
+  transcriptPreview: string;
 };

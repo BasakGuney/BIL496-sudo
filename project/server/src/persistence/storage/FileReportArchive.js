@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 export class FileReportArchive {
@@ -339,6 +339,51 @@ export class FileReportArchive {
       visionLlmAnalysis,
       scoreMeta: this.buildScoreMeta(),
     };
+  }
+
+  async listSessionSummaries({ limit = 50 } = {}) {
+    const baseDir = this.baseDir;
+    await mkdir(baseDir, { recursive: true });
+    const entries = await readdir(baseDir, { withFileTypes: true });
+    const sessions = [];
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (!entry.name.startsWith("S-")) continue;
+
+      const sessionId = entry.name;
+      const sessionDir = path.join(baseDir, sessionId);
+      const stats = await stat(sessionDir);
+      const [transcriptAnalysis, audioReport, visionReport, transcriptText] = await Promise.all([
+        this.readJsonIfExists(path.join(sessionDir, "transcript_report.json")),
+        this.readJsonIfExists(path.join(sessionDir, "audio_report.json")),
+        this.readJsonIfExists(path.join(sessionDir, "vision_report.json")),
+        this.readTextIfExists(path.join(sessionDir, "transcript.txt")),
+      ]);
+
+      const overallScore =
+        transcriptAnalysis?.overallScore
+        ?? transcriptAnalysis?.overall?.overallScore
+        ?? null;
+
+      const preview = String(transcriptText || "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)[0] || "";
+
+      sessions.push({
+        sessionId,
+        createdAt: stats.mtime.toISOString(),
+        overallScore,
+        hasTranscript: Boolean(transcriptAnalysis),
+        hasAudio: Boolean(audioReport),
+        hasVision: Boolean(visionReport),
+        transcriptPreview: preview.slice(0, 160),
+      });
+    }
+
+    sessions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return sessions.slice(0, Math.max(1, Number(limit) || 50));
   }
 
   async save({ sessionId, transcript, report, candidateAnswerAudios = [], existingCandidateAnswerAudioFiles = [], visionAnalysis = null }) {
