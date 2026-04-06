@@ -37,8 +37,9 @@ export default function App() {
         </div>
         {route === "setup" && (
           <SetupPage
-            onPrepared={(cfg) => {
+            onPrepared={(cfg, sid) => {
               setConfig(cfg);
+              setSessionId(sid);
               setRoute("preview");
             }}
             onOpenReport={async (sid) => {
@@ -58,10 +59,10 @@ export default function App() {
         {route === "preview" && config && (
           <PreviewPage
             config={config}
+            sessionId={sessionId}
             setConfig={setConfig}
             onBack={() => setRoute("setup")}
-            onStartInterview={(sid) => {
-              setSessionId(sid);
+            onStartInterview={() => {
               setRoute("interview");
             }}
           />

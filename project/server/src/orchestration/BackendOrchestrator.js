@@ -21,11 +21,16 @@ export class BackendOrchestrator {
   }
 
   async createSession(cfgInput, offerSdp = "", sessionId = null) {
-    const cfg = cfgInput instanceof SessionConfig ? cfgInput : new SessionConfig(cfgInput);
     const id = sessionId || this.idGenerator.newId();
+    const existingSession = await this.sessions.findById(id);
+    const cfg = cfgInput instanceof SessionConfig ? cfgInput : new SessionConfig({
+      ...(existingSession?.config || {}),
+      ...(cfgInput || {}),
+      cvFile: cfgInput?.cvFile || existingSession?.config?.cvFile || null,
+    });
     const answerSdp = offerSdp ? await this.realtimeManager.createOfferAnswer(id, offerSdp, cfg) : "";
 
-    const session = new InterviewSession({
+    const session = existingSession || new InterviewSession({
       id,
       state: SessionState.CONFIGURED,
       config: cfg,
@@ -33,7 +38,17 @@ export class BackendOrchestrator {
       answerSdp,
     });
 
+    session.config = cfg;
+    session.offerSdp = offerSdp;
+    session.answerSdp = answerSdp;
+
     await this.sessions.create(session);
+    if (this.reportArchive?.ensureSessionDir) {
+      await this.reportArchive.ensureSessionDir(id);
+    }
+    if (this.reportArchive?.saveCvFile) {
+      await this.reportArchive.saveCvFile({ sessionId: id, cvFile: cfg.cvFile });
+    }
     return session;
   }
 

@@ -1,10 +1,14 @@
 import { mkdir, readdir, readFile, writeFile, stat } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import path from "node:path";
+import { PDFParse } from "pdf-parse";
 
 export class FileReportArchive {
   constructor({ baseDir, persistVisionJpegs = false }) {
     this.baseDir = baseDir;
     this.persistVisionJpegs = Boolean(persistVisionJpegs);
+    this.pythonBin = process.env.PYTHON_BIN || "python3";
+    this.cvTranslatorScriptPath = path.resolve(process.cwd(), "src/services/analysis/python_api/cv_translator.py");
   }
 
   sanitizeSessionId(sessionId) {
@@ -115,6 +119,762 @@ export class FileReportArchive {
     const sessionDir = path.join(this.baseDir, this.buildSessionFolderName(sessionId));
     await mkdir(sessionDir, { recursive: true });
     return sessionDir;
+  }
+
+  sanitizeFileName(fileName = "cv.pdf") {
+    const cleaned = String(fileName || "cv.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
+    return cleaned.toLowerCase().endsWith(".pdf") ? cleaned : `${cleaned}.pdf`;
+  }
+
+  normalizeExtractedPdfText(text = "") {
+    return String(text || "")
+      .replace(/\r/g, "")
+      .split("\n")
+      .map((line) => line.replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+  }
+
+  shouldTranslateCvText(text = "") {
+    const clean = String(text || "").trim();
+    if (clean.length < 80) return false;
+
+    const lowered = ` ${clean.toLowerCase()} `;
+    const englishMarkers = [
+      " experience ",
+      " education ",
+      " skills ",
+      " projects ",
+      " work ",
+      " developed ",
+      " managed ",
+      "responsible",
+      "university",
+      "engineer",
+      "intern",
+      "summary",
+      "profile",
+    ];
+    const turkishMarkers = [
+      " deneyim ",
+      " egitim ",
+      " eğitim ",
+      " beceri ",
+      " projeler ",
+      " universite ",
+      " üniversite ",
+      " muhendis ",
+      " mühendis ",
+      " staj ",
+      " ozet ",
+      " özet ",
+    ];
+
+    const englishHits = englishMarkers.filter((marker) => lowered.includes(marker)).length;
+    const turkishHits = turkishMarkers.filter((marker) => lowered.includes(marker)).length;
+    const nonAsciiCount = [...clean].filter((char) => char.charCodeAt(0) > 127).length;
+
+    return englishHits >= 2 && englishHits >= turkishHits && nonAsciiCount < Math.max(8, clean.length * 0.02);
+  }
+
+  async extractTextFromPdfBuffer(pdfBuffer) {
+    if (!pdfBuffer || pdfBuffer.length === 0) return "";
+
+    let parser = null;
+    try {
+      parser = new PDFParse({ data: pdfBuffer });
+      const parsed = await parser.getText();
+      return this.normalizeExtractedPdfText(parsed?.text || "");
+    } catch (error) {
+      console.warn("CV PDF text extraction failed:", error?.message || error);
+      return "";
+    } finally {
+      if (parser) {
+        await parser.destroy().catch(() => {});
+      }
+    }
+  }
+
+  async runCvTranslator(text = "") {
+    return new Promise((resolve) => {
+      const child = spawn(this.pythonBin, [this.cvTranslatorScriptPath], { stdio: ["pipe", "pipe", "pipe"] });
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+
+      const finalize = (result) => {
+        if (settled) return;
+        settled = true;
+        resolve(result);
+      };
+
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk.toString();
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk.toString();
+      });
+      child.on("error", (error) => {
+        finalize({ ok: false, translatedText: "", error: error.message });
+      });
+      child.on("close", () => {
+        if (!stdout.trim()) {
+          finalize({ ok: false, translatedText: "", error: stderr.trim() || "translator returned no output" });
+          return;
+        }
+
+        try {
+          finalize(JSON.parse(stdout));
+        } catch {
+          finalize({ ok: false, translatedText: "", error: stderr.trim() || "translator returned invalid json" });
+        }
+      });
+
+      try {
+        child.stdin.write(JSON.stringify({ text }));
+        child.stdin.end();
+      } catch (error) {
+        finalize({ ok: false, translatedText: "", error: error.message });
+      }
+    });
+  }
+
+  async translateCvTextToTurkish(text = "") {
+    const clean = String(text || "").trim();
+    if (!this.shouldTranslateCvText(clean)) return "";
+
+    try {
+      const result = await this.runCvTranslator(clean);
+      if (!result?.ok) {
+        throw new Error(result?.error || "translation failed");
+      }
+      return this.normalizeExtractedPdfText(result?.translatedText || "");
+    } catch (error) {
+      console.warn("CV Turkish translation failed:", error?.message || error);
+      return "";
+    }
+  }
+
+  createEmptyCvJson({ sourceFile = "cv.txt" } = {}) {
+    return {
+      candidate: {
+        fullName: "",
+        title: "",
+        summary: "",
+      },
+      education: [],
+      experience: {
+        totalCount: 0,
+        internCount: 0,
+        professionalCount: 0,
+        professional: [],
+        intern: [],
+      },
+      projects: [],
+      activities: [],
+      skills: {
+        technical: [],
+        tools: [],
+        soft: [],
+      },
+      languages: [],
+      certificates: [],
+      source: {
+        cvFile: sourceFile,
+        generatedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  normalizeCvJsonArray(items = []) {
+    return Array.isArray(items) ? items.filter((item) => item && typeof item === "object") : [];
+  }
+
+  normalizeCvJsonStringArray(items = []) {
+    return (Array.isArray(items) ? items : [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+  }
+
+  cleanupCvLines(text = "") {
+    return String(text || "")
+      .replace(/\r/g, "")
+      .split("\n")
+      .map((line) => line.replace(/\s+/g, " ").trim())
+      .filter((line) => {
+        if (!line) return false;
+        if (/^--\s*\d+\s*(?:of|\/)\s*\d+\s*--$/i.test(line)) return false;
+        return true;
+      });
+  }
+
+  normalizeHeadingText(text = "") {
+    return String(text || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^\p{L}0-9\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  isLikelyHeading(line = "") {
+    const clean = String(line || "").trim();
+    if (!clean) return false;
+    const normalized = this.normalizeHeadingText(clean);
+
+    const headings = [
+      "profil",
+      "ozet",
+      "özet",
+      "hakkimda",
+      "hakkımda",
+      "egitim",
+      "eğitim",
+      "education",
+      "deneyim",
+      "tecrube",
+      "tecrübe",
+      "experience",
+      "is deneyimi",
+      "iş deneyimi",
+      "projeler",
+      "projects",
+      "beceriler",
+      "yetkinlikler",
+      "skills",
+      "teknik beceriler",
+      "diller",
+      "languages",
+      "sertifikalar",
+      "certificates",
+      "objective",
+      "amac",
+      "extra curricular activities",
+      "ekstra kurumsal faaliyetler",
+    ];
+
+    return headings.includes(normalized);
+  }
+
+  sectionKeyFromHeading(line = "") {
+    const normalized = this.normalizeHeadingText(line);
+
+    if (["profil", "ozet", "hakkimda", "objective", "amac"].includes(normalized)) return "summary";
+    if (["egitim", "eğitim", "education"].includes(normalized)) return "education";
+    if (["deneyim", "tecrube", "experience", "is deneyimi"].includes(normalized)) return "experience";
+    if (["projeler", "projects"].includes(normalized)) return "projects";
+    if (["beceriler", "yetkinlikler", "skills", "teknik beceriler"].includes(normalized)) return "skills";
+    if (["diller", "languages"].includes(normalized)) return "languages";
+    if (["sertifikalar", "certificates"].includes(normalized)) return "certificates";
+    if (["extra curricular activities", "ekstra kurumsal faaliyetler"].includes(normalized)) return "activities";
+    return null;
+  }
+
+  splitCvSections(text = "") {
+    const lines = this.cleanupCvLines(text);
+    const sections = { header: [] };
+    let current = "header";
+
+    for (const line of lines) {
+      const key = this.sectionKeyFromHeading(line);
+      if (key) {
+        current = key;
+        if (!sections[current]) sections[current] = [];
+        continue;
+      }
+      if (!sections[current]) sections[current] = [];
+      sections[current].push(line);
+    }
+
+    return sections;
+  }
+
+  inferFullName(lines = [], sourceFile = "cv.txt") {
+    const first = (Array.isArray(lines) ? lines : []).find((line) => line && !this.isLikelyHeading(line)) || "";
+    if (first && first.length <= 80) return first;
+
+    return String(sourceFile || "candidate")
+      .replace(/\.[^.]+$/, "")
+      .replace(/[_-]+/g, " ")
+      .replace(/\bcv\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  splitBlocks(lines = []) {
+    const blocks = [];
+    let current = [];
+
+    for (const line of Array.isArray(lines) ? lines : []) {
+      const looksLikeNewItem =
+        current.length > 0 &&
+        !line.startsWith("-") &&
+        !line.startsWith("•") &&
+        /(\d{4}|halen|devam|present|current)/i.test(line) &&
+        current.length >= 4;
+
+      if (looksLikeNewItem) {
+        blocks.push(current);
+        current = [line];
+      } else {
+        current.push(line);
+      }
+    }
+
+    if (current.length > 0) blocks.push(current);
+    return blocks;
+  }
+
+  parseDateRange(line = "") {
+    const match = String(line || "").match(/((?:19|20)\d{2}(?:[./-]\d{1,2})?|halen|devam ediyor|devam|present|current)\s*[-–]\s*((?:19|20)\d{2}(?:[./-]\d{1,2})?|halen|devam ediyor|devam|present|current)/i);
+    if (!match) return { startDate: "", endDate: "" };
+    return {
+      startDate: String(match[1] || "").trim(),
+      endDate: String(match[2] || "").trim(),
+    };
+  }
+
+  parseDateRangeAtEnd(line = "") {
+    const match = String(line || "").match(
+      /^(.*?)\s+((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Oca|Şub|Sub|Mar|Nis|May|Haz|Tem|Ağu|Agu|Eyl|Eki|Kas|Ara)\s+\d{4}|(?:19|20)\d{2})\s*[–-]\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Oca|Şub|Sub|Mar|Nis|May|Haz|Tem|Ağu|Agu|Eyl|Eki|Kas|Ara)\s+\d{4}|(?:19|20)\d{2}|PRESENT|CURRENT|GÜNÜMÜZ|DEVAM)$/i
+    );
+    if (!match) return null;
+    return {
+      prefix: String(match[1] || "").trim().replace(/[,\-–]+$/, "").trim(),
+      startDate: String(match[2] || "").trim(),
+      endDate: String(match[3] || "").trim(),
+    };
+  }
+
+  parseEducation(lines = []) {
+    const entries = [];
+    let i = 0;
+    while (i < lines.length) {
+      const current = String(lines[i] || "").trim();
+      const inline = this.parseDateRangeAtEnd(current);
+      if (inline) {
+        const parts = inline.prefix.split(",").map((part) => part.trim()).filter(Boolean);
+        const firstPart = parts[0] || "";
+        const otherParts = parts.slice(1);
+        const degreeMatch = firstPart.match(/(Bachelor[’'`s]* Degree|Master[’'`s]* Degree|Lisans Derecesi|Yuksek Lisans|Yüksek Lisans|Lisans|On Lisans|Ön Lisans|Doktora|PhD|Double Major|Cift Anadal|Çift Anadal)\s+(?:in|of)?\s*(.*)$/i);
+        const degree = degreeMatch ? String(degreeMatch[1] || "").trim() : "";
+        const department = degreeMatch ? String(degreeMatch[2] || "").trim() : firstPart;
+        const school = otherParts[0] || "";
+        const details = [];
+        let j = i + 1;
+        while (j < lines.length && !this.parseDateRangeAtEnd(lines[j]) && !this.isLikelyHeading(lines[j])) {
+          details.push(lines[j]);
+          j += 1;
+        }
+        entries.push({
+          school,
+          department,
+          degree,
+          startDate: inline.startDate,
+          endDate: inline.endDate,
+          details,
+        });
+        i = j;
+        continue;
+      }
+
+      i += 1;
+    }
+
+    return entries.filter((item) => item.school || item.department || item.degree);
+  }
+
+  classifyExperienceType(position = "", company = "") {
+    const text = `${String(position || "")} ${String(company || "")}`.toLowerCase();
+    const internMarkers = [
+      "intern",
+      "internship",
+      "stajyer",
+      "staj",
+      "trainee",
+      "apprentice",
+    ];
+
+    return internMarkers.some((marker) => text.includes(marker)) ? "intern" : "professional";
+  }
+
+  buildExperienceSummary(experience = []) {
+    const items = Array.isArray(experience) ? experience : [];
+    const internCount = items.filter((item) => item?.experienceType === "intern").length;
+    const professionalCount = items.filter((item) => item?.experienceType === "professional").length;
+
+    return {
+      totalCount: items.length,
+      internCount,
+      professionalCount,
+    };
+  }
+
+  parseExperience(lines = []) {
+    const entries = [];
+    let i = 0;
+    while (i < lines.length) {
+      const header = this.parseDateRangeAtEnd(lines[i]);
+      if (!header) {
+        i += 1;
+        continue;
+      }
+
+      const company = header.prefix;
+      const position = String(lines[i + 1] || "").trim();
+      const responsibilities = [];
+      let j = i + 2;
+      while (j < lines.length && !this.parseDateRangeAtEnd(lines[j]) && !this.isLikelyHeading(lines[j])) {
+        responsibilities.push(String(lines[j] || "").replace(/^[-•]\s*/, "").trim());
+        j += 1;
+      }
+
+      const joined = [company, position, ...responsibilities].join(" | ");
+      entries.push({
+        company,
+        position,
+        experienceType: this.classifyExperienceType(position, company),
+        startDate: header.startDate,
+        endDate: header.endDate,
+        location: "",
+        responsibilities: responsibilities.filter(Boolean),
+        technologies: this.extractTechnologies(joined),
+      });
+      i = j;
+    }
+
+    return entries.filter((item) => item.company || item.position);
+  }
+
+  parseProjects(lines = []) {
+    const entries = [];
+    let i = 0;
+    while (i < lines.length) {
+      const name = String(lines[i] || "").trim();
+      if (!name) {
+        i += 1;
+        continue;
+      }
+
+      const role = String(lines[i + 1] || "").trim();
+      const highlights = [];
+      let description = "";
+      let j = i + 2;
+      while (j < lines.length && !this.isLikelyHeading(lines[j])) {
+        const line = String(lines[j] || "").trim();
+        if (/^[-•]/.test(line)) highlights.push(line.replace(/^[-•]\s*/, ""));
+        else if (!description) description = line;
+        else break;
+        j += 1;
+      }
+
+      const text = [name, role, description, ...highlights].join(" | ");
+      entries.push({
+        name,
+        role,
+        description,
+        technologies: this.extractTechnologies(text),
+        highlights,
+      });
+      i = j;
+    }
+
+    return entries.filter((item) => item.name || item.description);
+  }
+
+  extractTechnologies(text = "") {
+    const known = [
+      "Python", "Java", "JavaScript", "TypeScript", "React", "Node.js", "Express", "FastAPI",
+      "SQL", "PostgreSQL", "MySQL", "MongoDB", "Docker", "Git", "C", "C++", "C#", "HTML", "CSS",
+      "Tailwind", "TensorFlow", "PyTorch", "Pandas", "NumPy", "OpenCV", "Mediapipe", "Linux",
+    ];
+    const clean = String(text || "");
+    return known.filter((item) => {
+      const escaped = item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/#/g, "#");
+      const regex = new RegExp(`(^|[^A-Za-z0-9+.#])${escaped}([^A-Za-z0-9+.#]|$)`, "i");
+      return regex.test(clean);
+    });
+  }
+
+  parseSkills(lines = []) {
+    const groups = { technical: [], tools: [], soft: [] };
+    for (const line of lines) {
+      const normalized = this.normalizeHeadingText(line);
+      const cleaned = line.replace(/^[-•]\s*/, "").trim();
+      if (/^(technical skills|teknik beceriler)/i.test(cleaned)) {
+        groups.technical.push(cleaned.replace(/^(technical skills|teknik beceriler)\s*/i, "").trim());
+        continue;
+      }
+      if (/^(programming languages|programlama dilleri)/i.test(cleaned)) {
+        groups.technical.push(cleaned.replace(/^(programming languages|programlama dilleri)\s*/i, "").trim());
+        continue;
+      }
+      if (/^(soft skills|yumusak beceriler|yumuşak beceriler)/i.test(cleaned)) {
+        groups.soft.push(cleaned.replace(/^(soft skills|yumusak beceriler|yumuşak beceriler)\s*/i, "").trim());
+        continue;
+      }
+      if (normalized) groups.technical.push(cleaned);
+    }
+
+    const tokenize = (items) => items
+      .flatMap((line) => line.split(/[,|/]/g))
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    const allTechnical = tokenize(groups.technical);
+    const tools = allTechnical.filter((item) => /git|docker|jira|figma|linux|postman|github|power bi|oracle|mysql|cplex|autocad|arena|matlab|ms office|excel|word|powerpoint|access/i.test(item));
+    const soft = tokenize(groups.soft).concat(
+      allTechnical.filter((item) => /iletisim|iletişim|takim|takım|liderlik|problem|analitik|zaman|communication|leadership|teamwork|openness|learning/i.test(item))
+    );
+    const technical = allTechnical.filter((item) => !tools.includes(item) && !soft.includes(item));
+
+    return {
+      technical: [...new Set(technical)],
+      tools: [...new Set(tools)],
+      soft: [...new Set(soft)],
+    };
+  }
+
+  parseLanguages(lines = []) {
+    return lines.map((line) => {
+      const cleaned = line.replace(/^[-•]\s*/, "");
+      const parts = cleaned.split(/[:\-|]/).map((part) => part.trim()).filter(Boolean);
+      return {
+        name: parts[0] || cleaned,
+        level: parts[1] || "",
+      };
+    }).filter((item) => item.name);
+  }
+
+  parseCertificates(lines = []) {
+    return lines.map((line) => {
+      const cleaned = line.replace(/^[-•]\s*/, "").trim();
+      const parts = cleaned.split(/[-|]/).map((part) => part.trim()).filter(Boolean);
+      return {
+        name: parts[0] || "",
+        issuer: parts[1] || "",
+        date: parts[2] || "",
+      };
+    }).filter((item) => item.name);
+  }
+
+  parseActivities(lines = []) {
+    const entries = [];
+    let current = null;
+
+    for (const rawLine of Array.isArray(lines) ? lines : []) {
+      const line = String(rawLine || "").trim();
+      if (!line) continue;
+
+      if (/^[-•]/.test(line)) {
+        if (current) entries.push(current);
+        current = {
+          title: line.replace(/^[-•]\s*/, "").trim(),
+          details: [],
+        };
+        continue;
+      }
+
+      if (!current) {
+        current = {
+          title: line,
+          details: [],
+        };
+        continue;
+      }
+
+      current.details.push(line);
+    }
+
+    if (current) entries.push(current);
+
+    return entries
+      .map((item) => ({
+        title: String(item.title || "").trim(),
+        details: this.normalizeCvJsonStringArray(item.details),
+      }))
+      .filter((item) => item.title);
+  }
+
+  normalizeStructuredCvJson(payload, { sourceFile = "cv.txt" } = {}) {
+    const base = this.createEmptyCvJson({ sourceFile });
+    if (!payload || typeof payload !== "object") return base;
+
+    const rawExperienceItems = this.normalizeCvJsonArray(
+      payload?.experience?.items
+      || [
+        ...this.normalizeCvJsonArray(payload?.experience?.professional),
+        ...this.normalizeCvJsonArray(payload?.experience?.intern),
+      ]
+      || payload?.experience
+    );
+
+    const experienceItems = rawExperienceItems.map((item) => ({
+      company: String(item.company || "").trim(),
+      position: String(item.position || "").trim(),
+      experienceType: String(item.experienceType || "professional").trim() || "professional",
+      startDate: String(item.startDate || "").trim(),
+      endDate: String(item.endDate || "").trim(),
+      location: String(item.location || "").trim(),
+      responsibilities: this.normalizeCvJsonStringArray(item.responsibilities),
+      technologies: this.normalizeCvJsonStringArray(item.technologies),
+    }));
+    const computedExperienceSummary = this.buildExperienceSummary(experienceItems);
+    const professionalItems = experienceItems.filter((item) => item.experienceType === "professional");
+    const internItems = experienceItems.filter((item) => item.experienceType === "intern");
+
+    return {
+      candidate: {
+        fullName: String(payload?.candidate?.fullName || "").trim(),
+        title: String(payload?.candidate?.title || "").trim(),
+        summary: String(payload?.candidate?.summary || "").trim(),
+      },
+      education: this.normalizeCvJsonArray(payload.education).map((item) => ({
+        school: String(item.school || "").trim(),
+        department: String(item.department || "").trim(),
+        degree: String(item.degree || "").trim(),
+        startDate: String(item.startDate || "").trim(),
+        endDate: String(item.endDate || "").trim(),
+        details: this.normalizeCvJsonStringArray(item.details),
+      })),
+      experience: {
+        totalCount: Number(payload?.experience?.totalCount ?? computedExperienceSummary.totalCount),
+        internCount: Number(payload?.experience?.internCount ?? computedExperienceSummary.internCount),
+        professionalCount: Number(payload?.experience?.professionalCount ?? computedExperienceSummary.professionalCount),
+        professional: professionalItems,
+        intern: internItems,
+      },
+      projects: this.normalizeCvJsonArray(payload.projects).map((item) => ({
+        name: String(item.name || "").trim(),
+        role: String(item.role || "").trim(),
+        description: String(item.description || "").trim(),
+        technologies: this.normalizeCvJsonStringArray(item.technologies),
+        highlights: this.normalizeCvJsonStringArray(item.highlights),
+      })),
+      activities: this.normalizeCvJsonArray(payload.activities).map((item) => ({
+        title: String(item.title || "").trim(),
+        details: this.normalizeCvJsonStringArray(item.details),
+      })),
+      skills: {
+        technical: this.normalizeCvJsonStringArray(payload?.skills?.technical),
+        tools: this.normalizeCvJsonStringArray(payload?.skills?.tools),
+        soft: this.normalizeCvJsonStringArray(payload?.skills?.soft),
+      },
+      languages: this.normalizeCvJsonArray(payload.languages).map((item) => ({
+        name: String(item.name || "").trim(),
+        level: String(item.level || "").trim(),
+      })),
+      certificates: this.normalizeCvJsonArray(payload.certificates).map((item) => ({
+        name: String(item.name || "").trim(),
+        issuer: String(item.issuer || "").trim(),
+        date: String(item.date || "").trim(),
+      })),
+      source: {
+        cvFile: String(payload?.source?.cvFile || sourceFile).trim() || sourceFile,
+        generatedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  async buildStructuredCvJson(text = "", { sourceFile = "cv.txt" } = {}) {
+    const clean = String(text || "").trim();
+    if (!clean) return this.createEmptyCvJson({ sourceFile });
+    const sections = this.splitCvSections(clean);
+    const headerLines = sections.header || [];
+    const summaryLines = sections.summary || [];
+    const parsedExperience = this.parseExperience(sections.experience || []);
+
+    return this.normalizeStructuredCvJson({
+      candidate: {
+        fullName: this.inferFullName(headerLines, sourceFile),
+        title: headerLines[1] || "",
+        summary: summaryLines.join(" ") || headerLines.slice(2, 5).join(" "),
+      },
+      education: this.parseEducation(sections.education || []),
+      experience: {
+        ...this.buildExperienceSummary(parsedExperience),
+        professional: parsedExperience.filter((item) => item.experienceType === "professional"),
+        intern: parsedExperience.filter((item) => item.experienceType === "intern"),
+      },
+      projects: this.parseProjects(sections.projects || []),
+      activities: this.parseActivities(sections.activities || []),
+      skills: this.parseSkills(sections.skills || []),
+      languages: this.parseLanguages(sections.languages || []),
+      certificates: this.parseCertificates(sections.certificates || []),
+      source: {
+        cvFile: sourceFile,
+      },
+    }, { sourceFile });
+  }
+
+  normalizeCvFile(cvFile = null) {
+    if (!cvFile || typeof cvFile !== "object") return null;
+
+    const mimeType = String(cvFile.mimeType || "");
+    const dataBase64 = String(cvFile.dataBase64 || "");
+    if (mimeType !== "application/pdf" || !dataBase64) return null;
+
+    return {
+      name: this.sanitizeFileName(cvFile.name || "cv.pdf"),
+      mimeType,
+      dataBase64,
+    };
+  }
+
+  async saveCvFile({ sessionId, cvFile }) {
+    const normalized = this.normalizeCvFile(cvFile);
+    const sessionDir = await this.ensureSessionDir(sessionId);
+    if (!normalized) return { sessionDir, savedCv: null };
+
+    const cvDir = path.join(sessionDir, "cv");
+    await mkdir(cvDir, { recursive: true });
+
+    const pdfBuffer = Buffer.from(normalized.dataBase64, "base64");
+    if (pdfBuffer.length === 0) return { sessionDir, savedCv: null };
+
+    const fullPath = path.join(cvDir, normalized.name);
+    await writeFile(fullPath, pdfBuffer);
+    const cvText = await this.extractTextFromPdfBuffer(pdfBuffer);
+    const textFileName = "cv.txt";
+    const textFullPath = path.join(cvDir, textFileName);
+    await writeFile(textFullPath, cvText, "utf8");
+    const translatedCvText = await this.translateCvTextToTurkish(cvText);
+
+    let trTextFullPath = null;
+    let trTextRelativePath = null;
+    if (translatedCvText) {
+      const trTextFileName = "cv_tr.txt";
+      trTextFullPath = path.join(cvDir, trTextFileName);
+      trTextRelativePath = path.join("cv", trTextFileName);
+      await writeFile(trTextFullPath, translatedCvText, "utf8");
+    }
+
+    const structuredCvSourceFile = "cv.txt";
+    const structuredCvText = cvText;
+    const structuredCvJson = await this.buildStructuredCvJson(structuredCvText, {
+      sourceFile: structuredCvSourceFile,
+    });
+    const cvJsonFileName = "cv.json";
+    const cvJsonFullPath = path.join(cvDir, cvJsonFileName);
+    await writeFile(cvJsonFullPath, `${JSON.stringify(structuredCvJson, null, 2)}
+`, "utf8");
+
+    return {
+      sessionDir,
+      savedCv: {
+        fileName: normalized.name,
+        relativePath: path.join("cv", normalized.name),
+        fullPath,
+        textRelativePath: path.join("cv", textFileName),
+        textFullPath,
+        trTextRelativePath,
+        trTextFullPath,
+        jsonRelativePath: path.join("cv", cvJsonFileName),
+        jsonFullPath: cvJsonFullPath,
+      },
+    };
   }
 
   async saveIncrementalCandidateAnswerAudio({ sessionId, candidateAnswerAudio }) {

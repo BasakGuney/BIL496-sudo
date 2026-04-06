@@ -11,6 +11,7 @@ export class CreateSessionRequest {
     domain,
     companyOrIndustry,
     difficulty,
+    cvFile,
   }) {
     this.mode = mode;
     this.offerSdp = offerSdp;
@@ -23,6 +24,7 @@ export class CreateSessionRequest {
     this.domain = domain;
     this.companyOrIndustry = companyOrIndustry;
     this.difficulty = difficulty;
+    this.cvFile = cvFile;
   }
 
   static fromExpress(req) {
@@ -39,6 +41,7 @@ export class CreateSessionRequest {
       domain: (req.query.domain || body.domain || body.domainInterest || "").toString(),
       companyOrIndustry: (req.query.companyOrIndustry || body.companyOrIndustry || "").toString(),
       difficulty: (req.query.difficulty || body.difficulty || "Junior").toString(),
+      cvFile: body.cvFile && typeof body.cvFile === "object" ? body.cvFile : null,
     });
   }
 }

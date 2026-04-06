@@ -17,6 +17,11 @@ export type SessionConfig = {
     mic: boolean;
     camera: boolean;
   };
+  cvFile: {
+    name: string;
+    mimeType: string;
+    dataBase64: string;
+  } | null;
 };
 
 export type FeedbackMetric = {

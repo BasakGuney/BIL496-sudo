@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionSetupForm } from "@/components/setup/SessionSetupForm";
 import { ConsentPanel } from "@/components/setup/ConsentPanel";
 import type { SessionConfig, SessionSummary } from "@/lib/types";
-import { listReports } from "@/lib/api";
+import { listReports, startSession } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, FileText } from "lucide-react";
@@ -12,7 +12,7 @@ export function SetupPage({
   onPrepared,
   onOpenReport,
 }: {
-  onPrepared: (config: SessionConfig) => void;
+  onPrepared: (config: SessionConfig, sessionId: string) => void;
   onOpenReport: (sessionId: string) => void;
 }) {
   const [config, setConfig] = useState<SessionConfig>(() => ({
@@ -26,12 +26,24 @@ export function SetupPage({
     difficulty: "Junior",
     mode: "Supportive",
     consent: { mic: false, camera: false },
+    cvFile: null,
   }));
+  const [preparing, setPreparing] = useState(false);
+  const [prepareError, setPrepareError] = useState("");
 
   async function handlePrepare(nextConfig: SessionConfig) {
     const canStart = nextConfig.consent.mic && nextConfig.consent.camera;
     if (!canStart) return;
-    onPrepared(nextConfig);
+
+    setPreparing(true);
+    setPrepareError("");
+    try {
+      const session = await startSession(nextConfig);
+      onPrepared(nextConfig, session.sessionId);
+    } catch (error: any) {
+      setPrepareError(error?.message || "Kurulum tamamlanamadı.");
+      setPreparing(false);
+    }
   }
 
   const [history, setHistory] = useState<SessionSummary[]>([]);
@@ -70,8 +82,9 @@ export function SetupPage({
             value={config}
             onChange={setConfig}
             onStart={handlePrepare}
-            starting={false}
+            starting={preparing}
           />
+          {prepareError && <div className="text-sm text-destructive">{prepareError}</div>}
         </CardContent>
       </Card>
 

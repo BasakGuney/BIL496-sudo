@@ -76,6 +76,7 @@ export class SessionController {
         companyOrIndustry: request.companyOrIndustry,
         difficulty: request.difficulty,
         mode: request.mode,
+        cvFile: request.cvFile,
       });
 
       const session = await this.backendOrchestrator.createSession(cfg, request.offerSdp, request.sessionId);

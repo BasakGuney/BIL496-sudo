@@ -117,6 +117,7 @@ export function InterviewPage({
           role: config.role,
           companyOrIndustry: config.companyOrIndustry,
           domainInterest: config.domainInterest,
+          difficulty: config.difficulty,
           onTranscriptUpdate: (t) => onTranscriptUpdateRef.current?.(t),
           onInterviewerFinished: (t) => onInterviewerFinishedRef.current?.(t),
         });

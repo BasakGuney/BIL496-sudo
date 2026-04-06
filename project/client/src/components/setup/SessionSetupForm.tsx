@@ -2,10 +2,11 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ModeBadge } from "./ModeBadge";
 import type { SessionConfig } from "@/lib/types";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, FileText } from "lucide-react";
 
 function RequiredLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -65,6 +66,39 @@ export function SessionSetupForm({
 
     onChange(merged);
     onStart(merged);
+  };
+
+  const handleCvFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    if (!file) {
+      onChange({ ...value, cvFile: null });
+      return;
+    }
+
+    if (file.type !== "application/pdf") {
+      event.target.value = "";
+      onChange({ ...value, cvFile: null });
+      return;
+    }
+
+    const dataBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        resolve(result.split(",")[1] || "");
+      };
+      reader.onerror = () => reject(reader.error || new Error("PDF okunamadı."));
+      reader.readAsDataURL(file);
+    });
+
+    onChange({
+      ...value,
+      cvFile: {
+        name: file.name,
+        mimeType: file.type,
+        dataBase64,
+      },
+    });
   };
 
   return (
@@ -147,6 +181,36 @@ export function SessionSetupForm({
           placeholder={value.domainInterest || "Örn: Kubernetes / Makine Öğrenmesi"}
           onChange={(e) => setDraft((p) => ({ ...p, domainInterest: e.target.value }))}
         />
+      </div>
+
+      <div className="grid gap-2">
+        <Label>CV Yükle (PDF)</Label>
+        <Input
+          className="rounded-xl"
+          type="file"
+          accept="application/pdf,.pdf"
+          onChange={(e) => {
+            handleCvFileChange(e).catch((error) => {
+              console.error("CV upload failed", error);
+              onChange({ ...value, cvFile: null });
+            });
+          }}
+        />
+        <Textarea
+          className="min-h-20 rounded-xl resize-none"
+          value={
+            value.cvFile
+              ? `Yuklenen dosya: ${value.cvFile.name}`
+              : "CV yuklemek istersen sadece PDF dosyasi sec."
+          }
+          readOnly
+        />
+        {value.cvFile && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <FileText className="h-4 w-4" />
+            {value.cvFile.name}
+          </div>
+        )}
       </div>
 
 

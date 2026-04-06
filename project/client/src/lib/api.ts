@@ -76,6 +76,7 @@ export async function startSession(config: SessionConfig) {
       domain: config.domainInterest,
       difficulty: config.difficulty,
       mode: config.mode,
+      cvFile: config.cvFile,
     }),
   });
 

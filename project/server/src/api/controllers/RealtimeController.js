@@ -21,6 +21,7 @@ export class RealtimeController {
           companyOrIndustry: request.companyOrIndustry,
           difficulty: request.difficulty,
           mode: request.mode,
+          cvFile: request.cvFile,
         },
         request.offerSdp,
         request.sessionId

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Play, Mic, MicOff, Video, VideoOff } from "lucide-react";
 
-import { generatePreviewQuestions, startSession } from "@/lib/api";
+import { generatePreviewQuestions } from "@/lib/api";
 import type { SessionConfig } from "@/lib/types";
 import {
   Select,
@@ -17,13 +17,15 @@ import { Loader2 } from "lucide-react";
 
 export function PreviewPage({
   config,
+  sessionId,
   setConfig,
   onStartInterview,
   onBack,
 }: {
   config: SessionConfig;
+  sessionId: string | null;
   setConfig: (cfg: SessionConfig) => void;
-  onStartInterview: (sessionId: string) => void;
+  onStartInterview: () => void;
   onBack: () => void;
 }) {
   // --- Camera preview state ---
@@ -168,10 +170,10 @@ export function PreviewPage({
   const handleStartInterview = async () => {
     stopCamera();
     stopMic();
-    setStartingSession(true);
+      setStartingSession(true);
     try {
-      const res = await startSession(config);
-      onStartInterview(res.sessionId);
+      if (!sessionId) throw new Error("Oturum bulunamadi.");
+      onStartInterview();
     } catch (e) {
       console.error("Failed to start session", e);
       setStartingSession(false);

@@ -213,6 +213,7 @@ export async function connectRealtimeInterview(opts: {
   role: string;
   companyOrIndustry: string;
   domainInterest: string;
+  difficulty?: string;
   onTranscriptUpdate?: (transcript: TranscriptEntry[]) => void;
   onInterviewerFinished?: (text: string) => void;
 }): Promise<RealtimeConnection> {
@@ -389,6 +390,7 @@ export async function connectRealtimeInterview(opts: {
     role: opts.role,
     domain: opts.domainInterest,
     companyOrIndustry: opts.companyOrIndustry,
+    difficulty: String(opts.difficulty || ""),
   });
 
   const sdpResp = await fetch(`${opts.backendBaseUrl}/session?${query.toString()}`, {
