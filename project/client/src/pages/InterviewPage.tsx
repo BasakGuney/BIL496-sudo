@@ -41,6 +41,8 @@ export function InterviewPage({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
   const visionAnalyzerRef = useRef(createVisionAnalyzer());
+  const aiSpeakingRef = useRef(false);
+  const lastVoiceAtRef = useRef(0);
 
   const connRef = useRef<Awaited<ReturnType<typeof connectRealtimeInterview>> | null>(null);
   const connectingRef = useRef(false);
@@ -132,6 +134,9 @@ export function InterviewPage({
 
         const buf = new Uint8Array(conn.analyser.fftSize);
 
+        const SPEAKING_THRESHOLD = 0.04;
+        const SPEAKING_RELEASE_MS = 850;
+
         const tick = () => {
           if (!mounted || !connRef.current) return;
           conn.analyser.getByteTimeDomainData(buf);
@@ -144,7 +149,17 @@ export function InterviewPage({
           const rms = Math.sqrt(sum / buf.length);
           const lv = Math.min(1, rms * 3.5);
           setLevel(lv);
-          setAiSpeaking(lv > 0.04);
+          const now = performance.now();
+          if (lv > SPEAKING_THRESHOLD) {
+            lastVoiceAtRef.current = now;
+            if (!aiSpeakingRef.current) {
+              aiSpeakingRef.current = true;
+              setAiSpeaking(true);
+            }
+          } else if (aiSpeakingRef.current && now - lastVoiceAtRef.current > SPEAKING_RELEASE_MS) {
+            aiSpeakingRef.current = false;
+            setAiSpeaking(false);
+          }
 
           raf = requestAnimationFrame(tick);
         };
