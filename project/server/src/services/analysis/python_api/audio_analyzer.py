@@ -164,21 +164,22 @@ def compute_overall(items: list) -> dict:
     }
 
 
-def _compute_emotional_balance_score(emotions: dict) -> int:
-    """Deterministik: dağılım ne kadar dengeli → skor o kadar yüksek."""
+def _compute_emotion_suitability_score(emotions: dict) -> int:
+    """
+    Deterministik: Mülakat bağlamında duygu tonu uygunluğu.
+    Nötr + olumlu tonları destekler, öfke ve düşük enerjiye ceza verir.
+    """
     if not emotions:
         return 50
-    values = list(emotions.values())
-    max_v = max(values)
-    # Tek bir duygu çok baskınsa (>%60) düşük skor
-    if max_v >= 60:
-        return 30
-    elif max_v >= 45:
-        return 50
-    elif max_v >= 35:
-        return 65
-    else:
-        return 80
+    neu = float(emotions.get("neu", 0) or 0)
+    hap = float(emotions.get("hap", 0) or 0)
+    ang = float(emotions.get("ang", 0) or 0)
+    sad = float(emotions.get("sad", 0) or 0)
+
+    positive = (neu * 0.6) + (hap * 1.0)
+    negative = (ang * 1.0) + (sad * 0.9)
+    score = 50 + (positive - negative) * 0.5
+    return int(round(max(0, min(100, score))))
 
 
 
@@ -257,11 +258,15 @@ def interpret_report_with_gpt(overall: dict) -> dict:
     )
 
     # 2. Deterministik skorları hesapla
+    emotion_suitability = _compute_emotion_suitability_score(raw_emotions)
+    positive_share = round(float(raw_emotions.get("neu", 0) or 0) + float(raw_emotions.get("hap", 0) or 0), 1)
+    negative_share = round(float(raw_emotions.get("ang", 0) or 0) + float(raw_emotions.get("sad", 0) or 0), 1)
+
     python_scores = [
-        {"label": "Ses Netliği",    "score": int(round(clarity_val))},
-        {"label": "Duygusal Denge", "score": _compute_emotional_balance_score(raw_emotions)},
-        {"label": "Konuşma Hızı",   "score": _compute_speech_rate_score(avg_wpm)},
-        {"label": "Akıcılık",       "score": _compute_fluency_score(avg_pause_ratio)},
+        {"label": "Ses Netliği",      "score": int(round(clarity_val))},
+        {"label": "Duygu Uygunluğu",  "score": emotion_suitability},
+        {"label": "Konuşma Hızı",     "score": _compute_speech_rate_score(avg_wpm)},
+        {"label": "Akıcılık",         "score": _compute_fluency_score(avg_pause_ratio)},
     ]
     s0, s1, s2, s3 = (p["score"] for p in python_scores)
 
@@ -274,6 +279,11 @@ def interpret_report_with_gpt(overall: dict) -> dict:
         "dominantEmotion": dominant_emotion,
         "secondaryEmotion": secondary_emotion,
         "emotionDistribution": emotion_dist,
+        "emotionSuitability": {
+            "score": emotion_suitability,
+            "positiveShare": positive_share,
+            "negativeShare": negative_share,
+        },
     }
 
     prompt = f"""Sen bir mülakat performans raporu oluşturucususun. SADECE geçerli JSON döndür.
@@ -283,11 +293,14 @@ Görevin: Bu metrikleri yorumlayarak nesnel Türkçe metin alanları üretmek.
 
 ÖNEMLİ KURALLAR:
 - Sadece verilen veriyi kullan. Sayı veya skor üretme.
-- scores listesinde detail alanını ilgili skor için 1-2 cümlelik açıklama ile doldur.
+- scores listesinde detail alanını ilgili skor için 2-3 cümlelik açıklama ile doldur.
 - Psikolojik analiz yapma ("özgüven", "karakter" vs). Emoji kullanma.
 - Çelişkili ifadeler yazma.
 - Süre ifadelerini SADECE verilen formatta ("3 dk 31 sn" gibi) yaz; verilen değeri olduğu gibi kullan.
-- overallAnalysis 3-4 cümle olsun; ses netliği, konuşma hızı, duraklama düzeni ve ton deseni hakkında ayrı birer gözlem içersin.
+- overallAnalysis 5-6 cümle olsun; ses netliği, konuşma hızı, duraklama düzeni, duygu uygunluğu ve süre kullanımı hakkında ayrı cümleler içersin.
+- speechSummary en az 4, en fazla 5 maddeden oluşsun.
+- recommendations.nextInterview ve recommendations.performanceDevelopment en az 2 cümle olsun.
+- Duygu uygunluğu, emotionSuitability alanındaki skor ve positive/negative paylara dayanmalı.
 
 Giriş Verisi:
 {json.dumps(gpt_context, ensure_ascii=False, indent=2)}
@@ -299,10 +312,10 @@ SADECE şu JSON yapısını döndür:
   "dominantEmotion": "Baskın Duygu Özeti (örn: 'Düşük enerjili / içe kapanık ton')",
   "secondaryEmotion": "İkinci Duygu Özeti (örn: 'Olumlu / canlı ifade' veya null)",
   "scores": [
-    {{"label": "Ses Netliği",    "score": {s0}, "detail": "..."}},
-    {{"label": "Duygusal Denge", "score": {s1}, "detail": "..."}},
-    {{"label": "Konuşma Hızı",   "score": {s2}, "detail": "..."}},
-    {{"label": "Akıcılık",       "score": {s3}, "detail": "..."}}
+    {{"label": "Ses Netliği",      "score": {s0}, "detail": "..."}},
+    {{"label": "Duygu Uygunluğu",  "score": {s1}, "detail": "..."}},
+    {{"label": "Konuşma Hızı",     "score": {s2}, "detail": "..."}},
+    {{"label": "Akıcılık",         "score": {s3}, "detail": "..."}}
   ],
   "tonDistribution": [
     {{"label": "...", "score": 100.0}}

@@ -480,6 +480,7 @@ Verilen skorları ve yardımcı seviye etiketlerini kullanarak kullanıcı dostu
 - "özgüven", "kişilik", "karakter", "savunmacı", "gergin biri" gibi ifadeler kullanma.
 - Çelişkili yorum yazma. Emoji kullanma.
 - Kısa, net ve profesyonel bir rapor dili kullan.
+- overallAnalysis 4-5 cümle olmalı ve en az 2 adet sayısal metrik (örn: facePresenceRatio, averageCenterOffset, headMovementRaw, attentionDriftRatio) anılmalı.
 
 SKOR YORUMLAMA KURALLARI:
 Genel skorlar (facePresenceScore, centeringScore, steadinessScore):
@@ -495,13 +496,13 @@ RİSK TİPİ SKORLAR (visualTensionScore, attentionRiskScore, movementRiskScore)
 
 Yorum üretirken:
 - \"güçlü yön\" dili yerine \"beklenen standardı karşılıyor\", \"beklenen seviyede\", \"düşük risk\", \"izlenmesi gereken nokta\" gibi ifadeleri kullan.
-- `standardStatus`: adayın görsel sunumunun beklenen koşulları sağlayıp sağlamadığını bir cümleyle özetle.
-- `riskPoint`: şu anda kritik olmayan ama dikkat edilmesi gereken tek bir noktayı özetle.
+- `standardStatus`: adayın görsel sunumunun beklenen koşulları sağlayıp sağlamadığını bir cümleyle özetle (metriklerden en az biri anılsın).
+- `riskPoint`: şu anda kritik olmayan ama dikkat edilmesi gereken tek bir noktayı özetle (metriklerden en az biri anılsın).
 - `overallLabel`: skora göre kısa rozet metni (örn. \"Görsel sunum beklenen standardı karşılıyor\").
-- `overallAnalysis`: 2-3 cümle nesnel genel değerlendirme.
-- `scoreDetails`: her skor için 1-2 cümlelik kısa açıklama. Mutlaka doldur.
-- `strengths`: Puanlardan yola çıkarak beklenen düzeyin **üzerinde** olan 2-3 görsel sunum noktasını string listesi olarak yaz. Mutlaka doldur; boş bırakma.
-- `improvementAreas`: Puanlardan yola çıkarak geliştirilmesi veya izlenmesi gereken 2-3 noktayı string listesi olarak yaz. Mutlaka doldur; boş bırakma.
+- `overallAnalysis`: 4-5 cümle nesnel genel değerlendirme.
+- `scoreDetails`: her skor için 2-3 cümlelik açıklama. Mutlaka doldur ve metriklerle ilişkilendir.
+- `strengths`: Puanlardan yola çıkarak beklenen düzeyin **üzerinde** olan 3 görsel sunum noktasını string listesi olarak yaz. Mutlaka doldur; boş bırakma.
+- `improvementAreas`: Puanlardan yola çıkarak geliştirilmesi veya izlenmesi gereken 3 noktayı string listesi olarak yaz. Mutlaka doldur; boş bırakma.
 - `recommendations.nextInterview`: Bir sonraki mülakatta hemen uygulanabilecek 2-3 somut kamera/sunum ipucu. Mutlaka doldur.
 - `recommendations.performanceDevelopment`: Orta vadede kamera görünümünü iyileştirmek için 2-3 pratik öneri. Mutlaka doldur.
 
@@ -562,30 +563,51 @@ def build_final_vision_report(raw: dict, scores: dict, gpt_out: dict) -> dict:
     cs = scores["centeringScore"]
     ss = scores["steadinessScore"]
     vt = scores["visualTensionScore"]
+    overview = raw.get("overview", {}) if isinstance(raw, dict) else {}
+    tension = raw.get("tension", {}) if isinstance(raw, dict) else {}
+
+    face_presence_ratio = float(overview.get("facePresenceRatio", 0) or 0)
+    avg_face_area_ratio = float(overview.get("averageFaceAreaRatio", 0) or 0)
+    avg_center_offset = float(overview.get("averageCenterOffset", 0) or 0)
+    head_movement_raw = float(overview.get("headMovementRaw", 0) or 0)
+    attention_drift_ratio = float(tension.get("attentionDriftRatio", 0) or 0)
+
+    face_presence_pct = int(round(face_presence_ratio * 100))
+    face_area_pct = int(round(avg_face_area_ratio * 100))
+    center_offset_pct = int(round(avg_center_offset * 100))
+    attention_drift_pct = int(round(attention_drift_ratio * 100))
 
     overall_score = round(fp * 0.35 + cs * 0.25 + ss * 0.25 + (100 - vt) * 0.15)
 
     score_details = gpt_out.get("scoreDetails", {}) if isinstance(gpt_out.get("scoreDetails"), dict) else {}
 
     def _face_detail(v):
-        if v >= 80: return "Yüz tüm oturum boyunca kamerada görünür durumdaydı."
-        if v >= 50: return "Yüz zaman zaman kamera dışında kaldı ya da görünürlük düşüktü."
-        return "Yüz büyük bölümde kamera görüş alanı dışındaydı."
+        if v >= 80:
+            return f"Yüz tüm oturum boyunca kamerada görünür durumdaydı (görünürlük ~%{face_presence_pct})."
+        if v >= 50:
+            return f"Yüz zaman zaman kamera dışında kaldı ya da görünürlük düşüktü (görünürlük ~%{face_presence_pct})."
+        return f"Yüz büyük bölümde kamera görüş alanı dışındaydı (görünürlük ~%{face_presence_pct})."
 
     def _framing_detail(v):
-        if v >= 80: return "Yüz çerçeve içinde dengeli konumlandı ve ortaya yakın seyretti."
-        if v >= 50: return "Yüz merkezden kısmen saptı; kadraj iyileştirilebilir."
-        return "Kadraj tutarsız; yüz çerçevenin kenarlarına yakın seyretti."
+        if v >= 80:
+            return f"Yüz çerçeve içinde dengeli konumlandı (merkez sapması ~%{center_offset_pct}, yüz alanı ~%{face_area_pct})."
+        if v >= 50:
+            return f"Yüz merkezden kısmen saptı; kadraj iyileştirilebilir (sapma ~%{center_offset_pct}, yüz alanı ~%{face_area_pct})."
+        return f"Kadraj tutarsız; yüz kenarlara yakın seyretti (sapma ~%{center_offset_pct}, yüz alanı ~%{face_area_pct})."
 
     def _stability_detail(v):
-        if v >= 75: return "Baş hareketi asgari düzeyde kaldı; sakin bir görünüm sergilendi."
-        if v >= 50: return "Orta düzeyde baş hareketi gözlemlendi."
-        return "Baş hareketi yüksek düzeydeydi."
+        if v >= 75:
+            return f"Baş hareketi asgari düzeyde kaldı; sakin bir görünüm sergilendi (hareket indeksi ~{head_movement_raw:.3f})."
+        if v >= 50:
+            return f"Orta düzeyde baş hareketi gözlemlendi (hareket indeksi ~{head_movement_raw:.3f})."
+        return f"Baş hareketi yüksek düzeydeydi (hareket indeksi ~{head_movement_raw:.3f})."
 
     def _tension_detail(v):
-        if v <= 19: return "Görsel stres düşük; sakin ve kontrollü bir görünüm."
-        if v <= 49: return "Orta düzeyde görsel stres saptandı."
-        return "Görsel stres belirgin şekilde yüksek; dikkat kayması işaretleri gözlemlendi."
+        if v <= 19:
+            return f"Görsel stres düşük; dikkat kayması sınırlı (drift ~%{attention_drift_pct})."
+        if v <= 49:
+            return f"Orta düzeyde görsel stres saptandı (drift ~%{attention_drift_pct})."
+        return f"Görsel stres belirgin şekilde yüksek; dikkat kayması işaretleri gözlemlendi (drift ~%{attention_drift_pct})."
 
     scores_list = [
         {
