@@ -19,6 +19,15 @@ export type CandidateAnswerAudio = {
   audioBase64: string;
 };
 
+export type InterviewerAudioClip = {
+  id: string;
+  blob: Blob;
+  mimeType: string;
+  startedAt: number;
+  endedAt: number;
+  text?: string;
+};
+
 type RealtimeEvent = {
   type?: string;
   transcript?: string;
@@ -216,6 +225,7 @@ export async function connectRealtimeInterview(opts: {
   difficulty?: string;
   onTranscriptUpdate?: (transcript: TranscriptEntry[]) => void;
   onInterviewerFinished?: (text: string) => void;
+  onInterviewerAudio?: (clip: InterviewerAudioClip) => void;
 }): Promise<RealtimeConnection> {
   const transcript: TranscriptEntry[] = [];
   const candidateAnswerAudios: CandidateAnswerAudio[] = [];
@@ -266,6 +276,9 @@ export async function connectRealtimeInterview(opts: {
   let activeSegmentStopPromise: Promise<void> | null = null;
   let resolveActiveSegmentStopPromise: (() => void) | null = null;
   let interviewerSpeaking = false;
+  let interviewerAudioRecorder: MediaRecorder | null = null;
+  let interviewerAudioChunks: Blob[] = [];
+  let interviewerAudioStartedAt = 0;
   const recentlyPushedFingerprints = new Map<string, number>();
   const interviewerResponseIdsWithTranscript = new Set<string>();
 
@@ -372,6 +385,67 @@ export async function connectRealtimeInterview(opts: {
           resolveActiveSegmentStopPromise = null;
         }
       }
+    }
+  };
+
+  const startInterviewerAudioCapture = () => {
+    if (interviewerAudioRecorder || remoteStream.getAudioTracks().length === 0) return;
+
+    interviewerAudioChunks = [];
+    interviewerAudioStartedAt = Date.now();
+
+    try {
+      const recorder = new MediaRecorder(remoteStream);
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          interviewerAudioChunks.push(event.data);
+        }
+      };
+      interviewerAudioRecorder = recorder;
+      recorder.start(200);
+    } catch (error) {
+      console.debug("[RTC] interviewer audio capture unavailable", error);
+      interviewerAudioRecorder = null;
+      interviewerAudioChunks = [];
+    }
+  };
+
+  const stopInterviewerAudioCapture = (text?: string) => {
+    const recorder = interviewerAudioRecorder;
+    interviewerAudioRecorder = null;
+    if (!recorder || recorder.state === "inactive") return;
+
+    recorder.onstop = () => {
+      if (!interviewerAudioChunks.length) return;
+
+      const blob = new Blob(interviewerAudioChunks, { type: recorder.mimeType || "audio/webm" });
+      const clip: InterviewerAudioClip = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        blob,
+        mimeType: recorder.mimeType || "audio/webm",
+        startedAt: interviewerAudioStartedAt || Date.now(),
+        endedAt: Date.now(),
+        text,
+      };
+
+      interviewerAudioChunks = [];
+      interviewerAudioStartedAt = 0;
+      opts.onInterviewerAudio?.(clip);
+    };
+
+    try {
+      recorder.requestData();
+      window.setTimeout(() => {
+        try {
+          recorder.stop();
+        } catch (error) {
+          console.debug("[RTC] interviewer recorder stop skipped", error);
+        }
+      }, 80);
+    } catch (error) {
+      console.debug("[RTC] interviewer recorder requestData failed", error);
+      interviewerAudioChunks = [];
+      interviewerAudioStartedAt = 0;
     }
   };
 
@@ -501,6 +575,7 @@ export async function connectRealtimeInterview(opts: {
 
     if (isInterviewerDelta && !interviewerSpeaking) {
       interviewerSpeaking = true;
+      startInterviewerAudioCapture();
       if (isCandidateSegmentActive) {
         stopCandidateSegment();
       }
@@ -514,6 +589,7 @@ export async function connectRealtimeInterview(opts: {
       interviewerSpeaking = false;
       interviewerTurnCount += 1;
       const fullTextText = extractInterviewerFromResponseDone(msg);
+      stopInterviewerAudioCapture(fullTextText);
       if (fullTextText && opts.onInterviewerFinished) {
         opts.onInterviewerFinished(fullTextText);
       }
@@ -570,6 +646,7 @@ export async function connectRealtimeInterview(opts: {
 
   const close = () => {
     stopCandidateSegment();
+    stopInterviewerAudioCapture();
     safeCleanup(() => micStream.getTracks().forEach((track) => track.stop()));
     safeCleanup(() => pc.close());
     safeCleanup(() => audioCtx.close());

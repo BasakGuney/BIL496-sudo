@@ -16,16 +16,16 @@ export function SetupPage({
   onOpenReport: (sessionId: string) => void;
 }) {
   const [config, setConfig] = useState<SessionConfig>(() => ({
-    firstName: "",
-    lastName: "",
+    firstName: "Ece",
+    lastName: "Subozkurt",
     gender: "Kadın",
     interviewType: "HR",
-    role: "Örn: Full-Stack Developer",
-    companyOrIndustry: "Örn: Google",
-    domainInterest: "Örn: Kubernetes",
+    role: "Frontend Developer",
+    companyOrIndustry: "Teknoloji",
+    domainInterest: "React ve Node.js",
     difficulty: "Junior",
     mode: "Supportive",
-    consent: { mic: false, camera: false },
+    consent: { mic: true, camera: true },
     cvFile: null,
   }));
   const [preparing, setPreparing] = useState(false);
