@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Flag, Mic, ScanFace, Volume2 } from "lucide-react";
 import { VoiceWaveCanvas } from "@/components/interview/VoiceWaveCanvas";
 import { AvatarVideo } from "@/components/interview/AvatarVideo";
-import { connectRealtimeInterview } from "@/lib/realtimeClient";
+import { AvaturnAvatar } from "@/components/interview/AvaturnAvatar";
+import { connectRealtimeInterview, type InterviewerAudioClip } from "@/lib/realtimeClient";
 import { endSession, uploadCandidateAnswerIncremental } from "@/lib/api";
 import { createVisionAnalyzer, type VisionOverlayState } from "@/lib/visionAnalysis";
 import { BACKEND_URL } from "@/lib/config";
@@ -36,7 +37,8 @@ export function InterviewPage({
   const [isFinishing, setIsFinishing] = useState(false);
   const [finishingMessage, setFinishingMessage] = useState("Lütfen bekleyin, raporunuz hazırlanıyor.");
   const [overlay, setOverlay] = useState<VisionOverlayState>(DEFAULT_OVERLAY);
-  const [visualMode, setVisualMode] = useState<"avatar" | "wave">("avatar");
+  const [visualMode, setVisualMode] = useState<"avatar" | "avaturn" | "wave">("avatar");
+  const [interviewerAudioClip, setInterviewerAudioClip] = useState<InterviewerAudioClip | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
@@ -122,6 +124,7 @@ export function InterviewPage({
           difficulty: config.difficulty,
           onTranscriptUpdate: (t) => onTranscriptUpdateRef.current?.(t),
           onInterviewerFinished: (t) => onInterviewerFinishedRef.current?.(t),
+          onInterviewerAudio: (clip) => setInterviewerAudioClip(clip),
         });
 
         if (!mounted) {
@@ -454,6 +457,13 @@ export function InterviewPage({
               >
                 Ses Dalga
               </button>
+              <button
+                type="button"
+                onClick={() => setVisualMode("avaturn")}
+                className={`rounded-full px-3 py-1 transition ${visualMode === "avaturn" ? "bg-white/20 text-white" : "text-white/60 hover:text-white"}`}
+              >
+                Avaturn
+              </button>
             </div>
           </div>
 
@@ -467,7 +477,9 @@ export function InterviewPage({
             ) : (
               visualMode === "avatar"
                 ? <AvatarVideo speaking={aiSpeaking} />
-                : <VoiceWaveCanvas speaking={aiSpeaking} level={level} />
+                : visualMode === "avaturn"
+                  ? <AvaturnAvatar speaking={aiSpeaking} level={level} audioClip={interviewerAudioClip} />
+                  : <VoiceWaveCanvas speaking={aiSpeaking} level={level} />
             )}
           </div>
 

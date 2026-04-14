@@ -30,12 +30,22 @@ export function SessionSetupForm({
 }) {
   // Kullanıcının gerçekten yazdığı değerler (input içini dolduran şey)
   const [draft, setDraft] = React.useState({
-    firstName: "",
-    lastName: "",
-    role: "",
-    companyOrIndustry: "",
-    domainInterest: "",
+    firstName: value.firstName || "",
+    lastName: value.lastName || "",
+    role: value.role || "",
+    companyOrIndustry: value.companyOrIndustry || "",
+    domainInterest: value.domainInterest || "",
   });
+
+  React.useEffect(() => {
+    setDraft((prev) => ({
+      firstName: prev.firstName || value.firstName || "",
+      lastName: prev.lastName || value.lastName || "",
+      role: prev.role || value.role || "",
+      companyOrIndustry: prev.companyOrIndustry || value.companyOrIndustry || "",
+      domainInterest: prev.domainInterest || value.domainInterest || "",
+    }));
+  }, [value.firstName, value.lastName, value.role, value.companyOrIndustry, value.domainInterest]);
 
   // Zorunlu alan kontrolü: Select'ler value'dan, text input'lar draft'tan (boşsa doldurulmamış say)
   const isFilled =
