@@ -40,6 +40,9 @@ export function SetupPage({
     setPrepareError("");
     try {
       const session = await startSession(nextConfig);
+      if (!session.sessionId) {
+        throw new Error("Oturum oluşturuldu ancak session kimliği alınamadı.");
+      }
       onPrepared({
         ...nextConfig,
         candidateBrief: session.candidateBrief || nextConfig.candidateBrief || null,
@@ -65,6 +68,7 @@ export function SetupPage({
       })
       .catch((error: any) => {
         if (cancelled) return;
+        setHistory([]);
         setHistoryError(error?.message || "Geçmiş oturumlar yüklenemedi.");
       })
       .finally(() => {
