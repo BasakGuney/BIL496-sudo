@@ -1,0 +1,386 @@
+[
+  {
+    "id": "hr_001",
+    "question": "Kendinizden kısaca bahseder misiniz?",
+    "questionType": "self_presentation",
+    "theme": "intro",
+    "difficulty": "easy",
+    "tags": ["opening", "general"]
+  },
+  {
+    "id": "hr_002",
+    "question": "Bugüne kadar olan eğitim ve deneyim yolculuğunuzu nasıl özetlersiniz?",
+    "questionType": "self_presentation",
+    "theme": "intro",
+    "difficulty": "easy",
+    "tags": ["opening", "background"]
+  },
+  {
+    "id": "hr_003",
+    "question": "Sizi profesyonel olarak en iyi anlatan güçlü yönleriniz nelerdir?",
+    "questionType": "self_presentation",
+    "theme": "intro",
+    "difficulty": "easy",
+    "tags": ["opening", "strengths"]
+  },
+  {
+    "id": "hr_004",
+    "question": "Neden bu pozisyona başvurdunuz?",
+    "questionType": "motivation",
+    "theme": "motivation",
+    "difficulty": "easy",
+    "tags": ["career", "role_fit"]
+  },
+  {
+    "id": "hr_005",
+    "question": "Bu rolün hangi yönü sizi özellikle motive ediyor?",
+    "questionType": "motivation",
+    "theme": "motivation",
+    "difficulty": "easy",
+    "tags": ["role_fit", "interest"]
+  },
+  {
+    "id": "hr_006",
+    "question": "Kariyerinizin bu döneminde neden yeni bir fırsat arıyorsunuz?",
+    "questionType": "motivation",
+    "theme": "motivation",
+    "difficulty": "easy",
+    "tags": ["career", "transition"]
+  },
+  {
+    "id": "hr_007",
+    "question": "Önümüzdeki birkaç yıl için kariyer hedefiniz nedir?",
+    "questionType": "motivation",
+    "theme": "career_goals",
+    "difficulty": "easy",
+    "tags": ["career", "goals"]
+  },
+  {
+    "id": "hr_008",
+    "question": "Şu ana kadar size en çok katkı sağlayan staj veya deneyim hangisiydi?",
+    "questionType": "experience",
+    "theme": "internship_experience",
+    "difficulty": "easy",
+    "tags": ["experience", "internship"]
+  },
+  {
+    "id": "hr_009",
+    "question": "Biraz önce bahsettiğiniz deneyimde günlük sorumluluklarınız nelerdi?",
+    "questionType": "experience",
+    "theme": "internship_experience",
+    "difficulty": "easy",
+    "tags": ["experience", "responsibility"]
+  },
+  {
+    "id": "hr_010",
+    "question": "Sizi en çok geliştiren proje veya deneyim üzerinde biraz durabilir miyiz?",
+    "questionType": "experience",
+    "theme": "project_experience",
+    "difficulty": "easy",
+    "tags": ["experience", "project"]
+  },
+  {
+    "id": "hr_011",
+    "question": "O projede veya stajda sizin bireysel katkınız tam olarak neydi?",
+    "questionType": "experience",
+    "theme": "project_experience",
+    "difficulty": "easy",
+    "tags": ["experience", "ownership"]
+  },
+  {
+    "id": "hr_012",
+    "question": "Şu anda üzerinde çalıştığınız işte ana sorumluluk alanınız nedir?",
+    "questionType": "experience",
+    "theme": "project_experience",
+    "difficulty": "easy",
+    "tags": ["experience", "current_role"]
+  },
+  {
+    "id": "hr_013",
+    "question": "Takım içinde birlikte çalışırken en çok önem verdiğiniz şey nedir?",
+    "questionType": "behavioral",
+    "theme": "teamwork",
+    "difficulty": "easy",
+    "tags": ["teamwork", "values"]
+  },
+  {
+    "id": "hr_014",
+    "question": "Bir ekip içinde farklı görüşleri uzlaştırmanız gereken bir durumu anlatır mısınız?",
+    "questionType": "behavioral",
+    "theme": "teamwork",
+    "difficulty": "medium",
+    "tags": ["teamwork", "alignment", "star"]
+  },
+  {
+    "id": "hr_015",
+    "question": "Takım içinde bir anlaşmazlık yaşadığınızda nasıl ilerlersiniz?",
+    "questionType": "behavioral",
+    "theme": "conflict_management",
+    "difficulty": "medium",
+    "tags": ["conflict", "teamwork", "star"]
+  },
+  {
+    "id": "hr_016",
+    "question": "Bir ekip arkadaşınızla aynı fikirde olmadığınız bir anı nasıl yönettiğinizi anlatır mısınız?",
+    "questionType": "behavioral",
+    "theme": "conflict_management",
+    "difficulty": "medium",
+    "tags": ["conflict", "communication", "star"]
+  },
+  {
+    "id": "hr_017",
+    "question": "Aldığınız bir geri bildirimi davranışınıza veya çalışma şeklinize yansıttığınız bir örnek verebilir misiniz?",
+    "questionType": "behavioral",
+    "theme": "feedback",
+    "difficulty": "medium",
+    "tags": ["feedback", "growth", "star"]
+  },
+  {
+    "id": "hr_018",
+    "question": "Birine yapıcı geri bildirim vermeniz gereken bir durumda nasıl davrandınız?",
+    "questionType": "behavioral",
+    "theme": "feedback",
+    "difficulty": "medium",
+    "tags": ["feedback", "communication", "star"]
+  },
+  {
+    "id": "hr_019",
+    "question": "Zaman baskısı altında aynı anda birden fazla işi yönetmeniz gereken bir durumu anlatır mısınız?",
+    "questionType": "behavioral",
+    "theme": "time_management",
+    "difficulty": "medium",
+    "tags": ["time_management", "pressure", "star"]
+  },
+  {
+    "id": "hr_020",
+    "question": "Önceliklerinizin bir anda değiştiği bir durumda ne yaptınız?",
+    "questionType": "behavioral",
+    "theme": "time_management",
+    "difficulty": "medium",
+    "tags": ["time_management", "adaptability", "star"]
+  },
+  {
+    "id": "hr_021",
+    "question": "Baskı altında çalışmanız gereken bir örnek verebilir misiniz?",
+    "questionType": "behavioral",
+    "theme": "stress_pressure",
+    "difficulty": "medium",
+    "tags": ["pressure", "stress", "star"]
+  },
+  {
+    "id": "hr_022",
+    "question": "Belirsizliğin yüksek olduğu bir durumda nasıl yön buldunuz?",
+    "questionType": "behavioral",
+    "theme": "adaptability",
+    "difficulty": "medium",
+    "tags": ["adaptability", "uncertainty", "star"]
+  },
+  {
+    "id": "hr_023",
+    "question": "Beklenmedik bir problem çıktığında ilk aksiyonunuz ne olur?",
+    "questionType": "behavioral",
+    "theme": "problem_ownership",
+    "difficulty": "medium",
+    "tags": ["ownership", "problem_solving", "behavioral"]
+  },
+  {
+    "id": "hr_024",
+    "question": "Bir sorunu siz fark edip sorumluluk aldığınız bir deneyimi anlatır mısınız?",
+    "questionType": "behavioral",
+    "theme": "problem_ownership",
+    "difficulty": "medium",
+    "tags": ["ownership", "initiative", "star"]
+  },
+  {
+    "id": "hr_025",
+    "question": "Bir işi sizden beklenenden daha ileri taşıdığınız bir örnek verebilir misiniz?",
+    "questionType": "behavioral",
+    "theme": "initiative",
+    "difficulty": "medium",
+    "tags": ["initiative", "ownership", "star"]
+  },
+  {
+    "id": "hr_026",
+    "question": "İnisiyatif almanız gereken bir durumda nasıl karar verdiniz?",
+    "questionType": "behavioral",
+    "theme": "initiative",
+    "difficulty": "medium",
+    "tags": ["initiative", "decision_making", "star"]
+  },
+  {
+    "id": "hr_027",
+    "question": "Bir konuyu teknik olmayan birine açıklamanız gereken bir örnek oldu mu?",
+    "questionType": "behavioral",
+    "theme": "communication",
+    "difficulty": "medium",
+    "tags": ["communication", "clarity", "star"]
+  },
+  {
+    "id": "hr_028",
+    "question": "İletişim hatası nedeniyle zorlanan bir süreci nasıl toparladınız?",
+    "questionType": "behavioral",
+    "theme": "communication",
+    "difficulty": "medium",
+    "tags": ["communication", "recovery", "star"]
+  },
+  {
+    "id": "hr_029",
+    "question": "Yeni bir ortama veya takıma uyum sağlamanız gereken bir süreci anlatır mısınız?",
+    "questionType": "behavioral",
+    "theme": "adaptability",
+    "difficulty": "medium",
+    "tags": ["adaptability", "teamwork", "star"]
+  },
+  {
+    "id": "hr_030",
+    "question": "Kısa sürede öğrenmeniz gereken yeni bir konu olduğunda nasıl ilerlersiniz?",
+    "questionType": "behavioral",
+    "theme": "learning",
+    "difficulty": "medium",
+    "tags": ["learning", "adaptability", "growth"]
+  },
+  {
+    "id": "hr_031",
+    "question": "Hata yaptığınızı fark ettiğiniz bir durumda nasıl bir yol izlediniz?",
+    "questionType": "behavioral",
+    "theme": "ownership",
+    "difficulty": "medium",
+    "tags": ["ownership", "accountability", "star"]
+  },
+  {
+    "id": "hr_032",
+    "question": "Sorumluluk alıp sonucu sahiplenmeniz gereken bir örnek verebilir misiniz?",
+    "questionType": "behavioral",
+    "theme": "ownership",
+    "difficulty": "medium",
+    "tags": ["ownership", "responsibility", "star"]
+  },
+  {
+    "id": "hr_033",
+    "question": "Şu ana kadar en gurur duyduğunuz başarınız neydi ve neden?",
+    "questionType": "behavioral",
+    "theme": "achievement",
+    "difficulty": "easy",
+    "tags": ["achievement", "reflection"]
+  },
+  {
+    "id": "hr_034",
+    "question": "Zorlandığınız ama sonunda iyi yönettiğinizi düşündüğünüz bir süreci paylaşır mısınız?",
+    "questionType": "behavioral",
+    "theme": "achievement",
+    "difficulty": "medium",
+    "tags": ["achievement", "resilience", "star"]
+  },
+  {
+    "id": "hr_035",
+    "question": "Kendinizde geliştirmek istediğiniz yönler nelerdir?",
+    "questionType": "motivation",
+    "theme": "strengths_weaknesses",
+    "difficulty": "easy",
+    "tags": ["self_awareness", "growth"]
+  },
+  {
+    "id": "hr_036",
+    "question": "Sizi iş ortamında en çok motive eden çalışma koşulları nelerdir?",
+    "questionType": "motivation",
+    "theme": "motivation",
+    "difficulty": "easy",
+    "tags": ["motivation", "work_style"]
+  },
+  {
+    "id": "hr_037",
+    "question": "Bir lider veya ekip arkadaşı olarak sizden en çok hangi yönünüzle fayda görüldüğünü düşünüyorsunuz?",
+    "questionType": "self_presentation",
+    "theme": "strengths_weaknesses",
+    "difficulty": "easy",
+    "tags": ["self_awareness", "strengths"]
+  },
+  {
+    "id": "hr_038",
+    "question": "Bir stajınızda karşılaştığınız zor bir durumu ve nasıl aştığınızı anlatır mısınız?",
+    "questionType": "behavioral",
+    "theme": "internship_experience",
+    "difficulty": "medium",
+    "tags": ["internship", "challenge", "star"]
+  },
+  {
+    "id": "hr_039",
+    "question": "Staj veya proje sürecinde aldığınız bir kararı sonradan tekrar değerlendirdiğiniz oldu mu?",
+    "questionType": "behavioral",
+    "theme": "learning",
+    "difficulty": "medium",
+    "tags": ["learning", "reflection", "star"]
+  },
+  {
+    "id": "hr_040",
+    "question": "Bir projede işlerin planladığınız gibi gitmediği bir anda nasıl aksiyon aldınız?",
+    "questionType": "behavioral",
+    "theme": "problem_ownership",
+    "difficulty": "medium",
+    "tags": ["problem_solving", "ownership", "star"]
+  },
+  {
+    "id": "hr_041",
+    "question": "Bir ekip çalışmasında sizin katkınızı görünür kılan nokta neydi?",
+    "questionType": "experience",
+    "theme": "teamwork",
+    "difficulty": "easy",
+    "tags": ["teamwork", "contribution"]
+  },
+  {
+    "id": "hr_042",
+    "question": "Size göre iyi bir ekip arkadaşını tanımlayan özellikler nelerdir?",
+    "questionType": "behavioral",
+    "theme": "teamwork",
+    "difficulty": "easy",
+    "tags": ["teamwork", "values"]
+  },
+  {
+    "id": "hr_043",
+    "question": "Bir yöneticiniz veya mentorunuzdan öğrendiğiniz en önemli şey neydi?",
+    "questionType": "behavioral",
+    "theme": "feedback",
+    "difficulty": "easy",
+    "tags": ["feedback", "learning"]
+  },
+  {
+    "id": "hr_044",
+    "question": "Yoğun bir dönemde hem kaliteyi hem hızı korumaya çalıştığınız bir örnek verebilir misiniz?",
+    "questionType": "behavioral",
+    "theme": "stress_pressure",
+    "difficulty": "medium",
+    "tags": ["pressure", "quality", "star"]
+  },
+  {
+    "id": "hr_045",
+    "question": "Karşınızdaki kişinin beklentisini netleştirmek için özel çaba sarf ettiğiniz bir durum oldu mu?",
+    "questionType": "behavioral",
+    "theme": "communication",
+    "difficulty": "medium",
+    "tags": ["communication", "clarification", "star"]
+  },
+  {
+    "id": "hr_046",
+    "question": "İşinizde veya okul hayatınızda geri dönüp farklı yapardım dediğiniz bir karar var mı?",
+    "questionType": "behavioral",
+    "theme": "self_awareness",
+    "difficulty": "medium",
+    "tags": ["reflection", "learning", "star"]
+  },
+  {
+    "id": "hr_047",
+    "question": "Bu rol için sizi uygun kılan deneyim veya özellikleriniz nelerdir?",
+    "questionType": "motivation",
+    "theme": "role_fit",
+    "difficulty": "easy",
+    "tags": ["role_fit", "strengths"]
+  },
+  {
+    "id": "hr_048",
+    "question": "Yeni bir şey öğrenmek için kendi başınıza çaba gösterdiğiniz bir örnek paylaşır mısınız?",
+    "questionType": "behavioral",
+    "theme": "learning",
+    "difficulty": "medium",
+    "tags": ["learning", "initiative", "star"]
+  }
+]
