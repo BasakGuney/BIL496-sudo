@@ -1,0 +1,114 @@
+[
+  {
+    "id": 1,
+    "question_text": "Bize biraz kendinizden bahseder misiniz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 2,
+    "question_text": "Kısaca kendinizi tanıtabilir misiniz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 3,
+    "question_text": "Neden bu pozisyona başvurdunuz?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 4,
+    "question_text": "Neden bizim şirketimizde çalışmak istiyorsunuz?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 5,
+    "question_text": "Takım içinde bir anlaşmazlık yaşadığınız bir durumu anlatır mısınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 6,
+    "question_text": "Baskı altında çalışmanız gereken bir örnek verebilir misiniz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 7,
+    "question_text": "Daha önce hangi projelerde görev aldınız?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 8,
+    "question_text": "Staj döneminizde üstlendiğiniz sorumluluklar nelerdi?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 9,
+    "question_text": "REST API nedir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 10,
+    "question_text": "JWT nasıl çalışır?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 11,
+    "question_text": "Daha önce React ile geliştirdiğiniz bir projeyi anlatır mısınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 12,
+    "question_text": "Node.js kullandığınız bir projede hangi problemleri çözdünüz?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 13,
+    "question_text": "Milyonlarca kullanıcıya hizmet veren bir mesajlaşma sistemi nasıl tasarlarsınız?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 14,
+    "question_text": "Bir performans darboğazını nasıl analiz eder ve çözerdiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  }
+]
