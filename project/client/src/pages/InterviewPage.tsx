@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { CandidateAnswerAudio, SessionConfig } from "@/lib/types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CandidateAnswerAudio, FeedbackReport, SessionConfig } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Flag, Mic, ScanFace, Volume2 } from "lucide-react";
 import { VoiceWaveCanvas } from "@/components/interview/VoiceWaveCanvas";
 import { AvatarVideo } from "@/components/interview/AvatarVideo";
 import { AvaturnAvatar } from "@/components/interview/AvaturnAvatar";
-import { connectRealtimeInterview, type InterviewerAudioClip } from "@/lib/realtimeClient";
+import { connectRealtimeInterview, type InterviewerAudioClip, type TranscriptEntry } from "@/lib/realtimeClient";
 import { endSession, uploadCandidateAnswerIncremental } from "@/lib/api";
 import { createVisionAnalyzer, type VisionOverlayState } from "@/lib/visionAnalysis";
 import { BACKEND_URL } from "@/lib/config";
@@ -23,11 +23,13 @@ export function InterviewPage({
   config,
   sessionId,
   onFinish,
+  onReportUpdate,
   onBack,
 }: {
   config: SessionConfig;
   sessionId: string;
-  onFinish: (report: any) => void;
+  onFinish: (report: FeedbackReport) => void;
+  onReportUpdate?: (report: FeedbackReport) => void;
   onBack: () => void;
 }) {
   const [status, setStatus] = useState<"connecting" | "connected" | "error">("connecting");
@@ -55,6 +57,7 @@ export function InterviewPage({
 
   useEffect(() => {
     let cancelled = false;
+    const visionAnalyzer = visionAnalyzerRef.current;
 
     (async () => {
       try {
@@ -70,7 +73,7 @@ export function InterviewPage({
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => {});
-          await visionAnalyzerRef.current.start({
+          await visionAnalyzer.start({
             video: videoRef.current,
             sessionId,
             backendBaseUrl: BACKEND_URL,
@@ -89,13 +92,13 @@ export function InterviewPage({
 
     return () => {
       cancelled = true;
-      visionAnalyzerRef.current.stop();
+      visionAnalyzer.stop();
       if (camStreamRef.current) {
         camStreamRef.current.getTracks().forEach((t) => t.stop());
         camStreamRef.current = null;
       }
     };
-  }, [supportiveMode]);
+  }, [sessionId, supportiveMode]);
 
   useEffect(() => {
     if (connectingRef.current) return;
@@ -168,10 +171,10 @@ export function InterviewPage({
         };
 
         raf = requestAnimationFrame(tick);
-      } catch (e: any) {
-        console.error(e);
+      } catch (error: unknown) {
+        console.error(error);
         setStatus("error");
-        setErrorText(e?.message || "Bilinmeyen hata");
+        setErrorText(error instanceof Error ? error.message : "Bilinmeyen hata");
       } finally {
         connectingRef.current = false;
       }
@@ -192,7 +195,7 @@ export function InterviewPage({
     return [Number(answer?.questionIndex || 0), Number(answer?.startedAt || 0), Number(answer?.endedAt || 0)].join(":");
   }
 
-  async function flushIncrementalAnswers() {
+  const flushIncrementalAnswers = useCallback(async () => {
     const conn = connRef.current;
     if (!conn?.getCandidateAnswerAudios) return;
 
@@ -204,7 +207,7 @@ export function InterviewPage({
       await uploadCandidateAnswerIncremental(sessionId, answer);
       uploadedAnswerKeysRef.current.add(key);
     }
-  }
+  }, [sessionId]);
 
   useEffect(() => {
     if (status !== "connected") return;
@@ -218,7 +221,7 @@ export function InterviewPage({
     }, 2500);
 
     return () => window.clearInterval(intervalId);
-  }, [sessionId, status]);
+  }, [flushIncrementalAnswers, status]);
 
   async function enableAudio() {
     const conn = connRef.current;
@@ -257,21 +260,50 @@ export function InterviewPage({
     });
     setFinishingMessage("Oturum kapatılıyor ve ilk rapor oluşturuluyor...");
 
-    const transcript = connRef.current?.getTranscript() || [];
-    let candidateAnswerAudios: any[] = [];
+    const transcript = connRef.current?.getTranscript() ?? [];
+    let candidateAnswerAudios: CandidateAnswerAudio[] = [];
     if (connRef.current?.getCandidateAnswerAudios) {
       candidateAnswerAudios = await connRef.current.getCandidateAnswerAudios(true);
     }
 
     stopMedia();
-    const rep = await endSession(sessionId, transcript, candidateAnswerAudios);
-    setFinishingMessage("Analiz raporları hazırlanıyor; lütfen sayfada kalın...");
+
+    const optimisticReport: FeedbackReport = {
+      sessionId,
+      overallScore: 0,
+      notes: ["İlk rapor hazırlanıyor. Detay analizler arka planda güncellenecek."],
+      recommendations: [],
+      content: [],
+      communication: [],
+      behavioral: [],
+      transcript,
+      transcriptText: transcript
+        .map((item) => {
+          const role = item.role === "interviewer" ? "Interviewer" : "Candidate";
+          return `[${role}] ${String(item.text || "").trim()}`;
+        })
+        .filter(Boolean)
+        .join("\n"),
+      audioAnalysis: { model: null },
+      audioLlmReport: null,
+      transcriptAnalysis: null,
+      visionLlmAnalysis: null,
+      analysisStatus: {
+        audio: false,
+        audioLlm: false,
+        transcript: false,
+        vision: false,
+        visionLlm: false,
+      },
+    };
+
+    onFinish(optimisticReport);
 
     try {
-      onFinish(rep);
+      const rep = await endSession(sessionId, transcript, candidateAnswerAudios);
+      onReportUpdate?.(rep);
     } catch (error) {
-      console.error("transition to ready report failed", error);
-      onFinish(rep);
+      console.error("final report generation failed", error);
     }
   }
 
@@ -302,11 +334,11 @@ export function InterviewPage({
   };
 
   // Ref for transcript update to avoid stale closures in RTC callback
-  const onTranscriptUpdateRef = useRef<((transcript: any[]) => void) | undefined>(undefined);
+  const onTranscriptUpdateRef = useRef<((transcript: TranscriptEntry[]) => void) | undefined>(undefined);
   const onInterviewerFinishedRef = useRef<((text: string) => void) | undefined>(undefined);
 
   useEffect(() => {
-    onTranscriptUpdateRef.current = async (transcript: any[]) => {
+    onTranscriptUpdateRef.current = async (transcript: TranscriptEntry[]) => {
       if (!supportiveMode || transcript.length < 2) return;
       
       // When AI starts talking (role === interviewer), candidate turn is over.

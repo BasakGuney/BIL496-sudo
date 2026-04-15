@@ -336,6 +336,7 @@ export function FeedbackPage({ initialReport, sessionId, onNew }: { initialRepor
   useEffect(() => {
     let cancelled = false;
     let attempts = 0;
+    let retryTimer: number | null = null;
 
     const refresh = async () => {
       try {
@@ -352,11 +353,22 @@ export function FeedbackPage({ initialReport, sessionId, onNew }: { initialRepor
         );
         attempts += 1;
         if (!cancelled && !done && attempts < 20) {
-          window.setTimeout(refresh, 2500);
+          retryTimer = window.setTimeout(refresh, 2500);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        attempts += 1;
+        const message = error instanceof Error ? error.message : "";
+        const isTransientMissingReport =
+          message.toLowerCase().includes("report not found")
+          || message.toLowerCase().includes("request failed: 404");
+
+        if (!cancelled && isTransientMissingReport && attempts < 20) {
+          retryTimer = window.setTimeout(refresh, 1500);
+          return;
+        }
+
         if (!cancelled) {
-          setRefreshError(error?.message || "Feedback yenilenemedi.");
+          setRefreshError(error instanceof Error ? error.message : "Feedback yenilenemedi.");
         }
       }
     };
@@ -364,6 +376,7 @@ export function FeedbackPage({ initialReport, sessionId, onNew }: { initialRepor
     refresh();
     return () => {
       cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
     };
   }, [sessionId]);
 

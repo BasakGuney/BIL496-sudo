@@ -76,6 +76,9 @@ export default function App() {
               setReport(rep);
               setRoute("feedback");
             }}
+            onReportUpdate={(rep) => {
+              setReport(rep);
+            }}
             onBack={() => setRoute("preview")}
           />
         )}
