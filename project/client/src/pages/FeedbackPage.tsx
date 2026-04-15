@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import type { FeedbackReport } from "@/lib/types";
 import { getReport } from "@/lib/api";
 import { TranscriptAnalysisTab } from "@/components/feedback/TranscriptAnalysisTab";
+import { ProgressDashboardTab } from "@/components/feedback/ProgressDashboardTab";
 import { RotateCcw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -395,10 +396,11 @@ export function FeedbackPage({ initialReport, sessionId, onNew }: { initialRepor
       {refreshError ? <div className="rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">{refreshError}</div> : null}
 
       <Tabs defaultValue="transcript" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 rounded-xl">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl md:grid-cols-4">
             <TabsTrigger value="transcript">Yanıt Analizi</TabsTrigger>
             <TabsTrigger value="audio">Ses Analizi</TabsTrigger>
             <TabsTrigger value="vision">Görüntü Analizi</TabsTrigger>
+            <TabsTrigger value="progress">Gelişim Paneli</TabsTrigger>
           </TabsList>
 
 
@@ -412,6 +414,10 @@ export function FeedbackPage({ initialReport, sessionId, onNew }: { initialRepor
 
         <TabsContent value="vision" className="space-y-6 pt-4">
           <VisionAnalysisTab report={report} />
+        </TabsContent>
+
+        <TabsContent value="progress" className="space-y-6 pt-4">
+          <ProgressDashboardTab currentReport={report} currentSessionId={sessionId} />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,4 +1,51 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export class PromptTemplates {
+  constructor() {
+    this.hrQuestionBank = this.loadHrQuestionBank();
+  }
+
+  loadHrQuestionBank() {
+    try {
+      const filePath = path.join(__dirname, "data", "hr_question_bank.json");
+      return JSON.parse(readFileSync(filePath, "utf8"));
+    } catch (error) {
+      console.warn("Failed to load HR question bank", error?.message || error);
+      return [];
+    }
+  }
+
+  hrQuestionBankPromptBlock() {
+    if (!Array.isArray(this.hrQuestionBank) || this.hrQuestionBank.length === 0) return "";
+
+    const themeMap = new Map();
+    for (const item of this.hrQuestionBank) {
+      const theme = String(item?.theme || "general");
+      const question = String(item?.question || "").trim();
+      if (!question) continue;
+      if (!themeMap.has(theme)) themeMap.set(theme, []);
+      const bucket = themeMap.get(theme);
+      if (bucket.length < 3) bucket.push(question);
+    }
+
+    const themeSummary = Array.from(themeMap.entries())
+      .map(([theme, questions]) => `${theme}: ${questions.join(" | ")}`)
+      .join(" || ");
+
+    return [
+      `HR SORU BANKASI TEMALARI: ${Array.from(themeMap.keys()).join(", ")}.`,
+      "Aşağıdaki soru havuzu sadece ilham ve sınır belirlemek içindir; cümleleri birebir kopyalamak zorunda değilsin ama bu tema dengesini koru.",
+      `ÖRNEKLER: ${themeSummary}`,
+      "Aynı temadan art arda en fazla 2 soru sor; sonra farklı bir temaya geç.",
+      "Özellikle intro, motivation, teamwork, conflict_management, feedback, time_management, stress_pressure, learning ve career_goals temaları arasında denge kur.",
+    ].join(" ");
+  }
+
   formatCandidateBrief(candidateBrief) {
     if (!candidateBrief || typeof candidateBrief !== "object") return "";
 
@@ -24,6 +71,17 @@ export class PromptTemplates {
   candidateBriefInstructions(cfg) {
     const formattedBrief = this.formatCandidateBrief(cfg?.candidateBrief);
     if (!formattedBrief) return "";
+
+    if (cfg?.interviewType === "HR") {
+      return [
+        `CV ÖZETİ: ${formattedBrief}.`,
+        "Bu özeti soru üretiminde kullan ama kesin doğru kabul etme; adayın sözlü anlatımıyla doğrulat.",
+        "HR modunda CV'deki proje veya deneyimleri teknik detay sorgulamak için değil, davranışsal içgörü almak için kullan.",
+        "Aday bir proje veya stajdan bahsederse kullanılan araçlar, algoritmalar veya teknik implementasyon detaylarına girme.",
+        "Bunun yerine adayın bireysel katkısını, ekip içi iletişimini, sorumluluk alma biçimini, karar verme yaklaşımını ve ortaya çıkan sonucu sor.",
+        "CV bilgisini madde madde okumadan doğal geçişlerle referans ver.",
+      ].join(" ");
+    }
 
     return [
       `CV ÖZETİ: ${formattedBrief}.`,
@@ -75,7 +133,21 @@ export class PromptTemplates {
   }
 
   hrQuestionRules() {
-    return "HR modunda STAR yaklaşımına uygun, teknik derinlik içermeyen 5-6 davranışsal soru sor. TAKİP KURALLARI: Aday yüzeysel cevap verirse \"Bu durumda siz tam olarak ne yaptınız?\" veya \"Sonuç ne oldu, ölçülebilir bir etki var mıydı?\" diye derinleştir. Aday \"biz\" derse \"Ekip olarak güzel bir çalışma. Peki sizin bireysel katkınız ne oldu?\" diye sor. Aday takılırsa (Supportive) \"Bir örnek üzerinden düşünelim...\" diyerek yönlendir. Her soruyu doğal bir geçişle bağla, listeden okur gibi sorma. ZAMAN YÖNETİMİ: Her soru için kendi kendine 1-2 dakika hedefle, süreyi içinden takip et; süre uzarsa nazikçe toparlatıp sonraki soruya geç. Kuracağın cümlenin içinde 'süre, dakika, saniye' gibi kelimeler KULLANMA, süreyi adaya DİLLENDİRME.";
+    return [
+      "HR modunda STAR yaklaşımına uygun, teknik derinlik içermeyen 5-6 davranışsal soru sor.",
+      "Eğer aday bir proje veya stajdan bahsederse teknik araçlar, model isimleri, algoritmalar, kütüphaneler veya implementasyon detayları üzerinden soru sorma.",
+      "Bunun yerine o deneyimde nasıl davrandığını, nasıl iletişim kurduğunu, nasıl öncelik verdiğini, çatışma veya belirsizliği nasıl yönettiğini ve bireysel katkısının ne olduğunu sor.",
+      "DAĞILIM KURALI: En fazla 2 soru proje/staj referanslı olsun; kalan sorular mutlaka farklı davranışsal temalardan gelsin.",
+      "Tema çeşitliliği zorunlu olsun: takım çalışması, çatışma yönetimi, geri bildirim alma/verme, baskı altında çalışma, hata yönetimi, motivasyon, öğrenme veya öz farkındalık alanlarından birkaçını gör.",
+      "TAKİP KURALLARI: Aday yüzeysel cevap verirse \"Bu durumda siz tam olarak ne yaptınız?\" veya \"Sonuç ne oldu, ölçülebilir bir etki var mıydı?\" diye derinleştir.",
+      "Aday \"biz\" derse \"Ekip olarak güzel bir çalışma. Peki sizin bireysel katkınız ne oldu?\" diye sor.",
+      "Aday takılırsa (Supportive) \"Bir örnek üzerinden düşünelim...\" diyerek yönlendir.",
+      "Aynı örnek üzerinde en fazla 2 takip sorusu sor; sonra mutlaka başka bir davranışsal temaya geç.",
+      "Her soruyu doğal bir geçişle bağla, listeden okur gibi sorma.",
+      "ZAMAN YÖNETİMİ: Her soru için kendi kendine 1-2 dakika hedefle, süreyi içinden takip et; süre uzarsa nazikçe toparlatıp sonraki soruya geç.",
+      "Kuracağın cümlenin içinde 'süre, dakika, saniye' gibi kelimeler KULLANMA, süreyi adaya DİLLENDİRME.",
+      this.hrQuestionBankPromptBlock(),
+    ].join(" ");
   }
 
   technicalQuestionRules(cfg) {

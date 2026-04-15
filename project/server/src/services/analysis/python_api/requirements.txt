@@ -12,3 +12,4 @@ requests
 matplotlib
 opencv-python-headless
 mediapipe
+qdrant-client[fastembed]

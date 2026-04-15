@@ -27,7 +27,8 @@ export class AIServiceGateway {
     const candidateBriefText = this.formatCandidateBrief(cfg);
     let promptText = "";
     if (cfg.interviewType === "HR") {
-      promptText = `Sen bir İnsan Kaynakları mülakatçısısın. Adaya sorulabilecek, STAR (Situation, Task, Action, Result) tekniğine uygun, tamamen Türkçe 3 adet İK / davranışsal soru hazırla. Sorular genel karakter ve tecrübe odaklı olmalıdır.${candidateBriefText ? ` Adayın CV özeti: ${candidateBriefText}. Soruların en az 2 tanesi bu özette geçen deneyim, proje veya sorumluluklardan türesin.` : ""} SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında JSON objesi döndür, markdown veya açıklama ekleme.`;
+      const hrQuestionBank = this.prompts?.hrQuestionBankPromptBlock ? this.prompts.hrQuestionBankPromptBlock() : "";
+      promptText = `Sen bir İnsan Kaynakları mülakatçısısın. Adaya sorulabilecek, STAR (Situation, Task, Action, Result) tekniğine uygun, tamamen Türkçe 3 adet İK / davranışsal soru hazırla. Sorular genel karakter, sorumluluk alma, iletişim, takım çalışması, çatışma yönetimi, önceliklendirme ve öz farkındalık odaklı olmalıdır. Teknik detay sorma; kullanılan araçlar, algoritmalar, model isimleri, kütüphaneler veya implementasyon ayrıntılarına girme. ${hrQuestionBank}${candidateBriefText ? ` Adayın CV özeti: ${candidateBriefText}. Soruların en az 2 tanesi bu özette geçen deneyim, proje veya sorumluluklardan türesin; ancak bu sorular da teknik detay değil, adayın bireysel katkısı, davranışı, kararları ve sonuçları üzerine olsun.` : ""} Son 3 soru kendi içinde tema olarak dengeli olsun; aynı temayı tekrar etme. SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında JSON objesi döndür, markdown veya açıklama ekleme.`;
     } else {
       promptText = `Sen uzman bir teknik mülakatçısın. Adayın Rolü: '${cfg.role || "Yazılım Geliştirici"}', Sektörü: '${cfg.companyOrIndustry || "Teknoloji"}', İLGİ ALANI: '${cfg.domain || "Genel"}' ve ZORLUK SEVİYESİ: '${cfg.difficulty || "Junior"}'. 
 Lütfen SADECE bu ilgi alanına (örneğin React seçilmişse doğrudan React ile ilgili, veritabanı seçilmişse sadece veritabanı ile ilgili) ve zorluk seviyesine (Junior ise temel/kavramsal, Intermediate ise senaryo optimizasyonu) kesin olarak uygun 3 tane yaratıcı ve teknik soru hazırla.${candidateBriefText ? ` Adayın CV özeti: ${candidateBriefText}. Soruların en az 2 tanesi bu özette geçen proje, staj veya teknik yetkinlik iddialarını doğrulayan şekilde olsun.` : ""} 
@@ -84,7 +85,7 @@ SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında geçerli bir
       const experienceSeed = cfg?.candidateBrief?.experienceHighlights?.[0] || cfg?.candidateBrief?.projectHighlights?.[0] || "";
       return [
         experienceSeed
-          ? `CV'nizde geçen "${experienceSeed}" deneyiminde en zor an neydi ve sizin rolünüz ne oldu?`
+          ? `CV'nizde geçen "${experienceSeed}" deneyiminde en zor an neydi ve bu durumda sizin bireysel katkınız ne oldu?`
           : "Bize zorlu bir takım çalışması deneyiminizden ve oradaki rolünüzden bahseder misiniz?",
         "Eski yöneticinizle aynı fikirde olmadığınız bir anı ve bunu nasıl çözdüğünüzü anlatır mısınız?",
         "Zaman baskısı altında çok fazla görevi aynı anda yönetmeniz gereken bir durumu nasıl atlattınız?"
