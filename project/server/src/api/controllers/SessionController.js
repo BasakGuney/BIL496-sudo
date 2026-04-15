@@ -9,6 +9,7 @@ export class SessionController {
     this.backendOrchestrator = backendOrchestrator;
     this.createSession = this.createSession.bind(this);
     this.startSession = this.startSession.bind(this);
+    this.updateSessionConfig = this.updateSessionConfig.bind(this);
     this.generatePreviewQuestions = this.generatePreviewQuestions.bind(this);
     this.generateLiveHints = this.generateLiveHints.bind(this);
     this.generateLiveFeedback = this.generateLiveFeedback.bind(this);
@@ -77,6 +78,7 @@ export class SessionController {
         difficulty: request.difficulty,
         mode: request.mode,
         cvFile: request.cvFile,
+        candidateBrief: request.candidateBrief,
       });
 
       const session = await this.backendOrchestrator.createSession(cfg, request.offerSdp, request.sessionId);
@@ -96,6 +98,30 @@ export class SessionController {
       const request = StartSessionRequest.fromExpress(req);
       const turn = await this.backendOrchestrator.startSession(request.sessionId);
       return res.json(TurnView.fromTurn(turn));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async updateSessionConfig(req, res, next) {
+    try {
+      const request = CreateSessionRequest.fromExpress(req);
+      const cfg = new SessionConfig({
+        firstName: request.firstName,
+        lastName: request.lastName,
+        gender: request.gender,
+        interviewType: request.interviewType,
+        role: request.role,
+        domain: request.domain,
+        companyOrIndustry: request.companyOrIndustry,
+        difficulty: request.difficulty,
+        mode: request.mode,
+        cvFile: request.cvFile,
+        candidateBrief: request.candidateBrief,
+      });
+
+      const session = await this.backendOrchestrator.updateSessionConfig(req.params.sessionId, cfg);
+      return res.json(SessionView.fromSession(session));
     } catch (error) {
       return next(error);
     }

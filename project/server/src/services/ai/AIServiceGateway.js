@@ -4,6 +4,12 @@ export class AIServiceGateway {
     this.prompts = prompts;
   }
 
+  formatCandidateBrief(cfg = {}) {
+    const brief = cfg?.candidateBrief;
+    if (!brief || typeof brief !== "object") return "";
+    return this.prompts?.formatCandidateBrief ? this.prompts.formatCandidateBrief(brief) : "";
+  }
+
   async generateFirstQuestion(cfg) {
     if (cfg.interviewType === "HR") {
       return "Kısaca kendinizden bahsedebilir misiniz?";
@@ -18,12 +24,13 @@ export class AIServiceGateway {
   }
 
   async generatePreviewQuestions(cfg, options = {}) {
+    const candidateBriefText = this.formatCandidateBrief(cfg);
     let promptText = "";
     if (cfg.interviewType === "HR") {
-      promptText = `Sen bir İnsan Kaynakları mülakatçısısın. Adaya sorulabilecek, STAR (Situation, Task, Action, Result) tekniğine uygun, tamamen Türkçe 3 adet genel İK / davranışsal soru hazırla. Sorular genel karakter ve tecrübe odaklı olmalıdır. SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında JSON objesi döndür, markdown veya açıklama ekleme.`;
+      promptText = `Sen bir İnsan Kaynakları mülakatçısısın. Adaya sorulabilecek, STAR (Situation, Task, Action, Result) tekniğine uygun, tamamen Türkçe 3 adet İK / davranışsal soru hazırla. Sorular genel karakter ve tecrübe odaklı olmalıdır.${candidateBriefText ? ` Adayın CV özeti: ${candidateBriefText}. Soruların en az 2 tanesi bu özette geçen deneyim, proje veya sorumluluklardan türesin.` : ""} SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında JSON objesi döndür, markdown veya açıklama ekleme.`;
     } else {
       promptText = `Sen uzman bir teknik mülakatçısın. Adayın Rolü: '${cfg.role || "Yazılım Geliştirici"}', Sektörü: '${cfg.companyOrIndustry || "Teknoloji"}', İLGİ ALANI: '${cfg.domain || "Genel"}' ve ZORLUK SEVİYESİ: '${cfg.difficulty || "Junior"}'. 
-Lütfen SADECE bu ilgi alanına (örneğin React seçilmişse doğrudan React ile ilgili, veritabanı seçilmişse sadece veritabanı ile ilgili) ve zorluk seviyesine (Junior ise temel/kavramsal, Intermediate ise senaryo optimizasyonu) kesin olarak uygun 3 tane yaratıcı ve teknik soru hazırla. 
+Lütfen SADECE bu ilgi alanına (örneğin React seçilmişse doğrudan React ile ilgili, veritabanı seçilmişse sadece veritabanı ile ilgili) ve zorluk seviyesine (Junior ise temel/kavramsal, Intermediate ise senaryo optimizasyonu) kesin olarak uygun 3 tane yaratıcı ve teknik soru hazırla.${candidateBriefText ? ` Adayın CV özeti: ${candidateBriefText}. Soruların en az 2 tanesi bu özette geçen proje, staj veya teknik yetkinlik iddialarını doğrulayan şekilde olsun.` : ""} 
 SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında geçerli bir JSON objesi döndür, markdown veya başka metin ekleme.`;
     }
 
@@ -74,16 +81,23 @@ SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında geçerli bir
 
     // Fallbacks
     if (cfg.interviewType === "HR") {
+      const experienceSeed = cfg?.candidateBrief?.experienceHighlights?.[0] || cfg?.candidateBrief?.projectHighlights?.[0] || "";
       return [
-        "Bize zorlu bir takım çalışması deneyiminizden ve oradaki rolünüzden bahseder misiniz?",
+        experienceSeed
+          ? `CV'nizde geçen "${experienceSeed}" deneyiminde en zor an neydi ve sizin rolünüz ne oldu?`
+          : "Bize zorlu bir takım çalışması deneyiminizden ve oradaki rolünüzden bahseder misiniz?",
         "Eski yöneticinizle aynı fikirde olmadığınız bir anı ve bunu nasıl çözdüğünüzü anlatır mısınız?",
         "Zaman baskısı altında çok fazla görevi aynı anda yönetmeniz gereken bir durumu nasıl atlattınız?"
       ];
     }
+    const experienceSeed = cfg?.candidateBrief?.experienceHighlights?.[0] || cfg?.candidateBrief?.projectHighlights?.[0] || "";
+    const skillSeed = cfg?.candidateBrief?.skillHighlights?.[0] || cfg.domain || "ilgilendiğiniz alan";
     return [
-      `Geçmiş deneyimlerinizde ${cfg.domain || "ilgilendiğiniz alanda"} karşılaştığınız en zor teknik problemi nasıl çözdünüz?`,
+      experienceSeed
+        ? `CV'nizde geçen "${experienceSeed}" deneyiminde karşılaştığınız en zor teknik problemi nasıl çözdünüz?`
+        : `Geçmiş deneyimlerinizde ${cfg.domain || "ilgilendiğiniz alanda"} karşılaştığınız en zor teknik problemi nasıl çözdünüz?`,
       `${cfg.role || "Bu rol"} için uyguladığınız temel mimari veya yazılım geliştirme prensipleri nelerdir?`,
-      `${cfg.companyOrIndustry || "Sektörünüz"} dahilinde sistem performansını iyileştirmek için yaptığınız somut bir çalışmayı anlatın.`
+      `${skillSeed} kullanırken ${cfg.companyOrIndustry || "sektörünüz"} bağlamında performans veya doğruluk iyileştirmek için yaptığınız somut bir çalışmayı anlatın.`
     ];
   }
 

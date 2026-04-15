@@ -1,4 +1,39 @@
 export class PromptTemplates {
+  formatCandidateBrief(candidateBrief) {
+    if (!candidateBrief || typeof candidateBrief !== "object") return "";
+
+    const lines = [];
+    if (candidateBrief.headline) lines.push(`Başlık: ${candidateBrief.headline}`);
+    if (candidateBrief.summary) lines.push(`Özet: ${candidateBrief.summary}`);
+    if (Array.isArray(candidateBrief.educationHighlights) && candidateBrief.educationHighlights.length > 0) {
+      lines.push(`Eğitim: ${candidateBrief.educationHighlights.join(" | ")}`);
+    }
+    if (Array.isArray(candidateBrief.experienceHighlights) && candidateBrief.experienceHighlights.length > 0) {
+      lines.push(`Deneyim: ${candidateBrief.experienceHighlights.join(" | ")}`);
+    }
+    if (Array.isArray(candidateBrief.projectHighlights) && candidateBrief.projectHighlights.length > 0) {
+      lines.push(`Projeler: ${candidateBrief.projectHighlights.join(" | ")}`);
+    }
+    if (Array.isArray(candidateBrief.skillHighlights) && candidateBrief.skillHighlights.length > 0) {
+      lines.push(`Yetkinlikler: ${candidateBrief.skillHighlights.join(", ")}`);
+    }
+
+    return lines.join(" || ");
+  }
+
+  candidateBriefInstructions(cfg) {
+    const formattedBrief = this.formatCandidateBrief(cfg?.candidateBrief);
+    if (!formattedBrief) return "";
+
+    return [
+      `CV ÖZETİ: ${formattedBrief}.`,
+      "Bu özeti soru üretiminde kullan ama kesin doğru kabul etme; adayın sözlü anlatımıyla doğrulat.",
+      "Mülakat boyunca en az 2 soruyu CV'de geçen deneyim, proje veya yetkinlik iddialarını derinleştirmeye ayır.",
+      "CV'de geçen bir proje veya deneyimden bahsederken adayın bireysel katkısını, karar gerekçesini ve somut sonucunu sor.",
+      "CV bilgisini madde madde okumadan doğal geçişlerle referans ver.",
+    ].join(" ");
+  }
+
   baseInterviewerInstructions() {
     return [
       "Sen deneyimli ve profesyonel bir mülakatçısın. Doğal, samimi ama profesyonel bir üslupla SADECE TÜRKÇE konuş.",
@@ -57,6 +92,7 @@ export class PromptTemplates {
       this.baseInterviewerInstructions(),
       this.turkishInterviewerOpening(cfg),
       interviewRules,
+      this.candidateBriefInstructions(cfg),
       style,
     ].join(" ");
   }

@@ -3,6 +3,15 @@ export type InterviewType = "HR" | "Technical";
 export type Difficulty = "Junior" | "Intermediate";
 export type Mode = "Supportive" | "Neutral";
 
+export type CandidateBrief = {
+  headline: string;
+  summary: string;
+  educationHighlights: string[];
+  experienceHighlights: string[];
+  projectHighlights: string[];
+  skillHighlights: string[];
+};
+
 export type SessionConfig = {
   firstName: string;
   lastName: string;
@@ -22,6 +31,7 @@ export type SessionConfig = {
     mimeType: string;
     dataBase64: string;
   } | null;
+  candidateBrief?: CandidateBrief | null;
 };
 
 export type FeedbackMetric = {

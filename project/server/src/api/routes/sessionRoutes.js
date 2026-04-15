@@ -11,6 +11,7 @@ export function createSessionRouter({
   // Session lifecycle
   router.post("/session", sessionController.createSession);
   router.post("/session/:sessionId/start", sessionController.startSession);
+  router.patch("/session/:sessionId/config", sessionController.updateSessionConfig);
   router.post("/preview-questions", sessionController.generatePreviewQuestions);
   
   // Supportive Mode

@@ -1,4 +1,4 @@
-import type { CandidateAnswerAudio, FeedbackReport, SessionConfig, SessionSummary } from "./types";
+import type { CandidateAnswerAudio, CandidateBrief, FeedbackReport, SessionConfig, SessionSummary } from "./types";
 import { BACKEND_URL } from "./config";
 
 
@@ -83,6 +83,7 @@ export async function startSession(config: SessionConfig) {
   return {
     sessionId: String((payload as any)?.sessionId || ""),
     previewQuestions: Array.isArray((payload as any)?.previewQuestions) ? (payload as any).previewQuestions : [],
+    candidateBrief: (((payload as any)?.config?.candidateBrief || null) as CandidateBrief | null),
   };
 }
 
@@ -95,10 +96,31 @@ export async function generatePreviewQuestions(config: SessionConfig) {
       companyOrIndustry: config.companyOrIndustry,
       domain: config.domainInterest,
       difficulty: config.difficulty,
+      candidateBrief: config.candidateBrief || null,
     }),
   });
 
   return Array.isArray((payload as any)?.questions) ? (payload as any).questions : [];
+}
+
+export async function updateSessionConfig(sessionId: string, config: SessionConfig) {
+  const payload = await request(`/session/${encodeURIComponent(sessionId)}/config`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      firstName: config.firstName,
+      lastName: config.lastName,
+      gender: config.gender,
+      interviewType: config.interviewType,
+      role: config.role,
+      companyOrIndustry: config.companyOrIndustry,
+      domain: config.domainInterest,
+      difficulty: config.difficulty,
+      mode: config.mode,
+      candidateBrief: config.candidateBrief || null,
+    }),
+  });
+
+  return (((payload as any)?.config?.candidateBrief || null) as CandidateBrief | null);
 }
 
 export async function uploadCandidateAnswerIncremental(sessionId: string, candidateAnswerAudio: CandidateAnswerAudio) {

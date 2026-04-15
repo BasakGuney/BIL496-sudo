@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Play, Mic, MicOff, Video, VideoOff } from "lucide-react";
 
-import { generatePreviewQuestions } from "@/lib/api";
-import type { SessionConfig } from "@/lib/types";
+import { generatePreviewQuestions, updateSessionConfig } from "@/lib/api";
+import type { CandidateBrief, SessionConfig } from "@/lib/types";
 import {
   Select,
   SelectContent,
@@ -13,7 +13,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
+
+const EMPTY_CANDIDATE_BRIEF: CandidateBrief = {
+  headline: "",
+  summary: "",
+  educationHighlights: [],
+  experienceHighlights: [],
+  projectHighlights: [],
+  skillHighlights: [],
+};
+
+const parseLines = (text: string) =>
+  text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+const linesToText = (items: string[] = []) => items.join("\n");
 
 export function PreviewPage({
   config,
@@ -86,7 +105,7 @@ export function PreviewPage({
       micStreamRef.current = stream;
       setMicOn(true);
 
-      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextCtor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       const ctx = new AudioContextCtor();
       audioCtxRef.current = ctx;
 
@@ -127,7 +146,9 @@ export function PreviewPage({
     if (audioCtxRef.current) {
       try {
         await audioCtxRef.current.close();
-      } catch {}
+      } catch (error) {
+        console.debug("Mic preview cleanup skipped", error);
+      }
       audioCtxRef.current = null;
     }
 
@@ -139,19 +160,58 @@ export function PreviewPage({
       stopCamera();
       stopMic();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [questions, setQuestions] = useState<string[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [startingSession, setStartingSession] = useState(false);
+  const candidateBrief = config.candidateBrief || EMPTY_CANDIDATE_BRIEF;
+  const previewQuestionConfig = useMemo(() => ({
+    interviewType: config.interviewType,
+    role: config.role,
+    companyOrIndustry: config.companyOrIndustry,
+    domainInterest: config.domainInterest,
+    difficulty: config.difficulty,
+    mode: config.mode,
+    gender: config.gender,
+    firstName: config.firstName,
+    lastName: config.lastName,
+    consent: config.consent,
+    cvFile: config.cvFile,
+    candidateBrief,
+  }), [
+    candidateBrief,
+    config.companyOrIndustry,
+    config.consent,
+    config.cvFile,
+    config.difficulty,
+    config.domainInterest,
+    config.firstName,
+    config.gender,
+    config.interviewType,
+    config.lastName,
+    config.mode,
+    config.role,
+  ]);
+
+  const updateBrief = (patch: Partial<CandidateBrief>) => {
+    setConfig({
+      ...config,
+      candidateBrief: {
+        ...EMPTY_CANDIDATE_BRIEF,
+        ...candidateBrief,
+        ...patch,
+      },
+    });
+  };
 
   useEffect(() => {
     let mounted = true;
+    let timer: number | null = null;
     async function fetchQuestions() {
       setLoadingQuestions(true);
       try {
-        const qs = await generatePreviewQuestions(config);
+        const qs = await generatePreviewQuestions(previewQuestionConfig);
         if (mounted) {
           setQuestions(qs);
         }
@@ -161,18 +221,20 @@ export function PreviewPage({
         if (mounted) setLoadingQuestions(false);
       }
     }
-    fetchQuestions();
+    timer = window.setTimeout(fetchQuestions, 250);
     return () => {
       mounted = false;
+      if (timer) window.clearTimeout(timer);
     };
-  }, [config.interviewType, config.role, config.companyOrIndustry, config.domainInterest, config.difficulty]);
+  }, [previewQuestionConfig]);
 
   const handleStartInterview = async () => {
     stopCamera();
     stopMic();
-      setStartingSession(true);
+    setStartingSession(true);
     try {
       if (!sessionId) throw new Error("Oturum bulunamadi.");
+      await updateSessionConfig(sessionId, config);
       onStartInterview();
     } catch (e) {
       console.error("Failed to start session", e);
@@ -300,6 +362,81 @@ export function PreviewPage({
             )}
           </CardContent>
         </Card>
+
+        {(config.cvFile || config.candidateBrief) && (
+          <Card className="rounded-2xl shrink-0">
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="text-lg">CV Özeti</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Bu alan CV’nizden otomatik çıkarıldı. Eşleşmeyen veya eksik bilgiler varsa mülakata başlamadan önce düzenleyin.
+              </p>
+
+              <div className="grid gap-2">
+                <div className="text-sm font-medium">Başlık</div>
+                <Input
+                  className="rounded-xl"
+                  value={candidateBrief.headline}
+                  placeholder="Örn: Optimization Engineer / Frontend Developer"
+                  onChange={(e) => updateBrief({ headline: e.target.value })}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <div className="text-sm font-medium">Genel Özet</div>
+                <Textarea
+                  className="min-h-24 rounded-xl resize-none"
+                  value={candidateBrief.summary}
+                  placeholder="CV'nizden çıkan kısa özet burada yer alır."
+                  onChange={(e) => updateBrief({ summary: e.target.value })}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <div className="text-sm font-medium">Eğitim Öne Çıkanlar</div>
+                  <Textarea
+                    className="min-h-28 rounded-xl"
+                    value={linesToText(candidateBrief.educationHighlights)}
+                    placeholder="Her satıra bir madde"
+                    onChange={(e) => updateBrief({ educationHighlights: parseLines(e.target.value) })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <div className="text-sm font-medium">Yetkinlikler</div>
+                  <Textarea
+                    className="min-h-28 rounded-xl"
+                    value={linesToText(candidateBrief.skillHighlights)}
+                    placeholder="Her satıra bir yetkinlik"
+                    onChange={(e) => updateBrief({ skillHighlights: parseLines(e.target.value) })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <div className="text-sm font-medium">Deneyim Öne Çıkanlar</div>
+                  <Textarea
+                    className="min-h-36 rounded-xl"
+                    value={linesToText(candidateBrief.experienceHighlights)}
+                    placeholder="Her satıra bir deneyim özeti"
+                    onChange={(e) => updateBrief({ experienceHighlights: parseLines(e.target.value) })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <div className="text-sm font-medium">Proje Öne Çıkanlar</div>
+                  <Textarea
+                    className="min-h-36 rounded-xl"
+                    value={linesToText(candidateBrief.projectHighlights)}
+                    placeholder="Her satıra bir proje özeti"
+                    onChange={(e) => updateBrief({ projectHighlights: parseLines(e.target.value) })}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="rounded-2xl">
           <CardHeader className="flex flex-row items-center justify-between">

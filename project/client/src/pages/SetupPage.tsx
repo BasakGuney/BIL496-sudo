@@ -27,6 +27,7 @@ export function SetupPage({
     mode: "Supportive",
     consent: { mic: true, camera: true },
     cvFile: null,
+    candidateBrief: null,
   }));
   const [preparing, setPreparing] = useState(false);
   const [prepareError, setPrepareError] = useState("");
@@ -39,7 +40,10 @@ export function SetupPage({
     setPrepareError("");
     try {
       const session = await startSession(nextConfig);
-      onPrepared(nextConfig, session.sessionId);
+      onPrepared({
+        ...nextConfig,
+        candidateBrief: session.candidateBrief || nextConfig.candidateBrief || null,
+      }, session.sessionId);
     } catch (error: any) {
       setPrepareError(error?.message || "Kurulum tamamlanamadı.");
       setPreparing(false);

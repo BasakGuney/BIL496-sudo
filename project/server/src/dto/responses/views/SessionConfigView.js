@@ -7,6 +7,7 @@ export class SessionConfigView {
       difficulty: config?.difficulty || "Junior",
       mode: config?.mode || "Neutral",
       cvUploaded: Boolean(config?.cvFile?.dataBase64),
+      candidateBrief: config?.candidateBrief || null,
     };
   }
 }

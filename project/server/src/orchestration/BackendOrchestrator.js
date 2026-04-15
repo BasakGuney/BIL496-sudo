@@ -23,10 +23,12 @@ export class BackendOrchestrator {
   async createSession(cfgInput, offerSdp = "", sessionId = null) {
     const id = sessionId || this.idGenerator.newId();
     const existingSession = await this.sessions.findById(id);
-    const cfg = cfgInput instanceof SessionConfig ? cfgInput : new SessionConfig({
+    const cfgSource = cfgInput instanceof SessionConfig ? { ...cfgInput } : (cfgInput || {});
+    const cfg = new SessionConfig({
       ...(existingSession?.config || {}),
-      ...(cfgInput || {}),
-      cvFile: cfgInput?.cvFile || existingSession?.config?.cvFile || null,
+      ...cfgSource,
+      cvFile: cfgSource?.cvFile || existingSession?.config?.cvFile || null,
+      candidateBrief: cfgSource?.candidateBrief ?? existingSession?.config?.candidateBrief ?? null,
     });
     const answerSdp = offerSdp ? await this.realtimeManager.createOfferAnswer(id, offerSdp, cfg) : "";
 
@@ -46,9 +48,40 @@ export class BackendOrchestrator {
     if (this.reportArchive?.ensureSessionDir) {
       await this.reportArchive.ensureSessionDir(id);
     }
-    if (this.reportArchive?.saveCvFile) {
-      await this.reportArchive.saveCvFile({ sessionId: id, cvFile: cfg.cvFile });
+    if (this.reportArchive?.saveCvFile && (!existingSession || cfgSource?.cvFile)) {
+      const cvResult = await this.reportArchive.saveCvFile({ sessionId: id, cvFile: cfg.cvFile });
+      if (cvResult?.savedCv?.candidateBrief) {
+        session.config = new SessionConfig({
+          ...session.config,
+          candidateBrief: cvResult.savedCv.candidateBrief,
+        });
+        await this.sessions.update(session);
+      }
     }
+    return session;
+  }
+
+  async updateSessionConfig(sessionId, cfgInput = {}) {
+    const session = await this.sessions.findById(sessionId);
+    if (!session) throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", statusCode: 404 });
+
+    const nextConfig = cfgInput instanceof SessionConfig
+      ? cfgInput
+      : new SessionConfig({
+          ...(session.config || {}),
+          ...(cfgInput || {}),
+          cvFile: cfgInput?.cvFile || session.config?.cvFile || null,
+          candidateBrief: cfgInput?.candidateBrief ?? session.config?.candidateBrief ?? null,
+        });
+
+    session.config = new SessionConfig({
+      ...(session.config || {}),
+      ...nextConfig,
+      cvFile: nextConfig.cvFile || session.config?.cvFile || null,
+      candidateBrief: nextConfig.candidateBrief ?? session.config?.candidateBrief ?? null,
+    });
+
+    await this.sessions.update(session);
     return session;
   }
 

@@ -126,14 +126,49 @@ export class FileReportArchive {
     return cleaned.toLowerCase().endsWith(".pdf") ? cleaned : `${cleaned}.pdf`;
   }
 
+  repairTurkishPdfArtifacts(text = "") {
+    const clean = String(text || "");
+    if (!clean) return "";
+
+    const replacements = [
+      { base: "c", marker: "¸", out: "ç" },
+      { base: "C", marker: "¸", out: "Ç" },
+      { base: "s", marker: "¸", out: "ş" },
+      { base: "S", marker: "¸", out: "Ş" },
+      { base: "g", marker: "˘", out: "ğ" },
+      { base: "G", marker: "˘", out: "Ğ" },
+      { base: "u", marker: "¨", out: "ü" },
+      { base: "U", marker: "¨", out: "Ü" },
+      { base: "o", marker: "¨", out: "ö" },
+      { base: "O", marker: "¨", out: "Ö" },
+      { base: "I", marker: "˙", out: "İ" },
+      { base: "i", marker: "˙", out: "i" },
+    ];
+
+    let repaired = clean;
+    for (const { base, marker, out } of replacements) {
+      const previousPattern = new RegExp(`${base}\\s*${marker}`, "gu");
+      const nextPattern = new RegExp(`${marker}\\s*${base}`, "gu");
+      repaired = repaired.replace(previousPattern, out).replace(nextPattern, out);
+    }
+
+    return repaired
+      .replace(/[¨¸˘˙]/gu, "")
+      .replace(/\s+([,.;:!?])/g, "$1")
+      .replace(/([(\[{])\s+/g, "$1")
+      .replace(/\s+([)\]}])/g, "$1");
+  }
+
   normalizeExtractedPdfText(text = "") {
-    return String(text || "")
+    return this.repairTurkishPdfArtifacts(
+      String(text || "")
       .replace(/\r/g, "")
       .split("\n")
       .map((line) => line.replace(/\s+/g, " ").trim())
       .filter(Boolean)
       .join("\n")
-      .trim();
+      .trim()
+    );
   }
 
   shouldTranslateCvText(text = "") {
@@ -287,6 +322,71 @@ export class FileReportArchive {
     };
   }
 
+  buildCandidateBrief(structuredCv = null) {
+    if (!structuredCv || typeof structuredCv !== "object") return null;
+
+    const candidate = structuredCv?.candidate || {};
+    const education = Array.isArray(structuredCv?.education) ? structuredCv.education : [];
+    const experienceItems = [
+      ...(Array.isArray(structuredCv?.experience?.professional) ? structuredCv.experience.professional : []),
+      ...(Array.isArray(structuredCv?.experience?.intern) ? structuredCv.experience.intern : []),
+    ];
+    const projects = Array.isArray(structuredCv?.projects) ? structuredCv.projects : [];
+    const skills = structuredCv?.skills || {};
+
+    const educationHighlights = education
+      .map((item) => [item?.degree || item?.department || "", item?.school || ""].filter(Boolean).join(" - "))
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .slice(0, 3);
+
+    const experienceHighlights = experienceItems
+      .map((item) => {
+        const lead = [item?.position || "", item?.company || ""].filter(Boolean).join(" @ ");
+        const firstResponsibility = Array.isArray(item?.responsibilities) ? item.responsibilities[0] : "";
+        return [lead, firstResponsibility].filter(Boolean).join(": ");
+      })
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .slice(0, 4);
+
+    const projectHighlights = projects
+      .map((item) => {
+        const lead = String(item?.name || "").trim();
+        const detail = String(item?.description || (Array.isArray(item?.highlights) ? item.highlights[0] : "") || "").trim();
+        return [lead, detail].filter(Boolean).join(": ");
+      })
+      .filter(Boolean)
+      .slice(0, 3);
+
+    const skillHighlights = [
+      ...(Array.isArray(skills?.technical) ? skills.technical : []),
+      ...(Array.isArray(skills?.tools) ? skills.tools : []),
+    ]
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .slice(0, 10);
+
+    const candidateBrief = {
+      headline: String(candidate?.title || "").trim(),
+      summary: String(candidate?.summary || "").trim(),
+      educationHighlights: [...new Set(educationHighlights)],
+      experienceHighlights: [...new Set(experienceHighlights)],
+      projectHighlights: [...new Set(projectHighlights)],
+      skillHighlights: [...new Set(skillHighlights)],
+    };
+
+    const hasContent =
+      candidateBrief.headline
+      || candidateBrief.summary
+      || candidateBrief.educationHighlights.length > 0
+      || candidateBrief.experienceHighlights.length > 0
+      || candidateBrief.projectHighlights.length > 0
+      || candidateBrief.skillHighlights.length > 0;
+
+    return hasContent ? candidateBrief : null;
+  }
+
   normalizeCvJsonArray(items = []) {
     return Array.isArray(items) ? items.filter((item) => item && typeof item === "object") : [];
   }
@@ -319,10 +419,15 @@ export class FileReportArchive {
       .trim();
   }
 
+  normalizeHeadingCompact(text = "") {
+    return this.normalizeHeadingText(text).replace(/\s+/g, "");
+  }
+
   isLikelyHeading(line = "") {
     const clean = String(line || "").trim();
     if (!clean) return false;
     const normalized = this.normalizeHeadingText(clean);
+    const compact = this.normalizeHeadingCompact(clean);
 
     const headings = [
       "profil",
@@ -353,22 +458,50 @@ export class FileReportArchive {
       "amac",
       "extra curricular activities",
       "ekstra kurumsal faaliyetler",
+      "yetenekler",
+      "sosyal aktiviteler",
     ];
 
-    return headings.includes(normalized);
+    const compactHeadings = headings.map((item) => this.normalizeHeadingCompact(item));
+    return headings.includes(normalized) || compactHeadings.includes(compact);
   }
 
   sectionKeyFromHeading(line = "") {
     const normalized = this.normalizeHeadingText(line);
+    const compact = this.normalizeHeadingCompact(line);
 
-    if (["profil", "ozet", "hakkimda", "objective", "amac"].includes(normalized)) return "summary";
-    if (["egitim", "eğitim", "education"].includes(normalized)) return "education";
-    if (["deneyim", "tecrube", "experience", "is deneyimi"].includes(normalized)) return "experience";
-    if (["projeler", "projects"].includes(normalized)) return "projects";
-    if (["beceriler", "yetkinlikler", "skills", "teknik beceriler"].includes(normalized)) return "skills";
-    if (["diller", "languages"].includes(normalized)) return "languages";
-    if (["sertifikalar", "certificates"].includes(normalized)) return "certificates";
-    if (["extra curricular activities", "ekstra kurumsal faaliyetler"].includes(normalized)) return "activities";
+    if (
+      ["profil", "ozet", "özet", "hakkimda", "hakkımda", "objective", "amac"].includes(normalized)
+      || ["profil", "ozet", "hakkimda", "objective", "amac"].includes(compact)
+    ) return "summary";
+    if (
+      ["egitim", "eğitim", "education"].includes(normalized)
+      || ["egitim", "education"].includes(compact)
+    ) return "education";
+    if (
+      ["deneyim", "tecrube", "tecrübe", "experience", "is deneyimi", "iş deneyimi"].includes(normalized)
+      || ["deneyim", "tecrube", "experience", "isdeneyimi"].includes(compact)
+    ) return "experience";
+    if (
+      ["projeler", "projects"].includes(normalized)
+      || ["projeler", "projects"].includes(compact)
+    ) return "projects";
+    if (
+      ["beceriler", "yetenekler", "yetkinlikler", "skills", "teknik beceriler"].includes(normalized)
+      || ["beceriler", "yetenekler", "yetkinlikler", "skills", "teknikbeceriler"].includes(compact)
+    ) return "skills";
+    if (
+      ["diller", "languages"].includes(normalized)
+      || ["diller", "languages"].includes(compact)
+    ) return "languages";
+    if (
+      ["sertifikalar", "certificates"].includes(normalized)
+      || ["sertifikalar", "certificates"].includes(compact)
+    ) return "certificates";
+    if (
+      ["extra curricular activities", "ekstra kurumsal faaliyetler", "sosyal aktiviteler"].includes(normalized)
+      || ["extracurricularactivities", "ekstrakurumsalfaaliyetler", "sosyalaktiviteler"].includes(compact)
+    ) return "activities";
     return null;
   }
 
@@ -779,7 +912,7 @@ export class FileReportArchive {
   }
 
   async buildStructuredCvJson(text = "", { sourceFile = "cv.txt" } = {}) {
-    const clean = String(text || "").trim();
+    const clean = this.normalizeExtractedPdfText(text);
     if (!clean) return this.createEmptyCvJson({ sourceFile });
     const sections = this.splitCvSections(clean);
     const headerLines = sections.header || [];
@@ -873,6 +1006,7 @@ export class FileReportArchive {
         trTextFullPath,
         jsonRelativePath: path.join("cv", cvJsonFileName),
         jsonFullPath: cvJsonFullPath,
+        candidateBrief: this.buildCandidateBrief(structuredCvJson),
       },
     };
   }
