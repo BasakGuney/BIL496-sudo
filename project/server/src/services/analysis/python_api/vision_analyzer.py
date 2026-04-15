@@ -557,6 +557,63 @@ SADECE şu JSON yapısını döndür:
     return json.loads(response.json()["choices"][0]["message"]["content"])
 
 
+def _merge_recommendation_lists(*groups, limit: int = 3) -> list:
+    merged = []
+    for group in groups:
+        current = group if isinstance(group, list) else [group]
+        for item in current:
+            text = str(item or "").strip()
+            if not text or text in merged:
+                continue
+            merged.append(text)
+            if len(merged) >= limit:
+                return merged
+    return merged
+
+
+def _build_vision_recommendations(raw: dict, scores: dict) -> dict:
+    overview = raw.get("overview", {}) if isinstance(raw, dict) else {}
+    tension = raw.get("tension", {}) if isinstance(raw, dict) else {}
+
+    face_presence_score = int(scores.get("facePresenceScore", 0) or 0)
+    centering_score = int(scores.get("centeringScore", 0) or 0)
+    steadiness_score = int(scores.get("steadinessScore", 0) or 0)
+    visual_tension_score = int(scores.get("visualTensionScore", 0) or 0)
+    face_presence_ratio = float(overview.get("facePresenceRatio", 0) or 0)
+    avg_center_offset = float(overview.get("averageCenterOffset", 0) or 0)
+    head_movement_raw = float(overview.get("headMovementRaw", 0) or 0)
+    attention_drift_ratio = float(tension.get("attentionDriftRatio", 0) or 0)
+
+    next_interview = []
+    performance_development = []
+
+    if face_presence_score < 85 or face_presence_ratio < 0.9:
+        next_interview.append("Mülakat başlamadan önce yüzünüzün kadraj içinde tam göründüğünü kontrol edip oturum boyunca kameradan çıkmamaya çalışın.")
+        performance_development.append("Her prova öncesi aynı oturma mesafesini işaretleyip kamera varlığını sabit tutan bir kurulum rutini oluşturun.")
+
+    if centering_score < 75 or avg_center_offset > 0.12:
+        next_interview.append("Bir sonraki görüşmede kamerayı göz hizasına alıp yüzünüzü çerçevenin merkezine daha yakın konumlandırın.")
+        performance_development.append("Kayıt alarak merkezden ne kadar saptığınızı gözlemleyin ve sabit bir ekran-kamera hizası alışkanlığı edinin.")
+
+    if steadiness_score < 70 or head_movement_raw > 0.04:
+        next_interview.append("Cihazı sabit bir zemine yerleştirip cevap verirken gereksiz baş ve gövde hareketlerini azaltın.")
+        performance_development.append("Kısa prova videolarında özellikle omuz ve baş hareketlerini izleyerek daha sakin bir duruş pratiği yapın.")
+
+    if visual_tension_score > 45 or attention_drift_ratio > 0.15:
+        next_interview.append("Ekran dışına bakma sıklığını azaltıp kritik cümlelerde bakışınızı kameraya daha düzenli sabitleyin.")
+        performance_development.append("Bakış kaçışı ve dikkat dağılmasını azaltmak için 1-2 dakikalık kamera odak egzersizlerini düzenli tekrar edin.")
+
+    if len(next_interview) < 2:
+        next_interview.append("Mevcut güçlü görsel sunumunuzu korumak için görüşme öncesi ışık, kadraj ve oturuşunuzu kısa bir kontrol listesiyle doğrulayın.")
+    if len(performance_development) < 2:
+        performance_development.append("Her prova sonrasında kadraj, stabilite ve bakış yönünü ayrı ayrı notlayarak küçük ama düzenli iyileştirmeler yapın.")
+
+    return {
+        "nextInterview": next_interview[:3],
+        "performanceDevelopment": performance_development[:3],
+    }
+
+
 def build_final_vision_report(raw: dict, scores: dict, gpt_out: dict) -> dict:
     """Python skorları + GPT metin çıktısı → final UI JSON'u."""
     fp = scores["facePresenceScore"]
@@ -654,6 +711,12 @@ def build_final_vision_report(raw: dict, scores: dict, gpt_out: dict) -> dict:
     def _safe_list(v):
         return v if isinstance(v, list) else []
 
+    dynamic_recommendations = _build_vision_recommendations(raw, scores)
+    recs = {
+        "nextInterview": _merge_recommendation_lists(dynamic_recommendations.get("nextInterview", []), recs.get("nextInterview", [])),
+        "performanceDevelopment": _merge_recommendation_lists(dynamic_recommendations.get("performanceDevelopment", []), recs.get("performanceDevelopment", [])),
+    }
+
     return {
         "overallScore":    overall_score,
         "overallLabel":    str(gpt_out.get("overallLabel")    or "Görsel sunum değerlendirildi."),
@@ -706,7 +769,7 @@ def _build_fallback_vision_report(raw: dict, scores: dict, error: str) -> dict:
         ],
         "strengths":        [],
         "improvementAreas": [],
-        "recommendations":  {"nextInterview": [], "performanceDevelopment": []},
+        "recommendations":  _build_vision_recommendations(raw, scores),
     }
 
 
