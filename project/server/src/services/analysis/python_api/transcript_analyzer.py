@@ -2,6 +2,7 @@ import json
 import requests
 import os
 import re
+from question_type_resolver import infer_question_type
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -161,80 +162,7 @@ def _extract_question(text: str) -> str:
 
 
 def _infer_question_type(question: str, interview_type: str = "Technical") -> str:
-    normalized = _normalize_analysis_text(question)
-
-    if any(token in normalized for token in (
-        "kendinizden bahseder misiniz",
-        "sizi biraz tanimak istiyorum",
-        "kendinizi tanitir misiniz",
-        "kisaca kendinizden",
-    )):
-        return "self_presentation"
-
-    if any(token in normalized for token in (
-        "neden bu rol",
-        "neden bu pozisyon",
-        "neden bizimle calismak",
-        "neden bu sirket",
-        "neden istiyorsunuz",
-        "sizi motive eden",
-        "motivasyonunuz",
-    )):
-        return "motivation"
-
-    if any(token in normalized for token in (
-        "en buyuk zorluk",
-        "nasil yonettiniz",
-        "nasil astiniz",
-        "bir ornek verebilir misiniz",
-        "boyle bir durumda ne yaptiniz",
-        "bireysel katkiniz ne oldu",
-        "sonuc ne oldu",
-        "olculebilir bir etki",
-    )):
-        return "experience"
-
-    if any(token in normalized for token in (
-        "bir problemle karsilastiginizda",
-        "bu problemi nasil cozerdiniz",
-        "yaklasiminiz ne olurdu",
-        "hangi adimlari izlerdiniz",
-        "cozumunuz ne olurdu",
-    )):
-        return "problem_solving"
-
-    if interview_type == "Technical":
-        if any(token in normalized for token in (
-            "algoritma",
-            "veri yapisi",
-            "karmasiklik",
-            "database",
-            "api",
-            "mimari",
-            "cache",
-            "thread",
-            "optimizasyon",
-            "heuristic",
-            "sezgisel",
-            "modelleme",
-            "constraint",
-            "kisit",
-        )):
-            return "technical_knowledge"
-
-        if any(token in normalized for token in (
-            "hangi projede",
-            "hangi teknolojileri kullandiniz",
-            "hangi araclari kullandiniz",
-            "nasil gelistirdiniz",
-            "deneyiminiz ne",
-            "daha once calistiginiz",
-            "uyguladiginiz",
-            "gelistirdiginiz",
-        )):
-            return "technical_experience"
-
-    return "experience" if interview_type != "Technical" else "technical_experience"
+    return infer_question_type(question, interview_type).get("questionType", "technical_experience")
 
 
 def _clip_score(value: int, minimum: int = 25, maximum: int = 95) -> int:
@@ -315,6 +243,55 @@ def _build_rule_based_qa_evaluation(question: str, answer: str, interview_type: 
     }
 
 
+def _sanitize_metric_applicability(question_type: str, metrics: dict, applicable_metrics: list) -> tuple[dict, list]:
+    metrics = metrics if isinstance(metrics, dict) else {}
+    applicable_metrics = applicable_metrics if isinstance(applicable_metrics, list) else []
+
+    allowed_by_type = {"relevance", "clarity", "depth"}
+    if question_type in ("behavioral", "experience", "technical_experience", "problem_solving"):
+        allowed_by_type.add("evidenceExample")
+    if question_type in ("technical_knowledge", "technical_experience", "problem_solving"):
+        allowed_by_type.add("technicalAccuracy")
+
+    cleaned_metrics = {}
+    for key in ("relevance", "clarity", "depth", "evidenceExample", "technicalAccuracy"):
+        value = metrics.get(key)
+        cleaned_metrics[key] = value if key in allowed_by_type else None
+
+    cleaned_applicable = []
+    for key in ("relevance", "clarity", "depth", "evidenceExample", "technicalAccuracy"):
+        if key in allowed_by_type and cleaned_metrics.get(key) is not None:
+            cleaned_applicable.append(key)
+
+    return cleaned_metrics, cleaned_applicable
+
+
+def _sanitize_global_analysis(interview_type: str, analysis: dict, dimension_scores: dict) -> dict:
+    normalized = dict(analysis or {})
+    if interview_type != "HR":
+        return normalized
+
+    technical_score = (dimension_scores or {}).get("technicalUnderstanding")
+    if technical_score is None:
+        text = str(normalized.get("overallAnalysis") or "")
+        replacements = {
+            "teknik bilgi seviyesi": "genel hazırlık düzeyi",
+            "teknik bilgi": "alan bilgisi",
+            "teknik anlayış": "alan hakimiyeti",
+            "teknik doğruluk": "cevabın doğruluğu",
+            "teknik hakimiyet": "konu hakimiyeti",
+            "teknik konuları": "konu başlıklarını",
+            "teknik boşluklar": "cevaplardaki boşluklar",
+            "teknik zayıflıklar": "zayıf kalan noktalar",
+        }
+        lowered = text.lower()
+        for old, new in replacements.items():
+            lowered = lowered.replace(old, new)
+        normalized["overallAnalysis"] = lowered[:1].upper() + lowered[1:] if lowered else lowered
+
+    return normalized
+
+
 def _sanitize_single_qa_result(question: str, answer: str, parsed: dict | None, interview_type: str = "Technical") -> dict:
     if _is_meta_question(question):
         return {
@@ -361,8 +338,12 @@ def _sanitize_single_qa_result(question: str, answer: str, parsed: dict | None, 
     metrics = candidate.get("metrics") if isinstance(candidate.get("metrics"), dict) else {}
     applicable_metrics = candidate.get("applicableMetrics") if isinstance(candidate.get("applicableMetrics"), list) else []
     normalized = _build_rule_based_qa_evaluation(question, answer, interview_type)
-
-    normalized["questionType"] = question_type
+    resolver_result = infer_question_type(question, interview_type)
+    resolved_type = resolver_result.get("questionType") or question_type
+    if resolved_type in valid_question_types:
+        normalized["questionType"] = resolved_type
+    else:
+        normalized["questionType"] = question_type
     normalized["summary"] = str(candidate.get("summary") or normalized["summary"])
     normalized["focusArea"] = candidate.get("focusArea")
 
@@ -372,6 +353,12 @@ def _sanitize_single_qa_result(question: str, answer: str, parsed: dict | None, 
 
     if applicable_metrics:
         normalized["applicableMetrics"] = applicable_metrics
+
+    normalized["metrics"], normalized["applicableMetrics"] = _sanitize_metric_applicability(
+        normalized["questionType"],
+        normalized["metrics"],
+        normalized["applicableMetrics"],
+    )
 
     normalized["visibleInReport"] = True
     normalized["excludedFromOverall"] = False
@@ -617,6 +604,7 @@ def compute_question_score(metrics: dict, q_type: str) -> int:
         return int(rel*0.40 + clar*0.30 + dep*0.30)
 
 def generate_overall_analysis_gpt(payload: dict) -> dict:
+    interview_type = payload.get("interviewType", "Technical")
     prompt = f"""Sen üst düzey bir mülakat değerlendiricisi ve kariyer koçusun. SADECE geçerli JSON nesnesi döndür.
 
 Elinde bir mülakata ait yapılandırılmış veriler var (QA Evaluations, Score vs).
@@ -632,6 +620,7 @@ Bu verileri bütünsel olarak analiz ederek genel değerlendirme üret.
    - "Bir Sonraki Mülakatta" (hemen uygulanabilecek taktikler: örn "Bilmiyorsan net ifade et")
    - "Performans Geliştirme" (orta vadeli cevap/mülakat tekniği gelişimi: örn "Tanım + Neden + Örnek yapısını kullan")
    - "Çalışma Planı" (doğrudan çalışılması gereken teorik/teknik/iletişim alanları: örn "JWT ve Grid mimarisini tekrar et")
+7. Eğer Interview Type = HR ise teknik kavram, algoritma, mimari, teknoloji bilgisi gibi alanlarda varsayım yapma. Teknik skorlar boşsa overallAnalysis, strengths, improvementAreas ve focusTopics içinde teknik bilgi seviyesi hakkında yorum yazma; bunun yerine iletişim, davranışsal örnekleme, rol olgunluğu, öz farkındalık ve cevap yapısı üzerinden değerlendir.
 
 Veri:
 {json.dumps(payload, ensure_ascii=False, indent=2)}
@@ -682,7 +671,7 @@ SADECE JSON FORMATI:
         response.raise_for_status()
         result = response.json()
         response_text = result["choices"][0]["message"]["content"]
-        return json.loads(response_text)
+        return _sanitize_global_analysis(interview_type, json.loads(response_text), payload.get("dimensionScores", {}))
     except Exception as e:
         print(f"GPT Recommendation error: {e}")
         return {
@@ -1117,7 +1106,7 @@ def analyze_transcript_with_gpt(qa_pairs, transcript_text, interview_type: str =
       "overallScore": overall_score,
       "content": [
           {"key": "contentQuality", "label": "İçerik Kalitesi", "score": cq, "detail": "Sorulara teknik/içeriksel uyum ve derinlik."},
-          {"key": "technicalUnderstanding", "label": "Teknik Anlayış", "score": tu, "detail": "Teknik doğruluk ve konuya olan teknik hakimiyet."},
+          {"key": "technicalUnderstanding", "label": "Teknik Anlayış" if interview_type != "HR" else "Alan Bilgisi", "score": tu, "detail": "Teknik doğruluk ve konuya olan teknik hakimiyet." if interview_type != "HR" else "Teknik görüşmelerde teknik doğruluk; HR görüşmelerinde varsa alan bilgisine dair göstergeler."},
           {"key": "evidenceSupport", "label": "Örnekleme", "score": es, "detail": "Cevapları gerçek hayat örnekleriyle destekleme."}
       ],
       "communication": [

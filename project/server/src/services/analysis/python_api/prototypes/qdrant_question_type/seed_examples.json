@@ -17,6 +17,70 @@
   },
   {
     "id": 3,
+    "question_text": "Şu anki rolünüzü, geçmiş deneyimlerinizi ve ilgi alanlarınızı kısaca anlatır mısınız?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 4,
+    "question_text": "Eğitiminiz, deneyimleriniz ve ilgi alanlarınızdan bahseder misiniz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 5,
+    "question_text": "Şu anda nerede çalışıyorsunuz, hangi görevdesiniz, biraz açabilir misiniz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 6,
+    "question_text": "Şu an ne üzerinde çalışıyorsunuz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 7,
+    "question_text": "Şu anki deneyimlerinizden kısaca bahseder misiniz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 8,
+    "question_text": "Akademik geçmişiniz, ilgi alanlarınız ve şu anki rolünüz hakkında kısa bir özet verir misiniz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 9,
+    "question_text": "Hangi bölümden mezun oldunuz ve bu alanda nasıl ilerlediniz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 10,
+    "question_text": "Uzmanlık alanlarınız ve ilgi alanlarınız nelerdir?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 11,
     "question_text": "Neden bu pozisyona başvurdunuz?",
     "question_type": "motivation",
     "interview_type": "HR",
@@ -24,7 +88,7 @@
     "is_meta": false
   },
   {
-    "id": 4,
+    "id": 12,
     "question_text": "Neden bizim şirketimizde çalışmak istiyorsunuz?",
     "question_type": "motivation",
     "interview_type": "HR",
@@ -32,15 +96,87 @@
     "is_meta": false
   },
   {
-    "id": 5,
-    "question_text": "Takım içinde bir anlaşmazlık yaşadığınız bir durumu anlatır mısınız?",
+    "id": 13,
+    "question_text": "Şu anki motivasyonunuz nedir?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 14,
+    "question_text": "Kariyerinizde özellikle bu alana yönelmenizin nedeni neydi?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 15,
+    "question_text": "İki farklı mühendislik alanını bir arada okuma kararını neden aldınız?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 16,
+    "question_text": "Yapay zeka alanında çalışmayı neden tercih ettiniz?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 17,
+    "question_text": "Bir proje ya da görevde karşılaştığınız en büyük zorluğu anlatabilir misiniz ve bunu nasıl aştınız?",
     "question_type": "behavioral",
     "interview_type": "HR",
     "language": "tr",
     "is_meta": false
   },
   {
-    "id": 6,
+    "id": 18,
+    "question_text": "Bu durumla ilgili tam olarak hangi adımları attınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 19,
+    "question_text": "Nasıl bir iletişim kurdunuz, nasıl aracı oldunuz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 20,
+    "question_text": "Bir stajınızda karşılaştığınız zor bir durumu anlatabilir misiniz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 21,
+    "question_text": "Sizden beklenen çözüm neydi ve siz nasıl bir çözüm ürettiniz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 22,
+    "question_text": "Peki o zorluk tam olarak neydi?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 23,
     "question_text": "Baskı altında çalışmanız gereken bir örnek verebilir misiniz?",
     "question_type": "behavioral",
     "interview_type": "HR",
@@ -48,23 +184,215 @@
     "is_meta": false
   },
   {
-    "id": 7,
-    "question_text": "Daha önce hangi projelerde görev aldınız?",
+    "id": 24,
+    "question_text": "Şu ana kadar en gurur duyduğunuz akademik veya kişisel başarınız neydi?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 25,
+    "question_text": "Zorlandığınız bir durumda ne yaptınız, sonucunda ne elde ettiniz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 26,
+    "question_text": "Grup çalışmasında bireysel olarak hangi sorumluluğu üstlendiniz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 27,
+    "question_text": "Takım içinde bir anlaşmazlık yaşadığınız bir durumu anlatır mısınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 28,
+    "question_text": "Bu projede karşılaştığınız en büyük zorluk neydi?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 29,
+    "question_text": "Son teslim baskısı altında nasıl davrandınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 30,
+    "question_text": "Farklı görüşteki ekip üyelerini nasıl uzlaştırdınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 31,
+    "question_text": "İşlerin planlandığı gibi gitmediği bir anda nasıl aksiyon aldınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 32,
+    "question_text": "Başka hangi projelerde yer aldınız?",
     "question_type": "experience",
     "interview_type": "HR",
     "language": "tr",
     "is_meta": false
   },
   {
-    "id": 8,
-    "question_text": "Staj döneminizde üstlendiğiniz sorumluluklar nelerdi?",
+    "id": 33,
+    "question_text": "Özellikle hangi alanlarda kendinizi geliştirdiniz?",
     "question_type": "experience",
     "interview_type": "HR",
     "language": "tr",
     "is_meta": false
   },
   {
-    "id": 9,
+    "id": 34,
+    "question_text": "Sizi en çok heyecanlandıran proje hangisiydi ve bu projede üstlendiğiniz rol neydi?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 35,
+    "question_text": "O projede tam olarak hangi görevleri üstlendiniz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 36,
+    "question_text": "Son çalıştığınız projede hangi rolü üstlendiniz ve bir problemi nasıl çözdünüz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 37,
+    "question_text": "Son iş deneyiminizden bahseder misiniz? Hangi rollerde çalıştınız?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 38,
+    "question_text": "Okul projelerinizden ve staj deneyimlerinizden bahseder misiniz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 39,
+    "question_text": "Son dönemde üzerinde çalıştığınız projeler veya edindiğiniz deneyimler hakkında biraz daha detay verebilir misiniz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 40,
+    "question_text": "En son stajınızı biraz açabilir misiniz? Hangi projede yer aldınız ve ne tür sorumluluklar üstlendiniz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 41,
+    "question_text": "Mezuniyetinizden önce veya sonrasında hangi projelerde yer aldınız?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 42,
+    "question_text": "Şu ana kadar hangi projelerde yer aldınız, biraz detay verebilir misiniz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 43,
+    "question_text": "Son yaptığınız bir projeye dair örnek vermeniz mümkün mü?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 44,
+    "question_text": "Ana sorumluluklarınızı kısaca özetleyebilir misiniz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 45,
+    "question_text": "Mezuniyet sürecinizde sizi öne çıkaran bir proje ya da aldığınız bir sorumluluk var mı?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 46,
+    "question_text": "Mezuniyet öncesinde staj veya proje gibi bir deneyiminiz oldu mu?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 47,
+    "question_text": "Bu projede veya stajda tam olarak hangi görevleri üstlendiniz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 48,
+    "question_text": "Şu anki deneyimlerinizde hangi projelerde bulundunuz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 49,
+    "question_text": "Bu proje hangi aşamalardan geçti, sizin spesifik rolünüz neydi ve sonuçları neler oldu?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 50,
     "question_text": "REST API nedir?",
     "question_type": "technical_knowledge",
     "interview_type": "Technical",
@@ -72,7 +400,7 @@
     "is_meta": false
   },
   {
-    "id": 10,
+    "id": 51,
     "question_text": "JWT nasıl çalışır?",
     "question_type": "technical_knowledge",
     "interview_type": "Technical",
@@ -80,7 +408,55 @@
     "is_meta": false
   },
   {
-    "id": 11,
+    "id": 52,
+    "question_text": "Mikroservis mimarisi nedir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 53,
+    "question_text": "Vektör veritabanı ne işe yarar?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 54,
+    "question_text": "Embedding nedir ve arama sistemlerinde nasıl kullanılır?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 55,
+    "question_text": "Transformer mimarisi klasik RNN modellerinden nasıl ayrılır?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 56,
+    "question_text": "Precision ve recall arasındaki fark nedir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 57,
+    "question_text": "Rate limiting nedir ve neden kullanılır?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 58,
     "question_text": "Daha önce React ile geliştirdiğiniz bir projeyi anlatır mısınız?",
     "question_type": "technical_experience",
     "interview_type": "Technical",
@@ -88,7 +464,7 @@
     "is_meta": false
   },
   {
-    "id": 12,
+    "id": 59,
     "question_text": "Node.js kullandığınız bir projede hangi problemleri çözdünüz?",
     "question_type": "technical_experience",
     "interview_type": "Technical",
@@ -96,7 +472,47 @@
     "is_meta": false
   },
   {
-    "id": 13,
+    "id": 60,
+    "question_text": "Daha önce Docker kullandığınız bir projeyi anlatır mısınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 61,
+    "question_text": "NLP modeli kullandığınız bir projede ne tür veriyle çalıştınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 62,
+    "question_text": "Bir backend servisini production ortamına aldığınız deneyimi anlatır mısınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 63,
+    "question_text": "Veritabanı optimizasyonu yaptığınız bir projede neleri değiştirdiniz?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 64,
+    "question_text": "CI/CD pipeline kurduğunuz bir deneyiminizi paylaşır mısınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 65,
     "question_text": "Milyonlarca kullanıcıya hizmet veren bir mesajlaşma sistemi nasıl tasarlarsınız?",
     "question_type": "problem_solving",
     "interview_type": "Technical",
@@ -104,8 +520,280 @@
     "is_meta": false
   },
   {
-    "id": 14,
+    "id": 66,
     "question_text": "Bir performans darboğazını nasıl analiz eder ve çözerdiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 67,
+    "question_text": "Yüksek trafikli bir bildirim sistemi nasıl tasarlarsınız?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 68,
+    "question_text": "Mikroservis mimarisinde veri tutarlılığını nasıl sağlarsınız?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 69,
+    "question_text": "Kullanıcı sorgularına semantik arama eklemeniz gerekse nasıl yaklaşırdınız?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 70,
+    "question_text": "Trafik ani yükselirse API katmanını nasıl ölçeklerdiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 71,
+    "question_text": "O süreçte tam olarak hangi araçları kullandınız ve sonuç olarak ne tür bir dönüşüm sağlandı?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 72,
+    "question_text": "Bu pipeline’ın performansını ölçmek için bir metrik kullandınız mı?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 73,
+    "question_text": "Doğruluk oranı ne kadara ulaştı, tam olarak ölçülebilir bir etki oldu mu?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 74,
+    "question_text": "Bu yaklaşım sayesinde proje ne kadar hızlandı veya verimliliği nasıl etkilendi?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 75,
+    "question_text": "Bu formatlama sürecinde hangi adımları izlediniz ve sonuçta nasıl bir çözüm geliştirdiniz?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 76,
+    "question_text": "Bugüne kadar olan yolculuğunuzu kısaca özetler misiniz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 77,
+    "question_text": "Sizi profesyonel olarak en iyi anlatan birkaç noktayı paylaşır mısınız?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 78,
+    "question_text": "Şu anki rolünüze nasıl geldiniz, kısaca anlatır mısınız?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 79,
+    "question_text": "Bu role geçiş yapma motivasyonunuz neydi?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 80,
+    "question_text": "Kariyerinizin bu aşamasında neden yeni fırsatlara açıksınız?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 81,
+    "question_text": "Bu pozisyonun hangi yönü sizi özellikle heyecanlandırdı?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 82,
+    "question_text": "Belirsizliğin yüksek olduğu bir durumda nasıl ilerlediniz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 83,
+    "question_text": "Aldığınız bir geri bildirimi davranışınıza yansıttığınız bir örnek verebilir misiniz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 84,
+    "question_text": "Zaman baskısı altında önceliklerinizi nasıl yönettiniz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 85,
+    "question_text": "Bir ekip arkadaşınızla aynı fikirde olmadığınızda nasıl bir yaklaşım benimsersiniz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 86,
+    "question_text": "Beklenmedik bir problem çıktığında ilk aksiyonunuz ne olurdu?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 87,
+    "question_text": "Az önce bahsettiğiniz stajlardan hangisi size en çok katkı sağladı?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 88,
+    "question_text": "O deneyimde günlük sorumluluklarınız nelerdi?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 89,
+    "question_text": "Biraz önce sözünü ettiğiniz proje üzerinde biraz daha durabilir miyiz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 90,
+    "question_text": "O projede sizin bireysel katkınız tam olarak neydi?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 91,
+    "question_text": "Şu anda üzerinde çalıştığınız işte ana sorumluluk alanınız nedir?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 92,
+    "question_text": "Concurrency ile parallelism arasındaki fark nedir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 93,
+    "question_text": "Caching ne işe yarar ve hangi durumlarda tercih edilir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 94,
+    "question_text": "Rate limiting nedir, neden kullanılır?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 95,
+    "question_text": "Daha önce uçtan uca geliştirdiğiniz teknik bir projeyi anlatır mısınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 96,
+    "question_text": "Bir modeli ya da servisi production ortamına alırken hangi adımları izlediniz?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 97,
+    "question_text": "Daha önce bir API veya backend servisinde yaptığınız önemli bir iyileştirmeyi anlatır mısınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 98,
+    "question_text": "Bir projede teknoloji seçimini hangi kriterlere göre yaptınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 99,
+    "question_text": "Bir sistemin yavaşladığını fark ettiğinizde nereden başlamayı tercih edersiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 100,
+    "question_text": "Bir özelliği hem hızlı hem de güvenilir şekilde yayına almak gerekse nasıl bir plan yapardınız?",
     "question_type": "problem_solving",
     "interview_type": "Technical",
     "language": "tr",
