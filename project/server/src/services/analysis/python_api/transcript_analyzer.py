@@ -1,6 +1,7 @@
 import json
 import requests
 import os
+import re
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -15,13 +16,30 @@ if not OPENAI_API_KEY:
 
 def _merge_consecutive_candidate_lines(transcript_text: str) -> str:
     """
-    Arka arkaya gelen [Candidate] satırlarını birleştir.
+    Transcript içindeki etiketsiz devam satırlarını son konuşmacıya bağla ve
+    arka arkaya gelen [Candidate] satırlarını birleştir.
     Örn: 
       [Candidate] Olayı hatırlamıyorum...
       [Candidate] Ne diyeceğimi bilemiyorum.
     →  [Candidate] Olayı hatırlamıyorum... Ne diyeceğimi bilemiyorum.
     """
-    lines = transcript_text.strip().splitlines()
+    raw_lines = transcript_text.strip().splitlines()
+    lines = []
+
+    for raw_line in raw_lines:
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+
+        if stripped.startswith("[Candidate]") or stripped.startswith("[Interviewer]"):
+            lines.append(stripped)
+            continue
+
+        # Bazı transcriptlerde aynı konuşmacının devam cümlesi yeni satıra
+        # etiketsiz düşebiliyor. Bu satırları son etiketli konuşmacıya ekle.
+        if lines:
+            lines[-1] = lines[-1].rstrip() + " " + stripped
+
     merged = []
     for line in lines:
         stripped = line.strip()
@@ -33,6 +51,88 @@ def _merge_consecutive_candidate_lines(transcript_text: str) -> str:
         else:
             merged.append(stripped)
     return "\n".join(merged)
+
+
+def _normalize_analysis_text(text: str) -> str:
+    normalized = str(text or "").lower()
+    replacements = {
+        "ç": "c",
+        "ğ": "g",
+        "ı": "i",
+        "ö": "o",
+        "ş": "s",
+        "ü": "u",
+        "â": "a",
+        "î": "i",
+        "û": "u",
+    }
+    for src, dst in replacements.items():
+        normalized = normalized.replace(src, dst)
+    normalized = re.sub(r"[^\w\s?]", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+
+def _is_meta_question(text: str) -> bool:
+    normalized = _normalize_analysis_text(text)
+    if not normalized:
+        return False
+
+    direct_patterns = (
+        "baslamadan once herhangi bir sorunuz var mi",
+        "baslamadan once sizin icin herhangi bir sorunuz var mi",
+        "sizin bir sorunuz var mi",
+        "baska sorunuz var mi",
+        "sormak istediginiz bir sey var mi",
+        "sormak istediginiz bir soru var mi",
+        "sizin bana veya pozisyonla ilgili sormak istediginiz bir sey var mi",
+        "sizin bana veya pozisyonla ilgili sormak istediginiz bir soru var mi",
+        "pozisyonla ilgili sormak istediginiz bir sey var mi",
+        "pozisyonla ilgili sormak istediginiz bir soru var mi",
+        "hazirsaniz baslayalim mi",
+        "baslayabilir miyiz",
+        "baslayalim mi",
+        "tesekkur ederim gorusmek uzere",
+        "iyi gunler dilerim",
+        "hosca kalin",
+    )
+    if any(pattern in normalized for pattern in direct_patterns):
+        return True
+
+    greeting_starts = (
+        "merhaba",
+        "hos geldiniz",
+        "iyi gunler",
+        "selam",
+    )
+    if normalized.startswith(greeting_starts) and "kendinizden bahseder misiniz" not in normalized:
+        return True
+
+    return False
+
+
+def _append_unique(items: list, value: str) -> None:
+    text = str(value or "").strip()
+    if text and text not in items:
+        items.append(text)
+
+
+def _coerce_recommendation_list(value) -> list:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item or "").strip()]
+    if isinstance(value, str) and value.strip():
+        return [value.strip()]
+    return []
+
+
+def _merge_recommendation_lists(*groups, limit: int = 3) -> list:
+    merged = []
+    for group in groups:
+        for item in _coerce_recommendation_list(group):
+            _append_unique(merged, item)
+            if len(merged) >= limit:
+                return merged
+    return merged
 
 
 def _extract_question(text: str) -> str:
@@ -60,6 +160,249 @@ def _extract_question(text: str) -> str:
     return text
 
 
+def _infer_question_type(question: str, interview_type: str = "Technical") -> str:
+    normalized = _normalize_analysis_text(question)
+
+    if any(token in normalized for token in (
+        "kendinizden bahseder misiniz",
+        "sizi biraz tanimak istiyorum",
+        "kendinizi tanitir misiniz",
+        "kisaca kendinizden",
+    )):
+        return "self_presentation"
+
+    if any(token in normalized for token in (
+        "neden bu rol",
+        "neden bu pozisyon",
+        "neden bizimle calismak",
+        "neden bu sirket",
+        "neden istiyorsunuz",
+        "sizi motive eden",
+        "motivasyonunuz",
+    )):
+        return "motivation"
+
+    if any(token in normalized for token in (
+        "en buyuk zorluk",
+        "nasil yonettiniz",
+        "nasil astiniz",
+        "bir ornek verebilir misiniz",
+        "boyle bir durumda ne yaptiniz",
+        "bireysel katkiniz ne oldu",
+        "sonuc ne oldu",
+        "olculebilir bir etki",
+    )):
+        return "experience"
+
+    if any(token in normalized for token in (
+        "bir problemle karsilastiginizda",
+        "bu problemi nasil cozerdiniz",
+        "yaklasiminiz ne olurdu",
+        "hangi adimlari izlerdiniz",
+        "cozumunuz ne olurdu",
+    )):
+        return "problem_solving"
+
+    if interview_type == "Technical":
+        if any(token in normalized for token in (
+            "algoritma",
+            "veri yapisi",
+            "karmasiklik",
+            "database",
+            "api",
+            "mimari",
+            "cache",
+            "thread",
+            "optimizasyon",
+            "heuristic",
+            "sezgisel",
+            "modelleme",
+            "constraint",
+            "kisit",
+        )):
+            return "technical_knowledge"
+
+        if any(token in normalized for token in (
+            "hangi projede",
+            "hangi teknolojileri kullandiniz",
+            "hangi araclari kullandiniz",
+            "nasil gelistirdiniz",
+            "deneyiminiz ne",
+            "daha once calistiginiz",
+            "uyguladiginiz",
+            "gelistirdiginiz",
+        )):
+            return "technical_experience"
+
+    return "experience" if interview_type != "Technical" else "technical_experience"
+
+
+def _clip_score(value: int, minimum: int = 25, maximum: int = 95) -> int:
+    return max(minimum, min(maximum, int(value)))
+
+
+def _build_rule_based_qa_evaluation(question: str, answer: str, interview_type: str = "Technical") -> dict:
+    question_type = _infer_question_type(question, interview_type)
+    normalized_answer = _normalize_analysis_text(answer)
+    answer_words = [word for word in re.split(r"\s+", str(answer or "").strip()) if word]
+    word_count = len(answer_words)
+    sentence_count = max(1, len([part for part in re.split(r"[.!?]+", str(answer or "")) if part.strip()]))
+    filler_count = len(re.findall(r"\b(yani|sey|hmm|ee|bilmiyorum|sanirim|galiba)\b", normalized_answer))
+    uncertainty = any(token in normalized_answer for token in ("bilmiyorum", "emin degilim", "hatirlamiyorum", "sanirim", "galiba"))
+    connective_count = len(re.findall(r"\b(cunku|sonra|ardindan|bu nedenle|boylece|ornegin|mesela)\b", normalized_answer))
+    overlap = 0
+
+    question_tokens = set(
+        token for token in re.split(r"\s+", _normalize_analysis_text(question))
+        if len(token) > 3 and token not in {"hangi", "nasil", "neden", "peki", "daha", "sizin", "bunu", "bunu", "olan", "olarak"}
+    )
+    answer_token_set = set(token for token in answer_words if len(token) > 3)
+    if question_tokens and answer_token_set:
+        overlap = len({token.lower() for token in answer_token_set} & question_tokens)
+
+    relevance = _clip_score(45 + min(word_count, 45) // 2 + overlap * 5 - filler_count * 2 - (8 if uncertainty else 0))
+    clarity = _clip_score(48 + min(word_count, 36) // 3 + min(sentence_count, 5) * 3 - filler_count * 3)
+    depth = _clip_score(40 + min(word_count, 60) // 2 + connective_count * 4 - (10 if uncertainty else 0))
+
+    applicable_metrics = ["relevance", "clarity", "depth"]
+    evidence_example = None
+    technical_accuracy = None
+
+    if question_type in ("behavioral", "experience", "technical_experience", "problem_solving"):
+        evidence_example = _clip_score(
+            38
+            + min(word_count, 50) // 2
+            + connective_count * 5
+            + (8 if any(token in normalized_answer for token in ("ornegin", "mesela", "sonuc", "etki", "olculebilir")) else 0)
+            - (8 if uncertainty else 0)
+        )
+        applicable_metrics.append("evidenceExample")
+
+    if question_type in ("technical_knowledge", "technical_experience", "problem_solving"):
+        domain_signals = len(re.findall(r"\b(optimizasyon|algoritma|heuristic|sezgisel|veri|model|kisit|api|mimari|sistem|analiz)\b", normalized_answer))
+        technical_accuracy = _clip_score(42 + min(word_count, 50) // 2 + domain_signals * 4 - (12 if uncertainty else 0))
+        applicable_metrics.append("technicalAccuracy")
+
+    summary_parts = []
+    if relevance >= 70:
+        summary_parts.append("Cevap soruya genel olarak odaklı.")
+    elif relevance >= 55:
+        summary_parts.append("Cevap soruyla ilişkili, ancak odak yer yer dağılıyor.")
+    else:
+        summary_parts.append("Cevap sorunun istediği noktaya sınırlı düzeyde temas ediyor.")
+
+    if depth >= 70:
+        summary_parts.append("Detay seviyesi yeterli ve açıklayıcı.")
+    elif depth >= 55:
+        summary_parts.append("Temel çerçeve var, fakat daha somut detay ve çıktı eklenebilir.")
+    else:
+        summary_parts.append("Yanıt daha fazla ayrıntı ve gerekçe gerektiriyor.")
+
+    return {
+        "questionType": question_type,
+        "applicableMetrics": applicable_metrics,
+        "metrics": {
+            "relevance": relevance,
+            "clarity": clarity,
+            "depth": depth,
+            "evidenceExample": evidence_example,
+            "technicalAccuracy": technical_accuracy,
+        },
+        "summary": " ".join(summary_parts[:2]),
+        "focusArea": None,
+        "visibleInReport": True,
+        "excludedFromOverall": False,
+    }
+
+
+def _sanitize_single_qa_result(question: str, answer: str, parsed: dict | None, interview_type: str = "Technical") -> dict:
+    if _is_meta_question(question):
+        return {
+            "questionType": "meta",
+            "applicableMetrics": [],
+            "metrics": {
+                "relevance": None,
+                "clarity": None,
+                "depth": None,
+                "evidenceExample": None,
+                "technicalAccuracy": None
+            },
+            "summary": "Mülakat akışı, selamlama veya kapanış (değerlendirme dışı).",
+            "focusArea": None,
+            "visibleInReport": False,
+            "excludedFromOverall": True
+        }
+
+    valid_question_types = {
+        "self_presentation",
+        "motivation",
+        "behavioral",
+        "experience",
+        "technical_knowledge",
+        "technical_experience",
+        "problem_solving",
+    }
+    candidate = parsed if isinstance(parsed, dict) else {}
+    question_type = str(candidate.get("questionType") or "").strip()
+
+    # GPT bazen gerçek soruları yanlışlıkla meta olarak işaretliyor; bu durumda
+    # deterministik fallback ile görünür ve puanlanabilir bir sonuç üret.
+    if question_type in {"meta", "setup_or_meta"}:
+        return _build_rule_based_qa_evaluation(question, answer, interview_type)
+
+    if question_type not in valid_question_types:
+        return _build_rule_based_qa_evaluation(question, answer, interview_type)
+
+    visible_in_report = candidate.get("visibleInReport")
+    excluded_from_overall = candidate.get("excludedFromOverall")
+    if visible_in_report is False or excluded_from_overall is True:
+        return _build_rule_based_qa_evaluation(question, answer, interview_type)
+
+    metrics = candidate.get("metrics") if isinstance(candidate.get("metrics"), dict) else {}
+    applicable_metrics = candidate.get("applicableMetrics") if isinstance(candidate.get("applicableMetrics"), list) else []
+    normalized = _build_rule_based_qa_evaluation(question, answer, interview_type)
+
+    normalized["questionType"] = question_type
+    normalized["summary"] = str(candidate.get("summary") or normalized["summary"])
+    normalized["focusArea"] = candidate.get("focusArea")
+
+    for key in ("relevance", "clarity", "depth", "evidenceExample", "technicalAccuracy"):
+        if key in metrics and metrics.get(key) is not None:
+            normalized["metrics"][key] = metrics.get(key)
+
+    if applicable_metrics:
+        normalized["applicableMetrics"] = applicable_metrics
+
+    normalized["visibleInReport"] = True
+    normalized["excludedFromOverall"] = False
+    return normalized
+
+
+def _build_no_visible_question_analysis(interview_type: str) -> dict:
+    return {
+        "overallAnalysis": (
+            "Transcript kaydı alınmış olsa da değerlendirilebilir soru-cevap bloğu çıkarılamadı. "
+            "Bu durumda genel puan ve gelişim analizi üretmek güvenilir olmayacağı için rapor sınırlı tutuldu."
+        ),
+        "strengths": [],
+        "improvementAreas": [
+            "Soru-cevap eşleşmesi üretilemediği için içerik bazlı değerlendirme yapılamadı."
+        ],
+        "focusTopics": [],
+        "recommendations": {
+            "Bir Sonraki Mülakatta": [
+                "Her sorudan sonra yanıtın tek blok halinde transcript'e geçtiğini doğrulayın."
+            ],
+            "Performans Geliştirme": [
+                "Yanıtlarınızın kesilmeden ve soru sırasını koruyarak kayda alınmasını sağlayın."
+            ],
+            "Çalışma Planı": [
+                "Bu oturum için içerik bazlı çalışma planı üretilemedi; raporu yeniden analyze etmek gerekir."
+            ]
+        }
+    }
+
+
 
 def parse_transcript_to_structured_blocks_gpt(transcript_text: str) -> list:
     # Önce ard arda gelen [Candidate] satırlarını birleştir
@@ -76,7 +419,7 @@ Aşağıdaki ifadeler GERÇEK soru DEĞİLDİR → hepsi "setup_or_meta" tipi ol
 • Hazırlık teyidi: "Hazırsanız başlayalım mı?", "Başlayabilir miyiz?", "Başlayalım mı?"
 • Süre / kural açıklaması: "Mülakatımız 30 dk sürecek", "Kısaca kuralları açıklayayım"
 • Akış yönlendirmesi: "Bir sonraki soruya geçelim", "Devam edelim"
-• Kapanış / teşekkür: "Teşekkür ederim", "Görüşmek üzere", "İyi günler", "Başka sorunuz var mı?"
+• Kapanış / teşekkür: "Teşekkür ederim", "Görüşmek üzere", "İyi günler", "Başka sorunuz var mı?", "Sizin bana veya pozisyonla ilgili sormak istediğiniz bir şey var mı?"
 • Adayın bu tür ifadelere verdiği kısa meta cevaplar da setup_or_meta bloğunun "answer" kısmına yazılır
   (örn: "Başlayalım lütfen.", "Hazırım.", "Teşekkürler.", "Hayır, sorum yok.")
 
@@ -144,7 +487,7 @@ Döküm:
         return []
 
 def analyze_single_qa_gpt(question: str, answer: str, interview_type: str = "Technical", is_meta: bool = False) -> dict:
-    if is_meta:
+    if is_meta or _is_meta_question(question):
        return {
             "questionType": "meta",
             "applicableMetrics": [],
@@ -191,6 +534,7 @@ Metrik kuralları:
 - HR ise iletişim ve örneklendirmeyi ön planda tut.
 - summary en fazla 2 cümle olsun.
 - "Bilemiyorum", "Hatırlamıyorum", "Emin değilim" gibi kısa veya belirsizlik ifade eden cevaplar bile gerçek bir soruya verilmiş cevaplardır. Bunları asla meta/setup olarak işaretleme. Bu tür cevaplarda visibleInReport: true, excludedFromOverall: false olsun; relevance, clarity ve depth düşük puanlanabilir.
+- "Başlamadan önce herhangi bir sorunuz var mı?" veya "Sizin bana veya pozisyonla ilgili sormak istediğiniz bir şey var mı?" gibi mülakat akışını yöneten sorular teknik soru değildir; meta olarak işaretlenmelidir.
 - Kapanış nezaketleri / Saf selamlamalar sana gelmemeli ama gelirse meta olarak işaretle (visibleInReport: false, excludedFromOverall: true). Aksi halde visibleInReport: true ve excludedFromOverall: false olsun.
 
 Soru:
@@ -236,31 +580,12 @@ SADECE JSON FORMATI:
         result = response.json()
         response_text = result["choices"][0]["message"]["content"]
         parsed = json.loads(response_text)
-        
-        # Güvenlik: Eksik alan varsa doldur
-        if "visibleInReport" not in parsed:
-            parsed["visibleInReport"] = True
-        if "excludedFromOverall" not in parsed:
-            parsed["excludedFromOverall"] = False
-            
-        return parsed
+        return _sanitize_single_qa_result(question, answer, parsed, interview_type)
     except Exception as e:
         print(f"GPT Single QA Error: {e}")
-        return {
-            "questionType": "technical_knowledge",
-            "applicableMetrics": ["relevance", "clarity", "depth"],
-            "metrics": {
-                "relevance": 50,
-                "clarity": 50,
-                "depth": 50,
-                "evidenceExample": None,
-                "technicalAccuracy": None
-            },
-            "summary": f"GPT Hatası: {str(e)}",
-            "focusArea": None,
-            "visibleInReport": True,
-            "excludedFromOverall": False
-        }
+        fallback = _build_rule_based_qa_evaluation(question, answer, interview_type)
+        fallback["summary"] = f"{fallback['summary']} GPT değerlendirmesi alınamadığı için kural tabanlı analiz kullanıldı."
+        return fallback
 
 def compute_question_score(metrics: dict, q_type: str) -> int:
     def safe_int(val):
@@ -372,6 +697,153 @@ SADECE JSON FORMATI:
             }
         }
 
+
+def _build_transcript_recommendations(
+    qa_evaluations: list,
+    dimension_scores: dict,
+    interview_type: str,
+    focus_topics: list,
+    improvement_areas: list,
+    gpt_recommendations: dict | None = None,
+) -> dict:
+    visible_questions = [
+        qa for qa in (qa_evaluations or [])
+        if qa.get("visibleInReport") and not qa.get("excludedFromOverall")
+    ]
+    weak_questions = [qa for qa in visible_questions if qa.get("isWeak")]
+    visible_count = len(visible_questions)
+
+    def _score(key: str):
+        value = (dimension_scores or {}).get(key)
+        return int(value) if value is not None else None
+
+    communication = _score("communicationClarity")
+    technical = _score("technicalUnderstanding")
+    evidence = _score("evidenceSupport")
+    readiness = _score("roleReadiness")
+    content = _score("contentQuality")
+
+    short_answers = 0
+    uncertain_answers = 0
+    intro_needs_work = False
+    technical_weak_count = 0
+    example_need_count = 0
+    problem_solving_need_count = 0
+
+    for qa in visible_questions:
+        answer = str(qa.get("answer") or "")
+        answer_words = len(answer.split())
+        q_type = str(qa.get("questionType") or "")
+        applicable = qa.get("applicableMetrics") or []
+        metrics = qa.get("metrics") or {}
+
+        if answer_words < 12:
+            short_answers += 1
+        if any(token in _normalize_analysis_text(answer) for token in ("bilmiyorum", "emin degilim", "hatirlamiyorum", "sanirim")):
+            uncertain_answers += 1
+        if q_type == "self_presentation" and qa.get("isWeak"):
+            intro_needs_work = True
+        if q_type in ("technical_knowledge", "technical_experience") and qa.get("isWeak"):
+            technical_weak_count += 1
+        if "evidenceExample" in applicable:
+            evidence_value = metrics.get("evidenceExample")
+            if evidence_value is None or int(evidence_value) < 55:
+                example_need_count += 1
+        if q_type == "problem_solving" and qa.get("isWeak"):
+            problem_solving_need_count += 1
+
+    short_ratio = (short_answers / visible_count) if visible_count else 0
+    uncertain_ratio = (uncertain_answers / visible_count) if visible_count else 0
+
+    next_interview = []
+    performance_development = []
+    study_plan = []
+
+    if uncertain_ratio >= 0.15:
+        _append_unique(
+            next_interview,
+            "Bilmediğiniz noktada tahmin yürütmek yerine sınırınızı net söyleyin ve bildiğiniz kısmı kısa bir çerçeveyle ayırın.",
+        )
+    if short_ratio >= 0.3 or (readiness is not None and readiness < 60):
+        _append_unique(
+            next_interview,
+            "Cevabı tek cümlede bırakmayın; önce net yanıtı verip ardından bir gerekçe veya mini örnek ekleyin.",
+        )
+    if intro_needs_work:
+        _append_unique(
+            next_interview,
+            "İlk öz tanıtım cevabınızı eğitim, son deneyim ve uzmanlık alanı sırasıyla 60 saniyelik net bir akışta verin.",
+        )
+    if communication is not None and communication < 65:
+        _append_unique(
+            next_interview,
+            "Her cevapta önce ana fikri söyleyip sonra detay açın; aynı cümle içinde konu değiştirmemeye çalışın.",
+        )
+    if problem_solving_need_count > 0:
+        _append_unique(
+            next_interview,
+            "Çözüm sorularında önce yaklaşımı, sonra kısıtları, en sonda beklenen etkiyi anlatarak ilerleyin.",
+        )
+
+    if communication is not None and communication < 70:
+        _append_unique(
+            performance_development,
+            "3 adımlı cevap pratiği yapın: kısa cevap, teknik veya mantıksal gerekçe, somut çıktı veya örnek.",
+        )
+    if technical is not None and technical < 65:
+        _append_unique(
+            performance_development,
+            "Temel kavramları tanım + kullanım koşulu + dezavantaj veya trade-off formatında sözlü anlatma çalışması yapın.",
+        )
+    if (evidence is not None and evidence < 60) or example_need_count > 0:
+        _append_unique(
+            performance_development,
+            "Deneyim soruları için STAR veya CAR akışında 60-90 saniyelik hazır proje örnekleri oluşturun.",
+        )
+    if uncertain_ratio >= 0.15 or short_ratio >= 0.3:
+        _append_unique(
+            performance_development,
+            "Mock interview kayıtlarında eksik kaldığınız cevapları yeniden anlatıp hangi noktada durduğunuzu ve neden koptuğunuzu not alın.",
+        )
+    if interview_type == "Technical" and content is not None and content < 65:
+        _append_unique(
+            performance_development,
+            "Teknik cevap verirken sadece kavram adı söylemek yerine problemi nasıl çözdüğünüzü ve neden o yaklaşımı seçtiğinizi birlikte anlatın.",
+        )
+
+    for topic in _coerce_recommendation_list(focus_topics):
+        _append_unique(study_plan, topic)
+    if not study_plan:
+        if technical is not None and technical < 65:
+            _append_unique(study_plan, "Zorlandığınız teknik kavramlar için kısa konu özetleri ve örnek kullanım senaryoları hazırlayın.")
+        if communication is not None and communication < 65:
+            _append_unique(study_plan, "Kısa ve katmanlı cevap kurma pratiğini düzenli tekrar edin.")
+        if (evidence is not None and evidence < 60) or example_need_count > 0:
+            _append_unique(study_plan, "Geçmiş proje örneklerinizi ölçülebilir sonuç içerecek şekilde yeniden yazın.")
+        for area in _coerce_recommendation_list(improvement_areas):
+            if len(study_plan) >= 3:
+                break
+            _append_unique(study_plan, area)
+
+    gpt_recommendations = gpt_recommendations or {}
+    return {
+        "Bir Sonraki Mülakatta": _merge_recommendation_lists(
+            next_interview,
+            gpt_recommendations.get("Bir Sonraki Mülakatta"),
+            limit=3,
+        ),
+        "Performans Geliştirme": _merge_recommendation_lists(
+            performance_development,
+            gpt_recommendations.get("Performans Geliştirme"),
+            limit=3,
+        ),
+        "Çalışma Planı": _merge_recommendation_lists(
+            study_plan,
+            gpt_recommendations.get("Çalışma Planı"),
+            limit=3,
+        ),
+    }
+
 def parse_transcript_python(transcript_text: str) -> list:
     """
     GPT'ye güvenmeden [Interviewer]/[Candidate] satırlarını Python ile parse eder.
@@ -382,26 +854,29 @@ def parse_transcript_python(transcript_text: str) -> list:
 
     blocks = []
     pending_question = None
+    pending_type = "question"
 
     for line in lines:
         if line.startswith("[Interviewer]"):
             text = line[len("[Interviewer]"):].strip()
             if pending_question and text:
                 # Önceki cevapsız soruyu boş yanıtla kapat
-                blocks.append({"type": "question", "question": pending_question, "answer": ""})
+                blocks.append({"type": pending_type, "question": pending_question, "answer": ""})
             # Geçiş ifadelerini at, sadece soru cümlelerini al
             pending_question = _extract_question(text)
+            pending_type = "setup_or_meta" if _is_meta_question(pending_question or text) else "question"
 
         elif line.startswith("[Candidate]"):
             text = line[len("[Candidate]"):].strip()
             if pending_question is not None:
-                blocks.append({"type": "question", "question": pending_question, "answer": text})
+                blocks.append({"type": pending_type, "question": pending_question, "answer": text})
                 pending_question = None
+                pending_type = "question"
             # Soru gelmeden cevap geldiyse (ilk selamlama vb.) atla
 
     # Dosya soru ortasında bittiyse son soruyu boş yanıtla kapat
     if pending_question:
-        blocks.append({"type": "question", "question": pending_question, "answer": ""})
+        blocks.append({"type": pending_type, "question": pending_question, "answer": ""})
 
     return blocks
 
@@ -429,10 +904,18 @@ def analyze_transcript_with_gpt(qa_pairs, transcript_text, interview_type: str =
                 if b.get("type") == "setup_or_meta"
             ]
             # Python bloklarında tipi GPT'den al:
-            # Substring eşleşme kullan (tam eşleşme yerine) çünkü GPT soruyu kısaltabilir
+            # Substring eşleşme kullan (tam eşleşme yerine) çünkü GPT soruyu kısaltabilir.
+            # Ancak GPT bazen gerçek soruları yanlışlıkla meta'ya çevirebildiği için,
+            # sadece deterministik meta heuristiğine de uyan bloklarda bu override uygulanır.
             for b in py_blocks:
                 q_lower = b.get("question", "").strip().lower()
+                if _is_meta_question(q_lower):
+                    b["type"] = "setup_or_meta"
+                    continue
+
                 for gpt_q in gpt_meta_questions:
+                    if not _is_meta_question(gpt_q):
+                        continue
                     if gpt_q and (gpt_q in q_lower or q_lower in gpt_q):
                         b["type"] = "setup_or_meta"
                         break
@@ -596,12 +1079,25 @@ def analyze_transcript_with_gpt(qa_pairs, transcript_text, interview_type: str =
         "dimensionScores": dim_scores,
         "qaEvaluations": [qa for qa in sanitized_evaluations if not qa["excludedFromOverall"]]
     }
-    
-    global_analysis = generate_overall_analysis_gpt(analysis_payload)
+
+    visible_questions = [qa for qa in sanitized_evaluations if qa.get("visibleInReport") and not qa.get("excludedFromOverall")]
+    if visible_questions:
+        global_analysis = generate_overall_analysis_gpt(analysis_payload)
+    else:
+        global_analysis = _build_no_visible_question_analysis(interview_type)
+
+    dynamic_recommendations = _build_transcript_recommendations(
+        sanitized_evaluations,
+        dim_scores,
+        interview_type,
+        global_analysis.get("focusTopics", []),
+        global_analysis.get("improvementAreas", []),
+        global_analysis.get("recommendations", {}),
+    )
 
     # UI Legacy mapping
     legacy_recs = []
-    for k, v in global_analysis.get("recommendations", {}).items():
+    for k, v in dynamic_recommendations.items():
        text_val = "- " + "\n- ".join(v) if v else ""
        legacy_recs.append({"title": k, "text": text_val})
 
@@ -615,7 +1111,7 @@ def analyze_transcript_with_gpt(qa_pairs, transcript_text, interview_type: str =
         "improvementAreas": global_analysis.get("improvementAreas", []),
         "focusTopics": global_analysis.get("focusTopics", [])
       },
-      "newRecommendations": global_analysis.get("recommendations", {}),
+      "newRecommendations": dynamic_recommendations,
       
       # Legacy Mapping
       "overallScore": overall_score,
