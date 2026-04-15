@@ -207,6 +207,86 @@ def _compute_fluency_score(pause_ratio: float) -> int:
         return 25
 
 
+def _build_audio_recommendations(gpt_context: dict) -> dict:
+    clarity_val = float((gpt_context.get("clarity") or {}).get("value", 0) or 0)
+    avg_wpm = float((gpt_context.get("avgWPM") or {}).get("value", 0) or 0)
+    avg_pause_ratio = float(str((gpt_context.get("pauseRatio") or {}).get("value", 0) or 0).replace("%", "") or 0)
+    emotion_score = float(((gpt_context.get("emotionSuitability") or {}).get("score", 0) or 0))
+    dominant_emotion = str(gpt_context.get("dominantEmotion") or "")
+
+    next_interview = []
+    performance_development = []
+
+    def add_sentence(target: list, sentence: str) -> None:
+        if sentence and sentence not in target:
+            target.append(sentence)
+
+    if clarity_val < 75:
+        add_sentence(
+            next_interview,
+            "Bir sonraki mülakatta mikrofon mesafesini sabit tutup cümle sonlarını yutmadan biraz daha belirgin artikülasyonla konuşun.",
+        )
+        add_sentence(
+            performance_development,
+            "Kendi kayıtlarınızı dinleyerek özellikle hızlı kaybolan kelimeleri işaretleyin ve yüksek sesle tekrar çalışın.",
+        )
+
+    if avg_wpm < 110:
+        add_sentence(
+            next_interview,
+            "Cevaplara ana fikirle başlayıp cümleleri gereksiz uzatmadan ilerleyerek temponuzu bir miktar yükseltin.",
+        )
+        add_sentence(
+            performance_development,
+            "60-90 saniyelik prova cevaplarında 110-150 WPM bandına yaklaşmak için kronometreli tekrar yapın.",
+        )
+    elif avg_wpm > 175:
+        add_sentence(
+            next_interview,
+            "Bir sonraki mülakatta cümle aralarına kısa duraklar ekleyip anahtar kavramları daha kontrollü vurgulayın.",
+        )
+        add_sentence(
+            performance_development,
+            "Hızlı anlattığınız cevapları yeniden kaydedip kritik terimleri daha yavaş ve net söyleme pratiği yapın.",
+        )
+
+    if avg_pause_ratio > 25:
+        add_sentence(
+            next_interview,
+            "Soruyu duyduktan sonra cevabı zihninizde iki başlığa ayırın; gereksiz duraklar yerine o başlıklar üzerinden akın.",
+        )
+        add_sentence(
+            performance_development,
+            "Notsuz 1 dakikalık akış egzersizleri yaparak duraklama oranını kademeli olarak düşürmeye çalışın.",
+        )
+
+    if emotion_score < 45 or "Gergin" in dominant_emotion:
+        add_sentence(
+            next_interview,
+            "İlk cevaplardan önce nefesinizi dengeleyip tonu daha sakin ve dengeli başlatmanız sunumu toparlayacaktır.",
+        )
+        add_sentence(
+            performance_development,
+            "Mock interview kayıtlarında özellikle açılış cümlelerini nötr ve kontrollü tonla tekrarlayarak ses renginizi stabilize edin.",
+        )
+
+    if len(next_interview) < 2:
+        add_sentence(
+            next_interview,
+            "Cevaplarınızın giriş cümlesini daha net kurup önemli kavramları vurgulayarak ilerlemeniz mevcut güçlü yönlerinizi daha görünür kılar.",
+        )
+    if len(performance_development) < 2:
+        add_sentence(
+            performance_development,
+            "Düzenli sesli prova ve kayıt analizi ile hız, duraklama ve ton dengesini birlikte takip eden kısa bir çalışma rutini oluşturun.",
+        )
+
+    return {
+        "nextInterview": " ".join(next_interview[:3]),
+        "performanceDevelopment": " ".join(performance_development[:3]),
+    }
+
+
 def interpret_report_with_gpt(overall: dict) -> dict:
     """
     Python computes ALL scores deterministically.
@@ -353,6 +433,7 @@ SADECE şu JSON yapısını döndür:
                     if s["label"] == ps["label"]:
                         s["score"] = ps["score"]
                         break
+            parsed["recommendations"] = _build_audio_recommendations(gpt_context)
             return parsed
         except Exception:
             # Fallback if parsing fails but request succeeded
@@ -366,7 +447,7 @@ SADECE şu JSON yapısını döndür:
             "scores": python_scores,
             "tonDistribution": emotion_dist,
             "speechSummary": [],
-            "recommendations": {"nextInterview": "", "performanceDevelopment": ""}
+            "recommendations": _build_audio_recommendations(gpt_context)
         }
 
     except Exception as e:
@@ -380,5 +461,5 @@ SADECE şu JSON yapısını döndür:
             "scores": python_scores,
             "tonDistribution": emotion_dist,
             "speechSummary": [],
-            "recommendations": {"nextInterview": "", "performanceDevelopment": ""}
+            "recommendations": _build_audio_recommendations(gpt_context)
         }
