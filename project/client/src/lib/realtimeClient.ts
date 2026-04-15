@@ -3,7 +3,7 @@ export type Mode = "Supportive" | "Neutral";
 type InterviewType = "HR" | "Technical";
 type CandidateGender = "Kadın" | "Erkek";
 
-type TranscriptEntry = {
+export type TranscriptEntry = {
   role: "interviewer" | "candidate";
   text: string;
   ts: number;
@@ -279,6 +279,8 @@ export async function connectRealtimeInterview(opts: {
   let interviewerAudioRecorder: MediaRecorder | null = null;
   let interviewerAudioChunks: Blob[] = [];
   let interviewerAudioStartedAt = 0;
+  let currentInterviewerTurnStartedAt = 0;
+  const completedCandidateTranscriptTurns: Array<{ startedAt: number; endedAt: number }> = [];
   const recentlyPushedFingerprints = new Map<string, number>();
   const interviewerResponseIdsWithTranscript = new Set<string>();
 
@@ -314,7 +316,7 @@ export async function connectRealtimeInterview(opts: {
     }
   };
 
-  const buildMediaRecorder = () => {
+  const buildMediaRecorder = (segmentQuestionIndex: number, segmentStartedAt: number) => {
     const recorder = new MediaRecorder(micStream);
     recorder.ondataavailable = (event) => {
       if (event.data && event.data.size > 0) {
@@ -324,8 +326,8 @@ export async function connectRealtimeInterview(opts: {
     recorder.onstop = () => {
       if (segmentChunks.length) {
         const blob = new Blob(segmentChunks, { type: recorder.mimeType || "audio/webm" });
-        const questionIndex = Math.max(1, activeQuestionIndex || interviewerTurnCount || 1);
-        const startedAt = activeSegmentStartedAt || Date.now();
+        const questionIndex = Math.max(1, segmentQuestionIndex || interviewerTurnCount || 1);
+        const startedAt = segmentStartedAt || Date.now();
         const endedAt = Date.now();
         segmentChunks = [];
 
@@ -359,7 +361,7 @@ export async function connectRealtimeInterview(opts: {
     activeQuestionIndex = Math.max(1, interviewerTurnCount || 1);
     activeSegmentStartedAt = Date.now();
     segmentChunks = [];
-    mediaRecorder = buildMediaRecorder();
+    mediaRecorder = buildMediaRecorder(activeQuestionIndex, activeSegmentStartedAt);
     try {
       mediaRecorder.start(250);
     } catch (_error) {
@@ -369,9 +371,15 @@ export async function connectRealtimeInterview(opts: {
 
   const stopCandidateSegment = () => {
     if (!isCandidateSegmentActive) return;
+
+    const segmentStartedAt = activeSegmentStartedAt || Date.now();
+    const segmentEndedAt = Date.now();
+    completedCandidateTranscriptTurns.push({ startedAt: segmentStartedAt, endedAt: segmentEndedAt });
+
     isCandidateSegmentActive = false;
     const recorder = mediaRecorder;
     mediaRecorder = null;
+    activeSegmentStartedAt = 0;
     if (recorder && recorder.state !== "inactive") {
       activeSegmentStopPromise = new Promise((resolve) => {
         resolveActiveSegmentStopPromise = resolve;
@@ -575,6 +583,7 @@ export async function connectRealtimeInterview(opts: {
 
     if (isInterviewerDelta && !interviewerSpeaking) {
       interviewerSpeaking = true;
+      currentInterviewerTurnStartedAt = Date.now();
       startInterviewerAudioCapture();
       if (isCandidateSegmentActive) {
         stopCandidateSegment();
@@ -634,7 +643,11 @@ export async function connectRealtimeInterview(opts: {
       interviewerResponseIdsWithTranscript.add(messageResponseId);
     }
 
-    pushTranscriptDeduped(entry.role, entry.text, Date.now(), entry.source, entry.model);
+    const transcriptTs = entry.role === "candidate"
+      ? (completedCandidateTranscriptTurns.shift()?.endedAt || Date.now())
+      : (currentInterviewerTurnStartedAt || Date.now());
+
+    pushTranscriptDeduped(entry.role, entry.text, transcriptTs, entry.source, entry.model);
   };
 
   dc.onopen = () => {
