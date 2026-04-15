@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionSetupForm } from "@/components/setup/SessionSetupForm";
 import { ConsentPanel } from "@/components/setup/ConsentPanel";
+import { ProgressDashboardTab } from "@/components/feedback/ProgressDashboardTab";
 import type { SessionConfig, SessionSummary } from "@/lib/types";
 import { listReports, startSession } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { BarChart3, Calendar, FileText } from "lucide-react";
 
 export function SetupPage({
   onPrepared,
@@ -102,6 +104,25 @@ export function SetupPage({
         <Card className="rounded-2xl">
           <CardHeader className="flex flex-row items-center justify-between gap-3">
             <CardTitle>Geçmiş Oturumlar</CardTitle>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="rounded-xl">
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Gelişim Paneli
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[88vh] max-w-6xl overflow-y-auto rounded-2xl p-0">
+                <DialogHeader className="px-6 pt-6">
+                  <DialogTitle>Gelişim Paneli</DialogTitle>
+                  <DialogDescription>
+                    Geçmiş oturum transcript analizlerinden oluşturulan soru tipi bazlı gelişim görünümü.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="px-4 pb-4 md:px-6 md:pb-6">
+                  <ProgressDashboardTab limit={12} />
+                </div>
+              </DialogContent>
+            </Dialog>
           </CardHeader>
           <CardContent className="space-y-3">
             {historyLoading && (
