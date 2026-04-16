@@ -3,14 +3,11 @@ import { getHistoryInsights, getReport, listReports } from "@/lib/api";
 import type { HistoryInsights, SessionSummary } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import {
   AlertTriangle,
   BarChart3,
   FileText,
   Mic,
-  Search,
-  SlidersHorizontal,
   Sparkles,
   Target,
   TrendingUp,
@@ -64,8 +61,6 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
   const [items, setItems] = useState<SessionSummary[]>([]);
   const [insights, setInsights] = useState<HistoryInsights | null>(null);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
-  const [onlyScored, setOnlyScored] = useState(false);
   const [reportMeta, setReportMeta] = useState<Record<string, { role?: string; mode?: string; interviewType?: string }>>({});
 
   useEffect(() => {
@@ -160,16 +155,8 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
   }, [insights, sortedItems]);
 
   const filteredItems = useMemo(() => {
-    const lowered = query.trim().toLowerCase();
-    return sortedItems.filter((item) => {
-      const meta = reportMeta[item.sessionId] || {};
-      const haystack = [item.sessionId, item.transcriptPreview, meta.role, meta.mode, meta.interviewType].filter(Boolean).join(" ").toLowerCase();
-
-      if (lowered && !haystack.includes(lowered)) return false;
-      if (onlyScored && typeof item.overallScore !== "number") return false;
-      return true;
-    });
-  }, [onlyScored, query, reportMeta, sortedItems]);
+    return sortedItems.filter((item) => Boolean(item));
+  }, [sortedItems]);
 
   const resolveSessionMeta = (item: SessionSummary) => {
     const meta = reportMeta[item.sessionId] || {};
@@ -316,32 +303,10 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
                 <BarChart3 className="w-4 h-4 text-enterprise-accent" />
                 <h2 className="text-sm font-bold text-white uppercase tracking-wider">Tüm Oturumlar</h2>
               </div>
-              <p className="text-xs text-enterprise-text-3">Kayıtlar son oturuma göre listelenir; sağ üstte arayıp filtreleyebilirsiniz.</p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="relative w-[240px]">
-                <Search className="pointer-events-none absolute left-3 top-1/2 w-3.5 h-3.5 -translate-y-1/2 text-enterprise-text-3" />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Ara"
-                  className="h-10 pl-9 bg-enterprise-bg/40 border-enterprise-border text-sm rounded-xl"
-                />
-              </div>
-              <Button
-                variant="outline"
-                className={cn(
-                  "h-10 px-4 border-enterprise-border rounded-xl text-enterprise-text-2 hover:text-white",
-                  onlyScored && "border-enterprise-accent/30 text-enterprise-accent-2 bg-enterprise-accent/5"
-                )}
-                onClick={() => setOnlyScored((prev) => !prev)}
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5 mr-2" />
-                Filtrele
-              </Button>
-            </div>
-          </div>
+          <div />
+        </div>
 
           <div className="overflow-hidden rounded-2xl border border-enterprise-border bg-enterprise-bg/20">
             <div className="grid grid-cols-[1.1fr_1.25fr_0.8fr_0.55fr_0.9fr] gap-4 px-5 py-4 border-b border-enterprise-border text-[10px] font-bold uppercase tracking-[0.18em] text-enterprise-text-3">
