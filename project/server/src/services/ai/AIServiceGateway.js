@@ -194,4 +194,65 @@ SADECE JSON FORMATINDA YANIT VER:
       return null;
     }
   }
+
+  async generateHistoryInsights(payload) {
+    const fallback = {
+      weeklyWin: "Son oturumlarda belirgin bir gelisim sinyali gorunmuyor. En tutarli kaldiginiz etiketleri koruyup cevap yapisini biraz daha netlestirmek faydali olur.",
+      strongestArea: "Son 3 raporda en istikrarli gorunen alan, tekrar eden yapiyi korudugunuz etiketler. Buradaki gucu diger cevap tiplerine de tasimaya calisin.",
+      priorityFocus: "En dusuk kalan etiketlerde cevaplari daha yapili, daha somut ve daha ornekli vermek su an en hizli iyilesme alani olacak.",
+    };
+
+    if (!this.client?.apiKey) return fallback;
+
+    const prompt = `Sen bir mulakat gelisim kocusun.
+Asagidaki son 3 mulakat raporu ozetine gore cok kisa ve profesyonel 3 yorum uret.
+
+Kurallar:
+- Turkce yaz.
+- Her alan 1-2 cumle olsun.
+- Genel, bos ya da tekrar eden ifadeler kullanma.
+- Yanit analizi etiketleri, skor trendleri ve gelisim alanlarina dayan.
+- "Haftalik Basari" alaninda son 3 raporda iyilesen veya tutarli kalan en olumlu sinyali soyle.
+- "En Guclu Alan" alaninda en istikrarli etiketi veya davranis oruntusunu soyle.
+- "Oncelikli Odak" alaninda en acil gelisim alanini net soyle.
+
+SADECE JSON don:
+{
+  "weeklyWin": "...",
+  "strongestArea": "...",
+  "priorityFocus": "..."
+}
+
+Veri:
+${JSON.stringify(payload, null, 2)}`;
+
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${this.client.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          temperature: 0.4,
+        }),
+      });
+
+      if (!response.ok) return fallback;
+      const result = await response.json();
+      const content = result?.choices?.[0]?.message?.content || "{}";
+      const parsed = JSON.parse(content);
+      return {
+        weeklyWin: String(parsed?.weeklyWin || fallback.weeklyWin),
+        strongestArea: String(parsed?.strongestArea || fallback.strongestArea),
+        priorityFocus: String(parsed?.priorityFocus || fallback.priorityFocus),
+      };
+    } catch (error) {
+      console.error("History insights error:", error);
+      return fallback;
+    }
+  }
 }

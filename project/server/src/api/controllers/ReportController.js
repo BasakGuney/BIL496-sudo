@@ -5,6 +5,7 @@ export class ReportController {
     this.backendOrchestrator = backendOrchestrator;
     this.getReport = this.getReport.bind(this);
     this.listReports = this.listReports.bind(this);
+    this.getHistoryInsights = this.getHistoryInsights.bind(this);
     this.endSessionAndCreateReport = this.endSessionAndCreateReport.bind(this);
     this.ingestCandidateAnswer = this.ingestCandidateAnswer.bind(this);
     this.ingestVisionFrame = this.ingestVisionFrame.bind(this);
@@ -25,6 +26,16 @@ export class ReportController {
       const limit = Number(req.query?.limit || 50);
       const items = await this.backendOrchestrator.listReports({ limit });
       res.json({ items });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getHistoryInsights(req, res, next) {
+    try {
+      const limit = Number(req.query?.limit || 3);
+      const insights = await this.backendOrchestrator.getHistoryInsights({ limit });
+      res.json(insights);
     } catch (error) {
       next(error);
     }

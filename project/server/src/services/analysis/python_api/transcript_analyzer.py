@@ -396,6 +396,83 @@ def _sanitize_global_analysis(interview_type: str, analysis: dict, dimension_sco
     return normalized
 
 
+def _normalize_focus_topic(topic: str) -> str:
+    text = re.sub(r"\s+", " ", str(topic or "")).strip()
+    if not text:
+        return ""
+    return text[:1].upper() + text[1:]
+
+
+def _derive_focus_topics(payload: dict, analysis: dict | None = None) -> list:
+    payload = payload or {}
+    qa_evaluations = payload.get("qaEvaluations") if isinstance(payload.get("qaEvaluations"), list) else []
+    interview_type = str(payload.get("interviewType") or "Technical")
+    dimension_scores = payload.get("dimensionScores") if isinstance(payload.get("dimensionScores"), dict) else {}
+    improvement_areas = analysis.get("improvementAreas") if isinstance(analysis, dict) else []
+
+    topics = []
+
+    def add_topic(value: str) -> None:
+        topic = _normalize_focus_topic(value)
+        if topic and topic not in topics:
+            topics.append(topic)
+
+    # GPT already produced some topics? Keep them first.
+    if isinstance(analysis, dict):
+        for item in _coerce_recommendation_list(analysis.get("focusTopics")):
+            add_topic(item)
+
+    visible_qa = [
+        qa for qa in qa_evaluations
+        if isinstance(qa, dict) and qa.get("visibleInReport") and not qa.get("excludedFromOverall")
+    ]
+
+    weak_questions = [qa for qa in visible_qa if qa.get("isWeak")]
+    weak_types = {str(qa.get("questionType") or "").strip().lower() for qa in weak_questions}
+
+    def any_metric_below(metric_key: str, threshold: int) -> bool:
+        for qa in visible_qa:
+            metrics = qa.get("metrics") if isinstance(qa.get("metrics"), dict) else {}
+            value = metrics.get(metric_key)
+            if isinstance(value, (int, float)) and value < threshold:
+                return True
+        return False
+
+    if interview_type == "HR":
+        if "self_presentation" in weak_types or any("kendini" in _normalize_analysis_text(q.get("question") or "") for q in weak_questions):
+            add_topic("Kendini Tanıtma Akışı")
+            add_topic("Güçlü İlk İzlenim")
+        if weak_types.intersection({"behavioral", "experience"}):
+            add_topic("STAR / CAR Örnekleri")
+            add_topic("Somut Örnekleme")
+        if any_metric_below("clarity", 60) or any_metric_below("relevance", 60):
+            add_topic("Cevap Yapısı")
+            add_topic("Net ve Katmanlı Anlatım")
+        if improvement_areas:
+            add_topic(str(improvement_areas[0]))
+    else:
+        tech_score = dimension_scores.get("technicalUnderstanding")
+        if tech_score is None or (isinstance(tech_score, (int, float)) and tech_score < 65):
+            add_topic("Temel Teknik Kavramlar")
+            add_topic("Kullanım Senaryosu")
+        if weak_types.intersection({"technical_knowledge", "technical_experience"}):
+            add_topic("Kavram Derinliği")
+            add_topic("Teknik Doğruluk")
+        if "problem_solving" in weak_types:
+            add_topic("Adım Adım Çözüm Yaklaşımı")
+            add_topic("Trade-off Açıklaması")
+        if any_metric_below("technicalAccuracy", 60):
+            add_topic("Teknik Terim Kullanımı")
+
+    # Son çare: iyileştirme alanlarından kısa odak başlıkları türet.
+    for item in improvement_areas or []:
+        if len(topics) >= 4:
+            break
+        add_topic(str(item))
+
+    return topics[:4]
+
+
 def _sanitize_single_qa_result(question: str, answer: str, parsed: dict | None, interview_type: str = "Technical") -> dict:
     if _is_meta_question(question):
         return {
@@ -725,6 +802,7 @@ Bu verileri bütünsel olarak analiz ederek genel değerlendirme üret.
    - "Performans Geliştirme" (orta vadeli cevap/mülakat tekniği gelişimi: örn "Tanım + Neden + Örnek yapısını kullan")
    - "Çalışma Planı" (doğrudan çalışılması gereken teorik/teknik/iletişim alanları: örn "JWT ve Grid mimarisini tekrar et")
 7. Eğer Interview Type = HR ise teknik kavram, algoritma, mimari, teknoloji bilgisi gibi alanlarda varsayım yapma. Teknik skorlar boşsa overallAnalysis, strengths, improvementAreas ve focusTopics içinde teknik bilgi seviyesi hakkında yorum yazma; bunun yerine iletişim, davranışsal örnekleme, rol olgunluğu, öz farkındalık ve cevap yapısı üzerinden değerlendir.
+8. focusTopics boş array bırakma. Visible soru-cevap varsa en az 2 ve en fazla 4 kısa başlık üret. HR ise davranışsal/iletişimsel odaklar; Technical ise teknik konu başlıkları ve problem alanları yaz. Başlıklar kısa, doğrudan ve eyleme dönük olsun.
 
 Veri:
 {json.dumps(payload, ensure_ascii=False, indent=2)}
@@ -775,10 +853,12 @@ SADECE JSON FORMATI:
         response.raise_for_status()
         result = response.json()
         response_text = result["choices"][0]["message"]["content"]
-        return _sanitize_global_analysis(interview_type, json.loads(response_text), payload.get("dimensionScores", {}))
+        analyzed = _sanitize_global_analysis(interview_type, json.loads(response_text), payload.get("dimensionScores", {}))
+        analyzed["focusTopics"] = _derive_focus_topics(payload, analyzed)
+        return analyzed
     except Exception as e:
         print(f"GPT Recommendation error: {e}")
-        return {
+        fallback = {
             "overallAnalysis": f"Analiz oluşturulurken hata oluştu: {str(e)}",
             "strengths": [],
             "improvementAreas": [],
@@ -789,6 +869,8 @@ SADECE JSON FORMATI:
                 "Çalışma Planı": ["Eksik kaldığınızı hissettiğiniz kavramsal teorilere ağırlık verebilirsiniz."]
             }
         }
+        fallback["focusTopics"] = _derive_focus_topics(payload, fallback)
+        return fallback
 
 
 def _build_transcript_recommendations(

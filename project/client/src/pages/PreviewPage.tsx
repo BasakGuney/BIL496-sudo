@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, Video, VideoOff, Loader2, Sparkles, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, Loader2, Sparkles, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { generatePreviewQuestions, updateSessionConfig } from "@/lib/api";
 import type { CandidateBrief, SessionConfig } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -350,7 +350,7 @@ export function PreviewPage({
             <div className="card-style bg-enterprise-surface p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <Settings className="w-5 h-5 text-enterprise-text-2" />
+                  <FileText className="w-5 h-5 text-enterprise-text-2" />
                   <h3 className="font-bold text-white uppercase tracking-wider text-xs">CV Detayları</h3>
                 </div>
               </div>

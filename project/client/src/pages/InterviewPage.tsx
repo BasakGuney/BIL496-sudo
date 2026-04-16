@@ -2,7 +2,7 @@
 import type { CandidateAnswerAudio, FeedbackReport, SessionConfig } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Flag, Mic, Video, Volume2, Sparkles, Activity, ShieldAlert, MonitorCheck, LayoutGrid, Radio } from "lucide-react";
+import { Flag, Volume2, Sparkles, Activity, ShieldAlert, MonitorCheck, Radio } from "lucide-react";
 import { VoiceWaveCanvas } from "@/components/interview/VoiceWaveCanvas";
 import { AvatarVideo } from "@/components/interview/AvatarVideo";
 import { AvaturnAvatar } from "@/components/interview/AvaturnAvatar";
@@ -351,6 +351,23 @@ export function InterviewPage({
     : guideTone === "green"
       ? `${Math.max(overlay.faceCount || 1, 1)} yüz algılandı · Kadraj uygun`
       : `${Math.max(overlay.faceCount || 1, 1)} yüz algılandı · Kadrajı ortala`;
+  const speakingStatusText = aiSpeaking ? "AI konuşuyor" : "Sıra sende konuşabilirsin";
+  const frameBox = (() => {
+    if (!overlay.box || !overlay.imageWidth || !overlay.imageHeight) return null;
+    const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+    const margin = 1.25;
+    const x = overlay.box.x + overlay.box.width / 2;
+    const y = overlay.box.y + overlay.box.height / 2;
+    const paddingX = overlay.box.width * 0.42;
+    const paddingY = overlay.box.height * 0.55;
+    const rawWidth = (overlay.box.width + paddingX * 2) / overlay.imageWidth * 100;
+    const rawHeight = (overlay.box.height + paddingY * 2) / overlay.imageHeight * 100;
+    const width = clamp(rawWidth, 18, 100 - margin * 2);
+    const height = clamp(rawHeight, 22, 100 - margin * 2);
+    const left = clamp((x - paddingX) / overlay.imageWidth * 100, margin, 100 - margin - width);
+    const top = clamp((y - paddingY) / overlay.imageHeight * 100, margin, 100 - margin - height);
+    return { left, top, width, height };
+  })();
 
   return (
     <div className="relative h-screen w-full bg-[#05060f] overflow-hidden flex flex-col">
@@ -384,17 +401,55 @@ export function InterviewPage({
 
       {/* Main Stage */}
       <div className="flex-1 relative flex flex-col items-center justify-center px-8 pb-20">
-        <div className="w-full max-w-[1000px] space-y-12">
-          {/* AI Profile / Avatar Container */}
-          <div className="relative flex flex-col items-center">
-            {/* Mode Indicator Floating */}
+        <div className="w-full max-w-[1000px] space-y-8">
+          <div className="relative flex flex-col items-center gap-5">
             <div className="absolute -top-12 flex items-center gap-2 px-3 py-1 rounded-full bg-enterprise-surface-2 border border-enterprise-border text-[9px] font-bold text-enterprise-text-3 uppercase tracking-tighter shadow-xl">
               <Sparkles className="w-3 h-3 text-enterprise-accent" />
               Sesli Etkileşim Aktif
             </div>
 
+            <div className="text-center space-y-1">
+              <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-enterprise-text-3">Yapay Zeka Mülakatçı</div>
+              <h2 className="text-[32px] md:text-[36px] font-extrabold tracking-tight text-white">
+                {speakingStatusText}
+              </h2>
+              <p className="text-sm text-enterprise-text-3">
+                {aiSpeaking ? "AI yanıt veriyor..." : "AI yanıtı bekleniyor..."}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-1.5 p-1 rounded-full bg-enterprise-surface-2 border border-enterprise-border">
+              <button
+                onClick={() => setVisualMode("avatar")}
+                className={cn(
+                  "px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all",
+                  visualMode === "avatar" ? "bg-enterprise-accent text-white shadow-lg" : "text-enterprise-text-3 hover:text-white"
+                )}
+              >
+                Avatar
+              </button>
+              <button
+                onClick={() => setVisualMode("avaturn")}
+                className={cn(
+                  "px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all",
+                  visualMode === "avaturn" ? "bg-enterprise-accent text-white shadow-lg" : "text-enterprise-text-3 hover:text-white"
+                )}
+              >
+                Human
+              </button>
+              <button
+                onClick={() => setVisualMode("wave")}
+                className={cn(
+                  "px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all",
+                  visualMode === "wave" ? "bg-enterprise-accent text-white shadow-lg" : "text-enterprise-text-3 hover:text-white"
+                )}
+              >
+                Ses Dalgası
+              </button>
+            </div>
+
             <div className={cn(
-              "w-[520px] h-[380px] rounded-[40px] border border-enterprise-border bg-enterprise-surface/30 backdrop-blur-xl relative overflow-hidden transition-all duration-700 shadow-2xl",
+              "w-[760px] h-[360px] rounded-[36px] border border-enterprise-border bg-enterprise-surface/30 backdrop-blur-xl relative overflow-hidden transition-all duration-700 shadow-2xl",
               aiSpeaking && "ring-2 ring-enterprise-accent/30"
             )}>
               {isFinishing ? (
@@ -411,35 +466,19 @@ export function InterviewPage({
                   ) : (
                     <VoiceWaveCanvas speaking={aiSpeaking} level={level} />
                   )}
-
-                  {/* Visual Mode Switcher Overlay */}
-                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {(["avatar", "wave", "avaturn"] as const).map(m => (
-                      <button
-                        key={m}
-                        onClick={() => setVisualMode(m)}
-                        className={cn(
-                          "px-3 py-1 rounded-full text-[9px] font-bold uppercase transition-all",
-                          visualMode === m ? "bg-enterprise-accent text-white" : "text-white/40 hover:text-white"
-                        )}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
                 </div>
               )}
             </div>
 
             {/* Status indicator below avatar */}
-            <div className="mt-8 flex flex-col items-center gap-3">
+            <div className="mt-2 flex flex-col items-center gap-3">
               <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-enterprise-surface-2 border border-enterprise-border shadow-lg">
                 <div className={cn(
                   "w-2 h-2 rounded-full animate-pulse",
                   aiSpeaking ? "bg-enterprise-accent" : "bg-emerald-500"
                 )} />
                 <span className="text-xs font-bold text-white uppercase tracking-widest">
-                  {aiSpeaking ? "AI konuşuyor..." : "Sıra sende konuş"}
+                  {speakingStatusText}
                 </span>
               </div>
               
@@ -462,10 +501,9 @@ export function InterviewPage({
         </div>
       </div>
 
-      {/* Floating PIP / Controls Bar */}
-      <div className="absolute bottom-10 left-8 right-8 flex items-end justify-between pointer-events-none">
-        {/* Connection Tooltip / Error */}
-        <div className="pointer-events-auto">
+      {/* Floating overlays */}
+      <div className="absolute bottom-8 left-8 z-40 pointer-events-none">
+        <div className="pointer-events-auto mb-3">
           {status === "error" && (
             <div className="p-4 rounded-2xl bg-red-900/40 border border-red-500/40 text-red-200 text-xs flex items-center gap-3">
               <ShieldAlert className="w-5 h-5" />
@@ -485,40 +523,41 @@ export function InterviewPage({
             </Button>
           )}
         </div>
+      </div>
 
-        {/* Global Controls */}
-        <div className="pointer-events-auto flex items-center gap-3 p-2 bg-enterprise-surface/80 backdrop-blur-2xl border border-enterprise-border rounded-[24px] shadow-2xl scale-110">
-          <Button variant="ghost" size="icon" className="w-12 h-12 rounded-2xl border border-enterprise-border hover:bg-enterprise-surface-2 text-enterprise-text-2 hover:text-white">
-            <Mic className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="w-12 h-12 rounded-2xl border border-enterprise-border hover:bg-enterprise-surface-2 text-enterprise-text-2 hover:text-white">
-            <Video className="w-5 h-5" />
-          </Button>
-          <div className="w-[1px] h-8 bg-enterprise-border mx-1" />
-          <Button variant="ghost" size="icon" className="w-12 h-12 rounded-2xl border border-enterprise-border hover:bg-enterprise-surface-2 text-enterprise-text-2 hover:text-white">
-            <LayoutGrid className="w-5 h-5" />
-          </Button>
-        </div>
-
-        {/* Candidate PIP */}
-        <div className="pointer-events-auto relative group">
-          <div className="w-64 md:w-72 aspect-video bg-black rounded-3xl border border-enterprise-border overflow-hidden shadow-2xl transition-transform duration-500">
+      <div className="absolute bottom-8 right-8 z-30 pointer-events-none">
+        <div className="pointer-events-auto relative">
+          <div className="w-[240px] md:w-[300px] aspect-video bg-black rounded-[22px] border border-enterprise-border overflow-hidden shadow-2xl">
             <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover mirror" />
-            <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-black/40 backdrop-blur border border-white/10">
+            <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-black/45 backdrop-blur border border-white/10">
               <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]", guideTone === "green" ? "bg-emerald-500" : "bg-red-500")} />
               <span className="text-[9px] font-bold text-white uppercase tracking-tighter">Aday Kamerası</span>
             </div>
-            {supportiveMode && (
-              <div className={cn("absolute left-1/2 top-1/2 w-[56%] h-[72%] -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 transition-colors duration-300", framingGuideClass)} />
+            {supportiveMode && frameBox && (
+              <div
+                className={cn("absolute rounded-2xl border-2 transition-all duration-300", framingGuideClass)}
+                style={{
+                  left: `${frameBox.left}%`,
+                  top: `${frameBox.top}%`,
+                  width: `${frameBox.width}%`,
+                  height: `${frameBox.height}%`,
+                }}
+              />
             )}
-            
-            {/* Vision Analyzer Overlay */}
+            {supportiveMode && !frameBox && (
+              <div className={cn("absolute left-1/2 top-1/2 w-[52%] h-[68%] -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 transition-colors duration-300", framingGuideClass)} />
+            )}
             <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-               <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur text-[8px] font-medium text-white/70">
-                 <MonitorCheck className="w-2.5 h-2.5" />
-                 <span className={pipStatusClass}>{pipStatusText}</span>
-               </div>
+              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur text-[8px] font-medium text-white/70">
+                <MonitorCheck className="w-2.5 h-2.5" />
+                <span className={pipStatusClass}>{pipStatusText}</span>
+              </div>
             </div>
+            {supportiveMode && (
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent" />
+              </div>
+            )}
           </div>
         </div>
       </div>

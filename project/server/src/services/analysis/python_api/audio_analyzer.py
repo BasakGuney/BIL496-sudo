@@ -222,68 +222,32 @@ def _build_audio_recommendations(gpt_context: dict) -> dict:
             target.append(sentence)
 
     if clarity_val < 75:
-        add_sentence(
-            next_interview,
-            "Bir sonraki mülakatta mikrofon mesafesini sabit tutup cümle sonlarını yutmadan biraz daha belirgin artikülasyonla konuşun.",
-        )
-        add_sentence(
-            performance_development,
-            "Kendi kayıtlarınızı dinleyerek özellikle hızlı kaybolan kelimeleri işaretleyin ve yüksek sesle tekrar çalışın.",
-        )
+        add_sentence(next_interview, "Mikrofona sabit mesafede ve daha net telaffuzla konuşun.")
+        add_sentence(performance_development, "Günde 5 dakika yüksek sesle net okuma egzersizi yapın.")
 
     if avg_wpm < 110:
-        add_sentence(
-            next_interview,
-            "Cevaplara ana fikirle başlayıp cümleleri gereksiz uzatmadan ilerleyerek temponuzu bir miktar yükseltin.",
-        )
-        add_sentence(
-            performance_development,
-            "60-90 saniyelik prova cevaplarında 110-150 WPM bandına yaklaşmak için kronometreli tekrar yapın.",
-        )
+        add_sentence(next_interview, "Cevaplara ana fikirle başlayıp biraz daha tempolu konuşun.")
+        add_sentence(performance_development, "1 dakikalık süre tutarak kısa ve akıcı cevap provası yapın.")
     elif avg_wpm > 175:
-        add_sentence(
-            next_interview,
-            "Bir sonraki mülakatta cümle aralarına kısa duraklar ekleyip anahtar kavramları daha kontrollü vurgulayın.",
-        )
-        add_sentence(
-            performance_development,
-            "Hızlı anlattığınız cevapları yeniden kaydedip kritik terimleri daha yavaş ve net söyleme pratiği yapın.",
-        )
+        add_sentence(next_interview, "Biraz daha yavaş konuşup anahtar kelimeleri vurgulayın.")
+        add_sentence(performance_development, "Cevap kayıtlarını dinleyip gereksiz hızlandığınız yerleri düzeltin.")
 
     if avg_pause_ratio > 25:
-        add_sentence(
-            next_interview,
-            "Soruyu duyduktan sonra cevabı zihninizde iki başlığa ayırın; gereksiz duraklar yerine o başlıklar üzerinden akın.",
-        )
-        add_sentence(
-            performance_development,
-            "Notsuz 1 dakikalık akış egzersizleri yaparak duraklama oranını kademeli olarak düşürmeye çalışın.",
-        )
+        add_sentence(next_interview, "Cevap öncesi kısa plan yapıp duraksamayı azaltın.")
+        add_sentence(performance_development, "Notsuz 1 dakikalık konuşma egzersiziyle akışı güçlendirin.")
 
     if emotion_score < 45 or "Gergin" in dominant_emotion:
-        add_sentence(
-            next_interview,
-            "İlk cevaplardan önce nefesinizi dengeleyip tonu daha sakin ve dengeli başlatmanız sunumu toparlayacaktır.",
-        )
-        add_sentence(
-            performance_development,
-            "Mock interview kayıtlarında özellikle açılış cümlelerini nötr ve kontrollü tonla tekrarlayarak ses renginizi stabilize edin.",
-        )
+        add_sentence(next_interview, "Cevaba başlamadan önce nefes alıp daha sakin tonda açılış yapın.")
+        add_sentence(performance_development, "Açılış cümlelerini nötr tonla 3-4 tekrar ederek prova edin.")
 
     if len(next_interview) < 2:
-        add_sentence(
-            next_interview,
-            "Cevaplarınızın giriş cümlesini daha net kurup önemli kavramları vurgulayarak ilerlemeniz mevcut güçlü yönlerinizi daha görünür kılar.",
-        )
+        add_sentence(next_interview, "Cevaplarda kısa giriş, net örnek ve kısa kapanış düzenini koruyun.")
     if len(performance_development) < 2:
-        add_sentence(
-            performance_development,
-            "Düzenli sesli prova ve kayıt analizi ile hız, duraklama ve ton dengesini birlikte takip eden kısa bir çalışma rutini oluşturun.",
-        )
+        add_sentence(performance_development, "Haftada 2 gün kısa ses provası yaparak ilerlemenizi takip edin.")
 
     return {
-        "nextInterview": " ".join(next_interview[:3]),
-        "performanceDevelopment": " ".join(performance_development[:3]),
+        "nextInterview": "\n".join(next_interview[:3]),
+        "performanceDevelopment": "\n".join(performance_development[:3]),
     }
 
 

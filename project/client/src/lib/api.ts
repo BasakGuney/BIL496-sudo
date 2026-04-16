@@ -1,4 +1,4 @@
-import type { CandidateAnswerAudio, CandidateBrief, FeedbackReport, SessionConfig, SessionSummary } from "./types";
+import type { CandidateAnswerAudio, CandidateBrief, FeedbackReport, HistoryInsights, SessionConfig, SessionSummary } from "./types";
 import { BACKEND_URL } from "./config";
 
 
@@ -153,4 +153,10 @@ export async function listReports(limit = 50) {
     method: "GET",
   });
   return Array.isArray((payload as any)?.items) ? (payload as any).items as SessionSummary[] : [];
+}
+
+export async function getHistoryInsights(limit = 3) {
+  return request(`/reports/history-insights?limit=${encodeURIComponent(String(limit))}`, {
+    method: "GET",
+  }) as Promise<HistoryInsights>;
 }

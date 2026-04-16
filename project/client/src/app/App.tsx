@@ -99,7 +99,7 @@ export default function App() {
           <FeedbackPage
             initialReport={report}
             sessionId={sessionId}
-            onNew={handleReset}
+            expectVision={Boolean(config?.consent?.camera)}
           />
         )}
         {route === "feedback" && (!report || !sessionId) && (

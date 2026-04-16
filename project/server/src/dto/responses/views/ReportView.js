@@ -14,6 +14,7 @@ export class ReportView {
       recommendations: report?.recommendations || [],
       notes: report?.notes || [],
       qaEvaluations: report?.qaEvaluations || [],
+      sessionConfig: report?.sessionConfig || null,
       transcript: Array.isArray(report?.transcript) ? report.transcript : [],
       transcriptText: feedbackArtifacts?.transcriptText || report?.transcriptText || "",
       visionAnalysis: feedbackArtifacts?.visionAnalysis || report?.visionAnalysis || null,

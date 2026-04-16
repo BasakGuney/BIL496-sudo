@@ -256,4 +256,33 @@ export type SessionSummary = {
   hasAudio: boolean;
   hasVision: boolean;
   transcriptPreview: string;
+  sessionConfig?: {
+    role?: string;
+    mode?: Mode;
+    interviewType?: InterviewType;
+  } | null;
+};
+
+export type HistoryInsights = {
+  recentReports: Array<{
+    sessionId: string;
+    createdAt: string;
+    overallScore: number;
+    transcriptOverallScore: number;
+    strengths: string[];
+    improvementAreas: string[];
+    focusTopics: string[];
+  }>;
+  trendMetrics: Array<{
+    tag: string;
+    label: string;
+    scores: number[];
+    latestScore: number;
+    delta: number;
+  }>;
+  commentary: {
+    weeklyWin: string;
+    strongestArea: string;
+    priorityFocus: string;
+  };
 };

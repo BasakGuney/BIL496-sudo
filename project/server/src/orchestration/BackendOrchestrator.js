@@ -48,12 +48,18 @@ export class BackendOrchestrator {
     if (this.reportArchive?.ensureSessionDir) {
       await this.reportArchive.ensureSessionDir(id);
     }
-    if (this.reportArchive?.saveCvFile && (!existingSession || cfgSource?.cvFile)) {
-      const cvResult = await this.reportArchive.saveCvFile({ sessionId: id, cvFile: cfg.cvFile });
-      if (cvResult?.savedCv?.candidateBrief) {
+    if (this.reportArchive?.saveSessionConfig) {
+      await this.reportArchive.saveSessionConfig({ sessionId: id, sessionConfig: session.config });
+    }
+    if (this.reportArchive?.analyzeCvFile && (!existingSession || cfgSource?.cvFile)) {
+      const cvResult = await this.reportArchive.analyzeCvFile({ sessionId: id, cvFile: cfg.cvFile });
+      const candidateBrief = cvResult?.structuredCvJson
+        ? this.reportArchive.buildCandidateBrief(cvResult.structuredCvJson)
+        : null;
+      if (candidateBrief) {
         session.config = new SessionConfig({
           ...session.config,
-          candidateBrief: cvResult.savedCv.candidateBrief,
+          candidateBrief,
         });
         await this.sessions.update(session);
       }
@@ -82,6 +88,9 @@ export class BackendOrchestrator {
     });
 
     await this.sessions.update(session);
+    if (this.reportArchive?.saveSessionConfig) {
+      await this.reportArchive.saveSessionConfig({ sessionId: sessionId, sessionConfig: session.config });
+    }
     return session;
   }
 
@@ -103,6 +112,25 @@ export class BackendOrchestrator {
     if (!session) throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", statusCode: 404 });
 
     this.guardrails.enforceStateForStart(session);
+
+    if (this.reportArchive?.saveCvFile && session.config?.cvFile && !session.runtimeState?.cvPersisted) {
+      const cvResult = await this.reportArchive.saveCvFile({ sessionId, cvFile: session.config.cvFile });
+      const candidateBrief = cvResult?.savedCv?.candidateBrief;
+      if (candidateBrief) {
+        session.config = new SessionConfig({
+          ...session.config,
+          candidateBrief,
+        });
+      }
+      session.runtimeState = session.runtimeState || {};
+      session.runtimeState.cvPersisted = true;
+      await this.sessions.update(session);
+    }
+
+    if (this.reportArchive?.saveSessionConfig) {
+      await this.reportArchive.saveSessionConfig({ sessionId, sessionConfig: session.config });
+    }
+
     session.start();
     await this.sessions.update(session);
 
@@ -605,6 +633,11 @@ export class BackendOrchestrator {
 
     report.transcript = transcriptEntries;
     report.transcriptText = transcriptText;
+    report.sessionConfig = {
+      role: session.config?.role || "",
+      mode: session.config?.mode || "",
+      interviewType: session.config?.interviewType || "",
+    };
     report.tokenUsage = session?.tokenUsage || null;
     report.estimatedCost = this.costEstimator
       ? this.costEstimator.estimate(session?.tokenUsage || null)
@@ -615,6 +648,9 @@ export class BackendOrchestrator {
 
     if (existingSession) {
       await this.sessions.update(session);
+    }
+    if (this.reportArchive?.saveSessionConfig) {
+      await this.reportArchive.saveSessionConfig({ sessionId, sessionConfig: session.config });
     }
     await this.reports.save(report);
 
@@ -694,5 +730,99 @@ export class BackendOrchestrator {
   async listReports({ limit = 50 } = {}) {
     if (!this.reportArchive?.listSessionSummaries) return [];
     return await this.reportArchive.listSessionSummaries({ limit });
+  }
+
+  async getHistoryInsights({ limit = 3 } = {}) {
+    const summaries = await this.listReports({ limit: Math.max(limit, 3) });
+    const sorted = [...summaries]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit);
+
+    const reports = [];
+    for (const summary of sorted) {
+      try {
+        const report = await this.getReport(summary.sessionId);
+        reports.push({ summary, report });
+      } catch (error) {
+        this.logger?.warn?.("Failed to load report for history insights", { sessionId: summary.sessionId, error: error?.message });
+      }
+    }
+
+    const tagMap = new Map();
+    for (const item of reports) {
+      const qaEvaluations = Array.isArray(item?.report?.feedbackArtifacts?.transcriptAnalysis?.qaEvaluations)
+        ? item.report.feedbackArtifacts.transcriptAnalysis.qaEvaluations
+        : [];
+
+      const grouped = new Map();
+      for (const qa of qaEvaluations) {
+        const tag = String(qa?.questionType || "").trim();
+        if (!tag || tag === "meta" || qa?.visibleInReport === false || qa?.excludedFromOverall === true) continue;
+        const score = Number(qa?.score);
+        if (!Number.isFinite(score)) continue;
+        const bucket = grouped.get(tag) || [];
+        bucket.push(score);
+        grouped.set(tag, bucket);
+      }
+
+      for (const [tag, scores] of grouped.entries()) {
+        const avgScore = Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
+        const bucket = tagMap.get(tag) || [];
+        bucket.push({
+          sessionId: item.summary.sessionId,
+          createdAt: item.summary.createdAt,
+          score: avgScore,
+        });
+        tagMap.set(tag, bucket);
+      }
+    }
+
+    const labelMap = {
+      self_presentation: "Kendini Tanitma",
+      motivation: "Motivasyon",
+      behavioral: "Davranissal",
+      experience: "Deneyim",
+      technical_knowledge: "Teknik Bilgi",
+      technical_experience: "Teknik Deneyim",
+      problem_solving: "Problem Cozme",
+    };
+
+    const trendMetrics = Array.from(tagMap.entries())
+      .map(([tag, points]) => {
+        const ordered = [...points].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        const scores = ordered.map((point) => point.score);
+        const latestScore = scores[scores.length - 1] || 0;
+        const delta = scores.length >= 2 ? latestScore - scores[0] : 0;
+        return {
+          tag,
+          label: labelMap[tag] || String(tag).replaceAll("_", " "),
+          scores,
+          latestScore,
+          delta,
+        };
+      })
+      .sort((a, b) => a.latestScore - b.latestScore || a.delta - b.delta)
+      .slice(0, 4);
+
+    const payloadForGpt = {
+      recentReports: reports.map(({ summary, report }) => ({
+        sessionId: summary.sessionId,
+        createdAt: summary.createdAt,
+        overallScore: Number(summary.overallScore || report?.overallScore || 0),
+        transcriptOverallScore: Number(report?.feedbackArtifacts?.transcriptAnalysis?.overall?.overallScore || report?.feedbackArtifacts?.transcriptAnalysis?.overallScore || 0),
+        strengths: report?.feedbackArtifacts?.transcriptAnalysis?.overall?.strengths || [],
+        improvementAreas: report?.feedbackArtifacts?.transcriptAnalysis?.overall?.improvementAreas || [],
+        focusTopics: report?.feedbackArtifacts?.transcriptAnalysis?.overall?.focusTopics || [],
+      })),
+      trendMetrics,
+    };
+
+    const commentary = await this.ai.generateHistoryInsights(payloadForGpt);
+
+    return {
+      recentReports: payloadForGpt.recentReports,
+      trendMetrics,
+      commentary,
+    };
   }
 }
