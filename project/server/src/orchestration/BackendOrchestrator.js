@@ -51,17 +51,20 @@ export class BackendOrchestrator {
     if (this.reportArchive?.saveSessionConfig) {
       await this.reportArchive.saveSessionConfig({ sessionId: id, sessionConfig: session.config });
     }
-    if (this.reportArchive?.analyzeCvFile && (!existingSession || cfgSource?.cvFile)) {
-      const cvResult = await this.reportArchive.analyzeCvFile({ sessionId: id, cvFile: cfg.cvFile });
-      const candidateBrief = cvResult?.structuredCvJson
-        ? this.reportArchive.buildCandidateBrief(cvResult.structuredCvJson)
-        : null;
+    if (this.reportArchive?.saveCvFile && (!existingSession || cfgSource?.cvFile) && cfg.cvFile) {
+      const cvResult = await this.reportArchive.saveCvFile({ sessionId: id, cvFile: cfg.cvFile });
+      const candidateBrief = cvResult?.savedCv?.candidateBrief || null;
       if (candidateBrief) {
         session.config = new SessionConfig({
           ...session.config,
           candidateBrief,
         });
-        await this.sessions.update(session);
+      }
+      session.runtimeState = session.runtimeState || {};
+      session.runtimeState.cvPersisted = Boolean(cvResult?.savedCv);
+      await this.sessions.update(session);
+      if (this.reportArchive?.saveSessionConfig) {
+        await this.reportArchive.saveSessionConfig({ sessionId: id, sessionConfig: session.config });
       }
     }
     return session;
@@ -88,6 +91,19 @@ export class BackendOrchestrator {
     });
 
     await this.sessions.update(session);
+    if (cfgInput?.cvFile && this.reportArchive?.saveCvFile) {
+      const cvResult = await this.reportArchive.saveCvFile({ sessionId, cvFile: session.config.cvFile });
+      const candidateBrief = cvResult?.savedCv?.candidateBrief || null;
+      if (candidateBrief) {
+        session.config = new SessionConfig({
+          ...session.config,
+          candidateBrief,
+        });
+      }
+      session.runtimeState = session.runtimeState || {};
+      session.runtimeState.cvPersisted = Boolean(cvResult?.savedCv);
+      await this.sessions.update(session);
+    }
     if (this.reportArchive?.saveSessionConfig) {
       await this.reportArchive.saveSessionConfig({ sessionId: sessionId, sessionConfig: session.config });
     }
@@ -707,6 +723,7 @@ export class BackendOrchestrator {
         transcript: [],
         transcriptText: feedbackArtifacts?.transcriptText || "",
         visionAnalysis: feedbackArtifacts?.visionAnalysis || null,
+        sessionConfig: feedbackArtifacts?.sessionConfig || null,
         feedbackArtifacts,
         tokenUsage: null,
         estimatedCost: null,
@@ -715,6 +732,7 @@ export class BackendOrchestrator {
 
     return {
       ...report,
+      sessionConfig: report?.sessionConfig || feedbackArtifacts?.sessionConfig || null,
       transcriptText: feedbackArtifacts?.transcriptText || report?.transcriptText || "",
       visionAnalysis: feedbackArtifacts?.visionAnalysis || report?.visionAnalysis || null,
       feedbackArtifacts,
