@@ -367,24 +367,108 @@ export class FileReportArchive {
       .filter(Boolean)
       .slice(0, 10);
 
+    const hrExperienceHighlights = experienceItems
+      .map((item) => this.buildHrExperienceHighlight(item))
+      .filter(Boolean)
+      .slice(0, 4);
+
+    const hrFocusHighlights = [
+      ...(Array.isArray(skills?.soft) ? skills.soft : []),
+      ...(Array.isArray(structuredCv?.activities) ? structuredCv.activities.map((item) => item?.title || "") : []),
+      ...(Array.isArray(structuredCv?.languages) ? structuredCv.languages.map((item) => this.buildLanguageHighlight(item)) : []),
+      ...(Array.isArray(structuredCv?.certificates) ? structuredCv.certificates.map((item) => item?.name || "") : []),
+    ]
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .slice(0, 8);
+
+    const technicalSummary = String(candidate?.summary || "").trim();
+    const hrSummary = this.buildHrCandidateSummary(structuredCv, {
+      educationHighlights,
+      hrExperienceHighlights,
+      hrFocusHighlights,
+    });
+
     const candidateBrief = {
       headline: String(candidate?.title || "").trim(),
-      summary: String(candidate?.summary || "").trim(),
+      summary: technicalSummary,
+      technicalSummary,
+      hrSummary,
       educationHighlights: [...new Set(educationHighlights)],
       experienceHighlights: [...new Set(experienceHighlights)],
       projectHighlights: [...new Set(projectHighlights)],
       skillHighlights: [...new Set(skillHighlights)],
+      hrExperienceHighlights: [...new Set(hrExperienceHighlights)],
+      hrFocusHighlights: [...new Set(hrFocusHighlights)],
     };
 
     const hasContent =
       candidateBrief.headline
       || candidateBrief.summary
+      || candidateBrief.technicalSummary
+      || candidateBrief.hrSummary
       || candidateBrief.educationHighlights.length > 0
       || candidateBrief.experienceHighlights.length > 0
       || candidateBrief.projectHighlights.length > 0
-      || candidateBrief.skillHighlights.length > 0;
+      || candidateBrief.skillHighlights.length > 0
+      || candidateBrief.hrExperienceHighlights.length > 0
+      || candidateBrief.hrFocusHighlights.length > 0;
 
     return hasContent ? candidateBrief : null;
+  }
+
+  buildHrExperienceHighlight(item = {}) {
+    const company = String(item?.company || "").trim();
+    const internship = String(item?.experienceType || "").trim() === "intern";
+    const fallback = internship ? "Staj deneyimi" : "İş deneyimi";
+
+    if (company) {
+      return internship
+        ? `${company} bünyesinde staj deneyimi`
+        : `${company} bünyesinde profesyonel deneyim`;
+    }
+
+    return fallback;
+  }
+
+  buildLanguageHighlight(item = {}) {
+    const name = String(item?.name || "").trim();
+    const level = String(item?.level || "").trim();
+    if (!name) return "";
+    return level ? `${name} (${level})` : name;
+  }
+
+  buildHrCandidateSummary(structuredCv = null, context = {}) {
+    if (!structuredCv || typeof structuredCv !== "object") return "";
+
+    const educationHighlights = Array.isArray(context?.educationHighlights) ? context.educationHighlights : [];
+    const hrExperienceHighlights = Array.isArray(context?.hrExperienceHighlights) ? context.hrExperienceHighlights : [];
+    const hrFocusHighlights = Array.isArray(context?.hrFocusHighlights) ? context.hrFocusHighlights : [];
+    const professionalCount = Number(structuredCv?.experience?.professionalCount || 0);
+    const internCount = Number(structuredCv?.experience?.internCount || 0);
+
+    const parts = [];
+
+    if (educationHighlights[0]) {
+      parts.push(`Eğitim geçmişinde öne çıkan başlık: ${educationHighlights[0]}.`);
+    }
+
+    if (professionalCount > 0 || internCount > 0) {
+      const experienceParts = [];
+      if (professionalCount > 0) experienceParts.push(`${professionalCount} profesyonel deneyim`);
+      if (internCount > 0) experienceParts.push(`${internCount} staj deneyimi`);
+      parts.push(`Adayın özgeçmişinde ${experienceParts.join(" ve ")} bulunuyor.`);
+    }
+
+    if (hrExperienceHighlights[0]) {
+      parts.push(`Öne çıkan deneyim bağlamları: ${hrExperienceHighlights.slice(0, 2).join(", ")}.`);
+    }
+
+    if (hrFocusHighlights[0]) {
+      parts.push(`Davranışsal görüşmede açılabilecek başlıklar: ${hrFocusHighlights.slice(0, 3).join(", ")}.`);
+    }
+
+    return parts.join(" ").trim();
   }
 
   normalizeCvJsonArray(items = []) {
@@ -1188,6 +1272,322 @@ export class FileReportArchive {
     }
   }
 
+  audioEmotionLabel(key = "") {
+    const normalized = String(key || "").trim().toLowerCase();
+    if (normalized === "neu") return "Nötr ve dengeli";
+    if (normalized === "hap") return "Olumlu ve canlı";
+    if (normalized === "ang") return "Gergin veya sert";
+    if (normalized === "sad") return "Düşük enerjili";
+    return normalized || "Bilinmiyor";
+  }
+
+  computeAudioEmotionSuitabilityScore(emotions = {}) {
+    if (!emotions || typeof emotions !== "object") return 50;
+    const neu = Number(emotions?.neu || 0);
+    const hap = Number(emotions?.hap || 0);
+    const ang = Number(emotions?.ang || 0);
+    const sad = Number(emotions?.sad || 0);
+    const positive = (neu * 0.6) + hap;
+    const negative = ang + (sad * 0.9);
+    const score = 50 + ((positive - negative) * 0.5);
+    return Math.round(Math.max(0, Math.min(100, score)));
+  }
+
+  computeAudioSpeechRateScore(avgWpm = 0) {
+    const wpm = Number(avgWpm || 0);
+    if (wpm >= 110 && wpm <= 150) return 80;
+    if ((wpm >= 90 && wpm < 110) || (wpm > 150 && wpm <= 175)) return 60;
+    if ((wpm >= 70 && wpm < 90) || (wpm > 175 && wpm <= 200)) return 45;
+    return 30;
+  }
+
+  computeAudioFluencyScore(pauseRatio = 0) {
+    const ratio = Number(pauseRatio || 0);
+    if (ratio <= 15) return 85;
+    if (ratio <= 25) return 65;
+    if (ratio <= 40) return 45;
+    return 25;
+  }
+
+  describeAudioPace(avgWpm = 0) {
+    const wpm = Number(avgWpm || 0);
+    if (wpm >= 110 && wpm <= 150) return "tempo dengeli";
+    if (wpm < 90) return "tempo yavaş";
+    if (wpm < 110) return "tempo kontrollü ama biraz yavaş";
+    if (wpm <= 175) return "tempo canlı";
+    return "tempo fazla hızlı";
+  }
+
+  describeAudioClarity(clarity = 0) {
+    const value = Number(clarity || 0);
+    if (value >= 80) return "netlik yüksek";
+    if (value >= 65) return "netlik kabul edilebilir";
+    if (value >= 50) return "netlik dalgalı";
+    return "netlik düşük";
+  }
+
+  describeAudioPause(pauseRatio = 0) {
+    const ratio = Number(pauseRatio || 0);
+    if (ratio <= 15) return "duraklamalar akışı destekliyor";
+    if (ratio <= 25) return "duraklamalar makul seviyede";
+    if (ratio <= 40) return "duraklamalar belirgin";
+    return "duraklamalar akıcılığı kesiyor";
+  }
+
+  buildIncrementalAudioQuestionSummary({ questionIndex = 0, clarity = 0, avgWpm = 0, pauseRatio = 0, dominantEmotionLabel = "" } = {}) {
+    const parts = [
+      `${Number(questionIndex || 0)}. soruda ${this.describeAudioClarity(clarity)}`,
+      this.describeAudioPace(avgWpm),
+      this.describeAudioPause(pauseRatio),
+    ];
+    if (dominantEmotionLabel) {
+      parts.push(`baskın ton ${dominantEmotionLabel.toLowerCase()}`);
+    }
+    return `${parts.join(", ")}.`;
+  }
+
+  buildIncrementalAudioOverallSummary(entries = []) {
+    if (!Array.isArray(entries) || entries.length === 0) return "";
+
+    const avg = (values = []) => {
+      const valid = values.map((item) => Number(item || 0)).filter((item) => Number.isFinite(item));
+      if (valid.length === 0) return 0;
+      return Math.round((valid.reduce((sum, value) => sum + value, 0) / valid.length) * 10) / 10;
+    };
+
+    const averageClarity = avg(entries.map((entry) => entry?.metrics?.clarity));
+    const averageWpm = avg(entries.map((entry) => entry?.metrics?.avgWpm));
+    const averagePauseRatio = avg(entries.map((entry) => entry?.metrics?.pauseRatio));
+    const emotionCounts = new Map();
+
+    for (const entry of entries) {
+      const key = String(entry?.dominantEmotion?.key || "");
+      if (!key) continue;
+      emotionCounts.set(key, (emotionCounts.get(key) || 0) + 1);
+    }
+
+    const dominantEmotionKey = Array.from(emotionCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+    const dominantEmotionLabel = this.audioEmotionLabel(dominantEmotionKey);
+
+    return [
+      `${entries.length} cevap için ses analizi tamamlandı.`,
+      `${this.describeAudioClarity(averageClarity)}, ${this.describeAudioPace(averageWpm)}.`,
+      `${this.describeAudioPause(averagePauseRatio)}.`,
+      dominantEmotionKey ? `Genel baskın ton ${dominantEmotionLabel.toLowerCase()}.` : "",
+    ].filter(Boolean).join(" ");
+  }
+
+  buildIncrementalAudioScoreList(entries = []) {
+    if (!Array.isArray(entries) || entries.length === 0) return [];
+
+    const avg = (values = []) => {
+      const valid = values.map((item) => Number(item || 0)).filter((item) => Number.isFinite(item));
+      if (valid.length === 0) return 0;
+      return Math.round(valid.reduce((sum, value) => sum + value, 0) / valid.length);
+    };
+
+    const clarity = avg(entries.map((entry) => entry?.metrics?.clarity));
+    const pacing = avg(entries.map((entry) => this.computeAudioSpeechRateScore(entry?.metrics?.avgWpm)));
+    const fluency = avg(entries.map((entry) => this.computeAudioFluencyScore(entry?.metrics?.pauseRatio)));
+    const emotion = avg(entries.map((entry) => this.computeAudioEmotionSuitabilityScore(entry?.emotionDistribution)));
+
+    return [
+      {
+        label: "Ses Netliği",
+        score: clarity,
+        detail: clarity >= 75 ? "Yanıtların büyük bölümünde artikülasyon ve kayıt kalitesi net." : "Bazı yanıtlarda ses netliği veya artikülasyon dalgalanıyor.",
+      },
+      {
+        label: "Konuşma Hızı",
+        score: pacing,
+        detail: pacing >= 70 ? "Tempo genel olarak dengeli ve takip edilebilir." : "Bazı yanıtlarda tempo ideal bandın dışında kalıyor.",
+      },
+      {
+        label: "Akıcılık",
+        score: fluency,
+        detail: fluency >= 70 ? "Duraklamalar çoğu cevapta akışı destekliyor." : "Duraklamalar bazı cevaplarda akışı kesiyor.",
+      },
+      {
+        label: "Duygusal Denge",
+        score: emotion,
+        detail: emotion >= 70 ? "Ton dağılımı genel olarak dengeli ve mülakat bağlamına uygun." : "Ton dağılımında gerginlik veya düşük enerji sinyalleri belirgin.",
+      },
+    ];
+  }
+
+  buildIncrementalAudioSpeechSummary(entries = []) {
+    if (!Array.isArray(entries) || entries.length === 0) return [];
+
+    const avg = (values = []) => {
+      const valid = values.map((item) => Number(item || 0)).filter((item) => Number.isFinite(item));
+      if (valid.length === 0) return 0;
+      return Math.round((valid.reduce((sum, value) => sum + value, 0) / valid.length) * 10) / 10;
+    };
+
+    const averageWpm = avg(entries.map((entry) => entry?.metrics?.avgWpm));
+    const averagePauseRatio = avg(entries.map((entry) => entry?.metrics?.pauseRatio));
+    const totalSpeechTime = avg([entries.reduce((sum, entry) => sum + Number(entry?.metrics?.pureSpeechTime || 0), 0)]);
+
+    return [
+      `İşlenen cevap sayısı: ${entries.length}`,
+      `Ortalama konuşma hızı: ${averageWpm} WPM`,
+      `Ortalama duraklama oranı: %${averagePauseRatio}`,
+      `Toplam efektif konuşma süresi: ${totalSpeechTime} sn`,
+    ];
+  }
+
+  buildIncrementalAudioReportEntry(segment = {}, savedAudioFile = {}) {
+    const emotions = segment?.emotions && typeof segment.emotions === "object" ? segment.emotions : {};
+    const dominantEmotion = Object.entries(emotions)
+      .map(([key, value]) => ({ key, value: Number(value || 0) }))
+      .sort((a, b) => b.value - a.value)[0] || { key: "", value: 0 };
+    const secondaryEmotion = Object.entries(emotions)
+      .map(([key, value]) => ({ key, value: Number(value || 0) }))
+      .sort((a, b) => b.value - a.value)[1] || null;
+    const avgWpm = Number(segment?.speech?.wpm || 0);
+    const pauseRatio = Number(segment?.speech?.pause_ratio || 0);
+    const clarity = Number(segment?.clarity || 0);
+    const questionIndex = Number(savedAudioFile?.questionIndex || 0);
+    const dominantEmotionLabel = this.audioEmotionLabel(dominantEmotion.key);
+
+    return {
+      questionIndex,
+      fileName: String(savedAudioFile?.fileName || segment?.filename || "").trim(),
+      relativePath: String(savedAudioFile?.relativePath || "").trim(),
+      analyzedAt: new Date().toISOString(),
+      summary: this.buildIncrementalAudioQuestionSummary({
+        questionIndex,
+        clarity,
+        avgWpm,
+        pauseRatio,
+        dominantEmotionLabel,
+      }),
+      metrics: {
+        durationSec: Number(segment?.duration || 0),
+        clarity,
+        avgWpm,
+        pauseRatio,
+        pureSpeechTime: Number(segment?.speech?.pure_speech_time || 0),
+      },
+      dominantEmotion: {
+        key: dominantEmotion.key,
+        label: dominantEmotionLabel,
+        score: Number(dominantEmotion.value || 0),
+      },
+      secondaryEmotion: secondaryEmotion ? {
+        key: secondaryEmotion.key,
+        label: this.audioEmotionLabel(secondaryEmotion.key),
+        score: Number(secondaryEmotion.value || 0),
+      } : null,
+      emotionDistribution: emotions,
+      scores: {
+        clarity: clarity,
+        pacing: this.computeAudioSpeechRateScore(avgWpm),
+        fluency: this.computeAudioFluencyScore(pauseRatio),
+        emotionalBalance: this.computeAudioEmotionSuitabilityScore(emotions),
+      },
+    };
+  }
+
+  mergeIncrementalAudioReport(baseReport = {}, partialReport = {}) {
+    const hasBaseContent = Boolean(
+      (baseReport && typeof baseReport === "object" && (
+        baseReport.overallAnalysis
+        || (Array.isArray(baseReport.scores) && baseReport.scores.length > 0)
+        || (Array.isArray(baseReport.perQuestionReports) && baseReport.perQuestionReports.length > 0)
+      ))
+    );
+    const hasPartialContent = Boolean(
+      (partialReport && typeof partialReport === "object" && (
+        partialReport.overallAnalysis
+        || (Array.isArray(partialReport.scores) && partialReport.scores.length > 0)
+        || (Array.isArray(partialReport.perQuestionReports) && partialReport.perQuestionReports.length > 0)
+      ))
+    );
+
+    if (!hasBaseContent && !hasPartialContent) return null;
+
+    const perQuestionReports = Array.isArray(partialReport?.perQuestionReports) && partialReport.perQuestionReports.length > 0
+      ? partialReport.perQuestionReports
+      : Array.isArray(baseReport?.perQuestionReports) ? baseReport.perQuestionReports : [];
+    const overallAnalysis = String(baseReport?.overallAnalysis || partialReport?.overallAnalysis || "").trim();
+    const clarityBadge = String(baseReport?.clarityBadge || partialReport?.clarityBadge || "").trim();
+    const dominantEmotion = String(baseReport?.dominantEmotion || partialReport?.dominantEmotion || "").trim();
+    const secondaryEmotion = baseReport?.secondaryEmotion ?? partialReport?.secondaryEmotion ?? null;
+    const scores = Array.isArray(baseReport?.scores) && baseReport.scores.length > 0
+      ? baseReport.scores
+      : Array.isArray(partialReport?.scores) ? partialReport.scores : [];
+    const tonDistribution = Array.isArray(baseReport?.tonDistribution) && baseReport.tonDistribution.length > 0
+      ? baseReport.tonDistribution
+      : Array.isArray(partialReport?.tonDistribution) ? partialReport.tonDistribution : [];
+    const speechSummary = Array.isArray(baseReport?.speechSummary) && baseReport.speechSummary.length > 0
+      ? baseReport.speechSummary
+      : Array.isArray(partialReport?.speechSummary) ? partialReport.speechSummary : [];
+    const recommendations = baseReport?.recommendations || partialReport?.recommendations || { nextInterview: "", performanceDevelopment: "" };
+
+    return {
+      ...partialReport,
+      ...baseReport,
+      overallAnalysis,
+      clarityBadge,
+      dominantEmotion,
+      secondaryEmotion,
+      scores,
+      tonDistribution,
+      speechSummary,
+      recommendations,
+      perQuestionReports,
+      generatedAt: String(baseReport?.generatedAt || partialReport?.generatedAt || new Date().toISOString()),
+      updatedAt: String(baseReport?.updatedAt || partialReport?.updatedAt || new Date().toISOString()),
+      status: String(baseReport?.status || partialReport?.status || "ready"),
+    };
+  }
+
+  async updateIncrementalAudioReport({ sessionId, savedAudioFile }) {
+    if (!sessionId || !savedAudioFile?.fileName) return null;
+
+    const sessionDir = await this.ensureSessionDir(sessionId);
+    const segmentsPayload = await this.readJsonIfExists(path.join(sessionDir, "audio_segments.json"));
+    const segmentFileName = String(savedAudioFile.fileName || "").replace(/\.[^.]+$/u, ".wav");
+    const segment = (Array.isArray(segmentsPayload?.items) ? segmentsPayload.items : [])
+      .find((item) => String(item?.filename || "").trim() === segmentFileName);
+
+    if (!segment) return null;
+
+    const reportPath = path.join(sessionDir, "audio_incremental_report.json");
+    const existingReport = await this.readJsonIfExists(reportPath);
+    const currentEntries = Array.isArray(existingReport?.perQuestionReports) ? existingReport.perQuestionReports : [];
+    const nextEntry = this.buildIncrementalAudioReportEntry(segment, savedAudioFile);
+    const mergedEntries = [
+      ...currentEntries.filter((entry) => Number(entry?.questionIndex || 0) !== Number(nextEntry.questionIndex || 0)),
+      nextEntry,
+    ].sort((a, b) => Number(a?.questionIndex || 0) - Number(b?.questionIndex || 0));
+
+    const aggregateScores = this.buildIncrementalAudioScoreList(mergedEntries);
+    const report = {
+      generatedAt: String(existingReport?.generatedAt || new Date().toISOString()),
+      updatedAt: new Date().toISOString(),
+      status: "partial",
+      overallAnalysis: this.buildIncrementalAudioOverallSummary(mergedEntries),
+      clarityBadge: aggregateScores[0]?.score >= 75 ? "Kademeli ses analizi hazır" : "Kademeli ses analizi devam ediyor",
+      dominantEmotion: mergedEntries[mergedEntries.length - 1]?.dominantEmotion?.label || "Bilinmiyor",
+      secondaryEmotion: mergedEntries[mergedEntries.length - 1]?.secondaryEmotion?.label || null,
+      scores: aggregateScores,
+      tonDistribution: Object.entries(segmentsPayload?.overall?.emotions || {})
+        .map(([key, value]) => ({ label: this.audioEmotionLabel(key), score: Number(value || 0) }))
+        .sort((a, b) => b.score - a.score),
+      speechSummary: this.buildIncrementalAudioSpeechSummary(mergedEntries),
+      recommendations: existingReport?.recommendations || {
+        nextInterview: "Kalan cevaplar geldikçe ses raporu adım adım zenginleşecek.",
+        performanceDevelopment: "Soru bazlı ses sinyallerini takip ederek hangi cevaplarda tempo ve netliğin düştüğünü ayırabilirsiniz.",
+      },
+      perQuestionReports: mergedEntries,
+    };
+
+    await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    return report;
+  }
+
   buildScoreMeta() {
     return {
       overall: { label: "Genel Skor", min: 0, max: 100 },
@@ -1215,19 +1615,20 @@ export class FileReportArchive {
 
   async loadFeedbackArtifacts(sessionId) {
     const sessionDir = await this.ensureSessionDir(sessionId);
-    const [audioModel, transcriptAnalysis, visionAnalysis, visionLlmAnalysis, audioLlmReport, transcriptText] = await Promise.all([
+    const [audioModel, transcriptAnalysis, visionAnalysis, visionLlmAnalysis, audioLlmReport, incrementalAudioReport, transcriptText] = await Promise.all([
       this.readJsonIfExists(path.join(sessionDir, "audio_segments.json")),
       this.readJsonIfExists(path.join(sessionDir, "transcript_report.json")),
       this.readJsonIfExists(path.join(sessionDir, "vision_frames.json")),
       this.readJsonIfExists(path.join(sessionDir, "vision_report.json")),
       this.readJsonIfExists(path.join(sessionDir, "audio_report.json")),
+      this.readJsonIfExists(path.join(sessionDir, "audio_incremental_report.json")),
       this.readTextIfExists(path.join(sessionDir, "transcript.txt")),
     ]);
 
     return {
       transcriptText: String(transcriptText || "").trim(),
       audioModel,
-      audioLlmReport: audioLlmReport || null,
+      audioLlmReport: this.mergeIncrementalAudioReport(audioLlmReport || {}, incrementalAudioReport || {}) || null,
       transcriptAnalysis,
       visionAnalysis,
       visionLlmAnalysis,
@@ -1248,9 +1649,10 @@ export class FileReportArchive {
       const sessionId = entry.name;
       const sessionDir = path.join(baseDir, sessionId);
       const stats = await stat(sessionDir);
-      const [transcriptAnalysis, audioReport, visionReport, transcriptText] = await Promise.all([
+      const [transcriptAnalysis, audioReport, incrementalAudioReport, visionReport, transcriptText] = await Promise.all([
         this.readJsonIfExists(path.join(sessionDir, "transcript_report.json")),
         this.readJsonIfExists(path.join(sessionDir, "audio_report.json")),
+        this.readJsonIfExists(path.join(sessionDir, "audio_incremental_report.json")),
         this.readJsonIfExists(path.join(sessionDir, "vision_report.json")),
         this.readTextIfExists(path.join(sessionDir, "transcript.txt")),
       ]);
@@ -1270,7 +1672,7 @@ export class FileReportArchive {
         createdAt: stats.mtime.toISOString(),
         overallScore,
         hasTranscript: Boolean(transcriptAnalysis),
-        hasAudio: Boolean(audioReport),
+        hasAudio: Boolean(audioReport || incrementalAudioReport),
         hasVision: Boolean(visionReport),
         transcriptPreview: preview.slice(0, 160),
       });
