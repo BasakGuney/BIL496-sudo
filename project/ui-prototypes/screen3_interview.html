@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InterviewAI — Canlı Mülakat</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --accent:#7c5cfc;--accent-2:#5b8af7;
+  --green:#22c55e;--red:#ef4444;
+  --text:#e8eaf2;--text-2:#8b8fa8;--text-3:#555870;
+  --border:rgba(255,255,255,.08);
+}
+body{font-family:'Inter',system-ui,sans-serif;background:#050712;color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse 55% 45% at 50% -5%,rgba(124,92,252,.18) 0%,transparent 60%),
+    radial-gradient(ellipse 40% 30% at 15% 85%,rgba(91,138,247,.09) 0%,transparent 55%);
+}
+
+/* Topbar */
+.topbar{position:relative;z-index:50;height:56px;padding:0 24px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(5,7,18,.65);backdrop-filter:blur(20px)}
+.logo{display:flex;align-items:center;gap:8px;text-decoration:none}
+.logo-mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#7c5cfc,#5b8af7);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(124,92,252,.4)}
+.logo-mark svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.logo-name{font-size:13px;font-weight:700;letter-spacing:-.3px}
+
+.status-pill{display:flex;align-items:center;gap:8px;padding:5px 14px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);font-size:12px;font-weight:500}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;animation:blink 2s ease-in-out infinite;box-shadow:0 0 8px rgba(34,197,94,.5)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.sep{width:1px;height:11px;background:rgba(255,255,255,.1)}
+
+.mini-stepper{display:flex;align-items:center;gap:4px}
+.m-d{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.1)}
+.m-d.done{background:rgba(124,92,252,.5)}
+.m-d.active{width:20px;border-radius:3px;background:var(--accent);box-shadow:0 0 8px rgba(124,92,252,.5)}
+
+.topbar-center{display:flex;flex-direction:column;align-items:center;gap:5px}
+.topbar-left,.topbar-right{display:flex;align-items:center;gap:10px;min-width:140px}
+.topbar-right{justify-content:flex-end}
+
+.btn-tb{background:none;border:1px solid rgba(255,255,255,.08);color:var(--text-2);border-radius:9px;padding:6px 13px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;gap:5px}
+.btn-tb:hover{border-color:rgba(255,255,255,.15);color:var(--text)}
+.btn-tb svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.btn-finish{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.25);color:#fca5a5}
+.btn-finish:hover{background:rgba(239,68,68,.2);color:#fff}
+
+/* Stage */
+.stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 24px 20px;position:relative;z-index:1;overflow:hidden}
+
+.ai-eyebrow{font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;text-align:center}
+.ai-status-text{font-size:26px;font-weight:700;letter-spacing:-.6px;text-align:center;margin-bottom:4px;background:linear-gradient(180deg,#fff 0%,rgba(255,255,255,.6) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.ai-sub{font-size:13px;color:var(--text-3);text-align:center;margin-bottom:22px}
+
+/* Mode switcher */
+.mode-sw{display:flex;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);padding:3px;border-radius:999px;gap:2px;margin-bottom:22px}
+.m-btn{padding:5px 14px;border:none;background:none;color:var(--text-3);border-radius:999px;font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s}
+.m-btn.on{background:rgba(255,255,255,.09);color:var(--text)}
+
+/* Viz box */
+.viz{width:100%;max-width:780px;height:360px;background:rgba(255,255,255,.022);backdrop-filter:blur(30px);border:1px solid rgba(255,255,255,.07);border-radius:26px;display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 30px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05)}
+.viz::before{content:'';position:absolute;inset:-1px;border-radius:27px;background:linear-gradient(135deg,rgba(124,92,252,.12),transparent 50%,rgba(91,138,247,.07));z-index:-1}
+.viz-corner{position:absolute;top:12px;left:16px;font-size:10px;font-weight:500;color:rgba(255,255,255,.18);text-transform:uppercase;letter-spacing:.06em}
+
+/* Waveform */
+.waveform{display:flex;align-items:center;gap:5px;height:70px}
+.wv{width:4px;background:linear-gradient(180deg,var(--accent),var(--accent-2));border-radius:3px;animation:wva 1.5s ease-in-out infinite alternate;opacity:.75}
+.wv:nth-child(1){--mh:16px;animation-delay:0s}
+.wv:nth-child(2){--mh:38px;animation-delay:.1s}
+.wv:nth-child(3){--mh:28px;animation-delay:.2s}
+.wv:nth-child(4){--mh:55px;animation-delay:.05s}
+.wv:nth-child(5){--mh:68px;animation-delay:.3s}
+.wv:nth-child(6){--mh:44px;animation-delay:.15s}
+.wv:nth-child(7){--mh:60px;animation-delay:.25s}
+.wv:nth-child(8){--mh:35px;animation-delay:.35s}
+.wv:nth-child(9){--mh:50px;animation-delay:.1s}
+.wv:nth-child(10){--mh:25px;animation-delay:.45s}
+.wv:nth-child(11){--mh:62px;animation-delay:.2s}
+.wv:nth-child(12){--mh:18px;animation-delay:0s}
+@keyframes wva{0%{height:6px;opacity:.25}100%{height:var(--mh,36px);opacity:1;box-shadow:0 0 10px rgba(124,92,252,.55)}}
+
+/* Hints */
+.hints{margin-top:18px;text-align:center}
+.hints-lbl{font-size:10px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+.hints-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:7px}
+.hint-chip{padding:5px 12px;border-radius:999px;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.18);color:rgba(134,239,172,.85);font-size:11px;font-weight:500;animation:chipIn .4s ease both}
+@keyframes chipIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* PIP */
+.pip{position:fixed;bottom:20px;left:20px;z-index:30;width:190px;border-radius:14px;overflow:hidden;background:#000;border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 28px rgba(0,0,0,.55)}
+.pip-hd{padding:6px 12px;background:rgba(5,7,18,.75);display:flex;align-items:center;justify-content:space-between}
+.pip-lbl{font-size:10px;font-weight:500;color:var(--text-3)}
+.pip-status{font-size:10px;color:var(--green);display:flex;align-items:center;gap:4px}
+.pip-status::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block}
+.pip-vid{width:100%;aspect-ratio:4/3;background:linear-gradient(135deg,#0f0920,#0a061e);display:flex;align-items:center;justify-content:center}
+.pip-vid svg{width:24px;height:24px;stroke:rgba(255,255,255,.1);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+/* Toast */
+.toast{position:fixed;top:68px;right:18px;z-index:60;padding:11px 16px;border-radius:13px;background:rgba(10,18,32,.88);backdrop-filter:blur(18px);border:1px solid rgba(34,197,94,.22);display:flex;align-items:center;gap:12px;box-shadow:0 8px 28px rgba(0,0,0,.4);animation:toastIn .4s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes toastIn{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+.toast-icon{width:28px;height:28px;border-radius:8px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.toast-icon svg{width:14px;height:14px;stroke:var(--green);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.toast-t{font-size:12px;font-weight:600;color:#d1fae5;margin-bottom:2px}
+.toast-s{font-size:10px;color:rgba(134,239,172,.6)}
+
+/* Face bar */
+.face-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:7px;padding:6px 14px;border-radius:999px;background:rgba(5,7,18,.65);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.06);font-size:10px;color:var(--text-3)}
+.face-d{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 2s infinite}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <a class="logo" href="screen2_preview.html">
+      <div class="logo-mark"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01z"/></svg></div>
+      <span class="logo-name">InterviewAI</span>
+    </a>
+    <button class="btn-tb" onclick="location.href='screen2_preview.html'">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      Geri
+    </button>
+  </div>
+
+  <div class="topbar-center">
+    <div class="status-pill">
+      <div class="live-dot"></div>
+      <span style="color:var(--text-2)">Destekleyici Mod</span>
+      <div class="sep"></div>
+      <span style="color:#4ade80;font-weight:600;font-size:11px">CANLI</span>
+    </div>
+    <div class="mini-stepper">
+      <div class="m-d done"></div>
+      <div class="m-d done"></div>
+      <div class="m-d active"></div>
+      <div class="m-d"></div>
+    </div>
+  </div>
+
+  <div class="topbar-right">
+    <button class="btn-tb btn-finish" onclick="location.href='screen4_feedback.html'">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+      Mülakatı Bitir
+    </button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="ai-eyebrow">Yapay Zeka Mülakatçı</div>
+  <div class="ai-status-text">Sıra sende — konuş.</div>
+  <div class="ai-sub">AI yanıtı bekleniyor…</div>
+
+  <div class="mode-sw">
+    <button class="m-btn">Avatar</button>
+    <button class="m-btn on">Ses Dalgası</button>
+    <button class="m-btn">Avaturn</button>
+  </div>
+
+  <div class="viz">
+    <div class="viz-corner">Ses Görselleştirme · Aktif</div>
+    <div class="waveform">
+      <div class="wv"></div><div class="wv"></div><div class="wv"></div>
+      <div class="wv"></div><div class="wv"></div><div class="wv"></div>
+      <div class="wv"></div><div class="wv"></div><div class="wv"></div>
+      <div class="wv"></div><div class="wv"></div><div class="wv"></div>
+    </div>
+  </div>
+
+  <div class="hints">
+    <div class="hints-lbl">Değinmen Gereken Konular</div>
+    <div class="hints-chips">
+      <div class="hint-chip">SEO Optimizasyonu</div>
+      <div class="hint-chip" style="animation-delay:.1s">Lazy Loading</div>
+      <div class="hint-chip" style="animation-delay:.2s">Lighthouse Metrikleri</div>
+    </div>
+  </div>
+</div>
+
+<div class="pip">
+  <div class="pip-hd">
+    <span class="pip-lbl">Sen (Kamera)</span>
+    <span class="pip-status">1 yüz algılandı</span>
+  </div>
+  <div class="pip-vid">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>
+  </div>
+</div>
+
+<div class="toast">
+  <div class="toast-icon">
+    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
+  <div>
+    <div class="toast-t">Güçlü Yanıt Algılandı</div>
+    <div class="toast-s">Teknik terim kullanımı başarılı</div>
+  </div>
+</div>
+
+<div class="face-bar">
+  <div class="face-d"></div>
+  <span>Yüz algılandı · Kadraj uygun · Supportive mod aktif</span>
+</div>
+
+</body>
+</html>

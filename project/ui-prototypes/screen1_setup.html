@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InterviewAI — Kurulum</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#05060f;--surface:#0d0f1c;--surface-2:#131525;--surface-3:#1a1d30;
+  --border:rgba(255,255,255,0.06);--border-ho:rgba(255,255,255,0.12);
+  --accent:#7c5cfc;--accent-2:#5b8af7;
+  --text:#e8eaf2;--text-2:#8b8fa8;--text-3:#555870;
+  --green:#22c55e;--red:#ef4444;
+}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 70% 45% at 15% -5%,rgba(124,92,252,0.11) 0%,transparent 65%),
+             radial-gradient(ellipse 50% 35% at 85% 105%,rgba(91,138,247,0.07) 0%,transparent 60%);
+}
+
+/* Nav */
+.nav{position:sticky;top:0;z-index:100;border-bottom:1px solid var(--border);background:rgba(5,6,15,0.85);backdrop-filter:blur(20px)}
+.nav-in{max-width:1280px;margin:0 auto;padding:0 2rem;height:58px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#7c5cfc,#5b8af7);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(124,92,252,0.4)}
+.logo-mark svg{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.logo-name{font-size:14px;font-weight:700;letter-spacing:-0.3px}
+.logo-tag{font-size:10px;font-weight:600;padding:2px 7px;background:rgba(124,92,252,0.15);border:1px solid rgba(124,92,252,0.28);color:#a78bfa;border-radius:40px}
+.btn-ghost{background:none;border:1px solid var(--border);color:var(--text-2);border-radius:9px;padding:6px 14px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s}
+.btn-ghost:hover{border-color:var(--border-ho);color:var(--text)}
+
+/* Stepper */
+.stepper-area{max-width:1280px;margin:0 auto;padding:28px 2rem 0;position:relative;z-index:1}
+.stepper{display:flex;align-items:flex-start;width:560px;margin:0 auto 36px}
+.s-item{display:flex;flex-direction:column;align-items:center;position:relative;flex:1}
+.s-line{position:absolute;top:15px;left:calc(50% + 16px);right:calc(-50% + 16px);height:1px;background:var(--border);z-index:0}
+.s-item:last-child .s-line{display:none}
+.s-dot{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text-3);position:relative;z-index:1}
+.s-item.active .s-dot{background:linear-gradient(135deg,#7c5cfc,#5b8af7);border:none;color:#fff;box-shadow:0 0 18px rgba(124,92,252,0.5)}
+.s-item.done .s-dot{background:rgba(34,197,94,0.1);border-color:rgba(34,197,94,0.3);color:var(--green)}
+.s-lbl{font-size:10px;font-weight:500;margin-top:7px;color:var(--text-3)}
+.s-item.active .s-lbl{color:var(--text-2)}.s-item.done .s-lbl{color:var(--green)}
+.check-icon{width:14px;height:14px;stroke:var(--green);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* Page grid */
+.page{max-width:1280px;margin:0 auto;padding:0 2rem 60px;display:grid;grid-template-columns:1.1fr 0.9fr;gap:22px;position:relative;z-index:1}
+@media(max-width:880px){.page{grid-template-columns:1fr}}
+
+/* Card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,0.03),0 8px 32px rgba(0,0,0,0.45)}
+.card-hd{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-hd-t{font-size:13px;font-weight:600}
+.card-hd-s{font-size:11px;color:var(--text-3);margin-top:2px}
+.card-bd{padding:20px}
+.mb-card{margin-bottom:14px}
+
+/* Progress bar inside header */
+.hd-progress{display:flex;align-items:center;gap:8px}
+.hd-progress-lbl{font-size:11px;color:var(--text-3)}
+.hd-progress-bar{width:80px;height:3px;background:var(--surface-3);border-radius:2px;overflow:hidden}
+.hd-progress-fill{height:100%;width:25%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:2px}
+
+/* Section headings */
+.s-head{font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;margin-top:20px}
+.s-head:first-child{margin-top:0}
+
+/* Field */
+.field{margin-bottom:14px}
+.flabel{display:block;font-size:11px;font-weight:500;color:var(--text-2);margin-bottom:5px}
+.flabel .req{color:var(--red);margin-left:2px}
+.inp{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+.inp:focus{border-color:rgba(124,92,252,.5);box-shadow:0 0 0 3px rgba(124,92,252,.1)}
+.inp::placeholder{color:var(--text-3)}
+select.inp{cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8fa8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;background-size:14px;padding-right:32px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Type toggle */
+.type-row{display:flex;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:3px;gap:3px}
+.type-btn{flex:1;padding:7px;border:none;background:none;font-size:12px;font-weight:500;color:var(--text-3);border-radius:7px;cursor:pointer;font-family:inherit;transition:all .2s}
+.type-btn.on{background:rgba(124,92,252,.14);color:#a78bfa;border:1px solid rgba(124,92,252,.22)}
+
+/* Difficulty note */
+.diff-note{font-size:11px;color:var(--text-3);margin-top:6px;padding:8px 10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)}
+
+/* Mode cards */
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mode-card{border:1px solid var(--border);border-radius:13px;padding:14px 16px;cursor:pointer;background:var(--surface-2);transition:all .25s;position:relative;overflow:hidden}
+.mode-card::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(124,92,252,.07),rgba(91,138,247,.04));opacity:0;transition:opacity .25s}
+.mode-card.sel{border-color:rgba(124,92,252,.4)}
+.mode-card.sel::after{opacity:1}
+.mode-sel-dot{position:absolute;top:10px;right:10px;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(124,92,252,.5);display:none}
+.mode-card.sel .mode-sel-dot{display:block}
+.mode-name{font-size:13px;font-weight:600;margin-bottom:4px}
+.mode-desc{font-size:11px;color:var(--text-3);line-height:1.5}
+.mode-icon{width:28px;height:28px;border-radius:7px;background:rgba(124,92,252,.1);border:1px solid rgba(124,92,252,.18);display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.mode-icon svg{width:14px;height:14px;stroke:#a78bfa;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* Upload */
+.upload{border:1px dashed rgba(255,255,255,.09);border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:var(--surface-2);transition:all .2s}
+.upload:hover{border-color:rgba(124,92,252,.3);background:rgba(124,92,252,.03)}
+.upload-icon{display:flex;justify-content:center;margin-bottom:8px}
+.upload-icon svg{width:22px;height:22px;stroke:var(--text-3);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.upload-text{font-size:12px;color:var(--text-3);line-height:1.5}
+.upload-text strong{color:var(--accent);font-weight:600}
+
+/* CTA */
+.btn-primary{width:100%;padding:11px;margin-top:20px;background:linear-gradient(135deg,#7c5cfc,#5b8af7);border:none;border-radius:10px;font-size:13px;font-weight:600;color:#fff;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 4px 18px rgba(124,92,252,.4);transition:all .2s;position:relative;overflow:hidden}
+.btn-primary::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.07),transparent)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 26px rgba(124,92,252,.5)}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn-prim-ico{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* Consent */
+.perm-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border)}
+.perm-row:last-child{border-bottom:none;padding-bottom:0}
+.perm-left{display:flex;align-items:center;gap:11px}
+.perm-ico{width:34px;height:34px;border-radius:9px;background:var(--surface-3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center}
+.perm-ico svg{width:15px;height:15px;stroke:var(--text-2);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.perm-name{font-size:12px;font-weight:600}
+.perm-desc{font-size:11px;color:var(--text-3);margin-top:1px}
+.toggle{width:40px;height:22px;border-radius:11px;background:var(--green);position:relative;cursor:pointer;flex-shrink:0;box-shadow:0 0 12px rgba(34,197,94,.25);transition:background .2s}
+.toggle::after{content:'';position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+
+.notice-ok{display:flex;align-items:center;gap:9px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);border-radius:9px;padding:10px 13px;margin-top:14px}
+.notice-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;box-shadow:0 0 8px rgba(34,197,94,.5)}
+.notice-txt{font-size:11px;color:rgba(134,239,172,.8);font-weight:500}
+
+/* History */
+.sess-item{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);margin-bottom:8px;cursor:pointer;transition:all .2s}
+.sess-item:hover{border-color:var(--border-ho)}
+.sess-item:last-child{margin-bottom:0}
+.sess-left{display:flex;align-items:center;gap:11px}
+.sess-avatar{width:30px;height:30px;border-radius:8px;background:rgba(124,92,252,.1);border:1px solid rgba(124,92,252,.18);display:flex;align-items:center;justify-content:center}
+.sess-avatar svg{width:14px;height:14px;stroke:#a78bfa;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.sess-id{font-size:12px;font-weight:600}
+.sess-date{font-size:10px;color:var(--text-3);margin-top:2px}
+.score-chip{font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.2);margin-right:7px}
+.score-chip.warn{background:rgba(245,158,11,.1);color:#f59e0b;border-color:rgba(245,158,11,.22)}
+.btn-xs{background:var(--surface-3);border:1px solid var(--border);color:var(--text-2);border-radius:7px;padding:4px 11px;font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s}
+.btn-xs:hover{border-color:var(--border-ho);color:var(--text)}
+.req-note{font-size:11px;color:var(--text-3);margin-top:4px}
+.req-note span{color:var(--red)}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-in">
+    <a class="logo" href="#">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01z"/></svg>
+      </div>
+      <span class="logo-name">InterviewAI</span>
+      <span class="logo-tag">Beta</span>
+    </a>
+    <button class="btn-ghost">Gizlilik &amp; Onay</button>
+  </div>
+</nav>
+
+<div class="stepper-area">
+  <div class="stepper">
+    <div class="s-item active">
+      <div class="s-line"></div>
+      <div class="s-dot">1</div>
+      <div class="s-lbl">Kurulum</div>
+    </div>
+    <div class="s-item">
+      <div class="s-line"></div>
+      <div class="s-dot">2</div>
+      <div class="s-lbl">Cihaz Testi</div>
+    </div>
+    <div class="s-item">
+      <div class="s-line"></div>
+      <div class="s-dot">3</div>
+      <div class="s-lbl">Mülakat</div>
+    </div>
+    <div class="s-item">
+      <div class="s-dot">4</div>
+      <div class="s-lbl">Rapor</div>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- LEFT: Setup Form -->
+  <div>
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-hd-t">Oturum Kurulumu</div>
+          <div class="card-hd-s">Tüm zorunlu alanları doldurun</div>
+        </div>
+        <div class="hd-progress">
+          <span class="hd-progress-lbl">%25</span>
+          <div class="hd-progress-bar"><div class="hd-progress-fill"></div></div>
+        </div>
+      </div>
+      <div class="card-bd">
+
+        <div class="s-head">Aday Bilgileri</div>
+        <div class="row2">
+          <div class="field">
+            <label class="flabel">Ad <span class="req">*</span></label>
+            <input class="inp" type="text" value="Ece" placeholder="Örn: Ayşe">
+          </div>
+          <div class="field">
+            <label class="flabel">Soyad <span class="req">*</span></label>
+            <input class="inp" type="text" value="Subozkurt" placeholder="Örn: Yılmaz">
+          </div>
+        </div>
+        <div class="field">
+          <label class="flabel">Cinsiyet <span class="req">*</span></label>
+          <select class="inp">
+            <option>Kadın</option>
+            <option>Erkek</option>
+          </select>
+        </div>
+
+        <div class="s-head">Mülakat Detayları</div>
+        <div class="field">
+          <label class="flabel">Mülakat Tipi <span class="req">*</span></label>
+          <div class="type-row">
+            <button class="type-btn on">İnsan Kaynakları (HR)</button>
+            <button class="type-btn">Teknik</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="flabel">Hedef Rol / Pozisyon <span class="req">*</span></label>
+          <input class="inp" type="text" value="Frontend Developer" placeholder="Örn: Full-Stack Developer">
+        </div>
+        <div class="field">
+          <label class="flabel">Şirket / Sektör Bağlamı <span class="req">*</span></label>
+          <input class="inp" type="text" value="Teknoloji" placeholder="Örn: Google, Fintech">
+        </div>
+        <div class="field">
+          <label class="flabel">Alan / İlgi Alanı <span class="req">*</span></label>
+          <input class="inp" type="text" value="React, Node.js, TypeScript" placeholder="Örn: Kubernetes, Makine Öğrenmesi">
+        </div>
+
+        <div class="s-head">Mülakat Modu <span class="req" style="color:var(--red)">*</span></div>
+        <div class="mode-grid">
+          <div class="mode-card sel">
+            <div class="mode-sel-dot"></div>
+            <div class="mode-icon">
+              <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 8v4l3 3"/></svg>
+            </div>
+            <div class="mode-name">Destekleyici (Supportive)</div>
+            <div class="mode-desc">Anlık ipuçları ve yapıcı geri bildirimle gelişim odaklı deneyim.</div>
+          </div>
+          <div class="mode-card">
+            <div class="mode-sel-dot"></div>
+            <div class="mode-icon">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+            </div>
+            <div class="mode-name">Nötr (Neutral)</div>
+            <div class="mode-desc">Gerçek mülakat atmosferi — müdahalesiz, nesnel değerlendirme.</div>
+          </div>
+        </div>
+
+        <div class="s-head">CV Yükle <span style="color:var(--text-3);font-weight:400">(Opsiyonel, yalnızca PDF)</span></div>
+        <div class="upload">
+          <div class="upload-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div class="upload-text">Sürükleyip bırakın veya <strong>dosya seçin</strong><br>
+          <span style="font-size:11px;margin-top:4px;display:inline-block">Yalnızca PDF · Maks. 5 MB</span></div>
+        </div>
+
+        <div class="req-note"><span>*</span> işaretli alanlar zorunludur. Mikrofon ve kamera onayı verilmeden oturum başlatılamaz.</div>
+
+        <button class="btn-primary" onclick="location.href='screen2_preview.html'">
+          Örnek Sorulara Geç
+          <svg class="btn-prim-ico" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+        </button>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Consent + History -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-hd-t">İzinler &amp; Onay</div>
+          <div class="card-hd-s">Mikrofon ve kamera erişimi zorunludur</div>
+        </div>
+      </div>
+      <div class="card-bd" style="padding-top:8px;padding-bottom:4px">
+        <div class="perm-row">
+          <div class="perm-left">
+            <div class="perm-ico">
+              <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </div>
+            <div>
+              <div class="perm-name">Mikrofon</div>
+              <div class="perm-desc">Sesli etkileşim için gerekli</div>
+            </div>
+          </div>
+          <div class="toggle"></div>
+        </div>
+        <div class="perm-row">
+          <div class="perm-left">
+            <div class="perm-ico">
+              <svg viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            </div>
+            <div>
+              <div class="perm-name">Kamera</div>
+              <div class="perm-desc">Görsel analiz ve kadraj kontrolü için</div>
+            </div>
+          </div>
+          <div class="toggle"></div>
+        </div>
+      </div>
+      <div style="padding:0 20px 18px">
+        <div class="notice-ok">
+          <div class="notice-dot"></div>
+          <span class="notice-txt">Tüm izinler verildi — devam etmeye hazırsınız</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-hd-t">Geçmiş Oturumlar</div>
+          <div class="card-hd-s">Son 30 gün</div>
+        </div>
+        <button class="btn-xs">Gelişim Paneli</button>
+      </div>
+      <div class="card-bd">
+
+        <div class="sess-item">
+          <div class="sess-left">
+            <div class="sess-avatar">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div>
+              <div class="sess-id">HR · Frontend Developer</div>
+              <div class="sess-date">15 Nis 2026 · 14:22</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center">
+            <span class="score-chip">87 / 100</span>
+            <button class="btn-xs">Raporu Aç</button>
+          </div>
+        </div>
+
+        <div class="sess-item">
+          <div class="sess-left">
+            <div class="sess-avatar">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div>
+              <div class="sess-id">Teknik · React</div>
+              <div class="sess-date">12 Nis 2026 · 10:45</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center">
+            <span class="score-chip warn">72 / 100</span>
+            <button class="btn-xs">Raporu Aç</button>
+          </div>
+        </div>
+
+        <div class="sess-item">
+          <div class="sess-left">
+            <div class="sess-avatar">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div>
+              <div class="sess-id">HR · Junior Dev</div>
+              <div class="sess-date">5 Nis 2026 · 09:10</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center">
+            <span class="score-chip">91 / 100</span>
+            <button class="btn-xs">Raporu Aç</button>
+          </div>
+        </div>
+
+        <div style="padding-top:12px">
+          <button class="btn-ghost" style="width:100%;font-size:11px;justify-content:center;display:flex">Tüm geçmişi görüntüle</button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

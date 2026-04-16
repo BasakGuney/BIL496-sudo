@@ -136,6 +136,110 @@ def _merge_recommendation_lists(*groups, limit: int = 3) -> list:
     return merged
 
 
+def _recommendation_bucket(text: str) -> str:
+    normalized = _normalize_analysis_text(text)
+    if not normalized:
+        return "performance"
+
+    immediate_markers = (
+        "bir sonraki mulakatta",
+        "hemen",
+        "aninda",
+        "o anda",
+        "soru sirasinda",
+        "cevap verirken",
+        "ilk",
+        "kisa cevap",
+        "net ifade",
+    )
+    performance_markers = (
+        "pratik",
+        "duzenli",
+        "mock",
+        "tekrarli",
+        "alisma",
+        "gelistirme",
+        "yapisini kullan",
+        "anlatma calismasi",
+        "hazir ornek",
+        "star",
+        "car",
+    )
+    study_markers = (
+        "calisma plani",
+        "calisma",
+        "konu",
+        "kavram",
+        "teori",
+        "ozet",
+        "not",
+        "haftalik plan",
+        "gunluk plan",
+        "roadmap",
+        "tekrar et",
+        "yeniden yaz",
+        "olculebilir",
+        "konu ozeti",
+    )
+
+    if any(marker in normalized for marker in immediate_markers):
+        return "next"
+    if any(marker in normalized for marker in study_markers):
+        return "study"
+    if any(marker in normalized for marker in performance_markers):
+        return "performance"
+    return "performance"
+
+
+def _to_study_action(text: str) -> str:
+    item = str(text or "").strip()
+    if not item:
+        return ""
+
+    normalized = _normalize_analysis_text(item)
+    actionable_starts = (
+        "calis",
+        "tekrar et",
+        "hazirla",
+        "yaz",
+        "olustur",
+        "uygula",
+        "planla",
+        "not al",
+    )
+    if normalized.startswith(actionable_starts):
+        return item
+
+    return f"Bu baslikta haftalik calisma hedefi belirleyin: {item}"
+
+
+def _rebalance_recommendations_by_horizon(groups: dict, limit: int = 3) -> dict:
+    key_next = "Bir Sonraki Mülakatta"
+    key_perf = "Performans Geliştirme"
+    key_study = "Çalışma Planı"
+
+    rebalanced = {
+        key_next: [],
+        key_perf: [],
+        key_study: [],
+    }
+
+    for group_items in (groups or {}).values():
+        for item in _coerce_recommendation_list(group_items):
+            bucket = _recommendation_bucket(item)
+            if bucket == "next":
+                _append_unique(rebalanced[key_next], item)
+            elif bucket == "study":
+                _append_unique(rebalanced[key_study], _to_study_action(item))
+            else:
+                _append_unique(rebalanced[key_perf], item)
+
+    for key in (key_next, key_perf, key_study):
+        rebalanced[key] = rebalanced[key][:limit]
+
+    return rebalanced
+
+
 def _extract_question(text: str) -> str:
     """
     Interviewer cümlesinden sadece soruyu çıkarır.
@@ -814,24 +918,29 @@ def _build_transcript_recommendations(
                 break
             _append_unique(study_plan, area)
 
+    key_next = "Bir Sonraki Mülakatta"
+    key_perf = "Performans Geliştirme"
+    key_study = "Çalışma Planı"
+
     gpt_recommendations = gpt_recommendations or {}
-    return {
-        "Bir Sonraki Mülakatta": _merge_recommendation_lists(
+    merged_groups = {
+        key_next: _merge_recommendation_lists(
             next_interview,
-            gpt_recommendations.get("Bir Sonraki Mülakatta"),
-            limit=3,
+            gpt_recommendations.get(key_next),
+            limit=6,
         ),
-        "Performans Geliştirme": _merge_recommendation_lists(
+        key_perf: _merge_recommendation_lists(
             performance_development,
-            gpt_recommendations.get("Performans Geliştirme"),
-            limit=3,
+            gpt_recommendations.get(key_perf),
+            limit=6,
         ),
-        "Çalışma Planı": _merge_recommendation_lists(
+        key_study: _merge_recommendation_lists(
             study_plan,
-            gpt_recommendations.get("Çalışma Planı"),
-            limit=3,
+            gpt_recommendations.get(key_study),
+            limit=6,
         ),
     }
+    return _rebalance_recommendations_by_horizon(merged_groups, limit=3)
 
 def parse_transcript_python(transcript_text: str) -> list:
     """

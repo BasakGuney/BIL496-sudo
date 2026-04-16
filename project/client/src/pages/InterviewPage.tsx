@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CandidateAnswerAudio, FeedbackReport, SessionConfig } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Flag, Mic, ScanFace, Volume2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Flag, Mic, Video, Volume2, Sparkles, Activity, ShieldAlert, MonitorCheck, LayoutGrid, Radio } from "lucide-react";
 import { VoiceWaveCanvas } from "@/components/interview/VoiceWaveCanvas";
 import { AvatarVideo } from "@/components/interview/AvatarVideo";
 import { AvaturnAvatar } from "@/components/interview/AvaturnAvatar";
@@ -9,6 +10,7 @@ import { connectRealtimeInterview, type InterviewerAudioClip, type TranscriptEnt
 import { endSession, uploadCandidateAnswerIncremental } from "@/lib/api";
 import { createVisionAnalyzer, type VisionOverlayState } from "@/lib/visionAnalysis";
 import { BACKEND_URL } from "@/lib/config";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_OVERLAY: VisionOverlayState = {
   supported: false,
@@ -16,7 +18,7 @@ const DEFAULT_OVERLAY: VisionOverlayState = {
   hasFace: false,
   faceCount: 0,
   box: null,
-  message: "Görüntü analizi hazırlanıyor...",
+  message: "Sistem hazırlanıyor...",
 };
 
 export function InterviewPage({
@@ -24,7 +26,7 @@ export function InterviewPage({
   sessionId,
   onFinish,
   onReportUpdate,
-  onBack,
+  onBack: _onBack,
 }: {
   config: SessionConfig;
   sessionId: string;
@@ -55,6 +57,7 @@ export function InterviewPage({
 
   const supportiveMode = useMemo(() => config.mode === "Supportive", [config.mode]);
 
+  // Media & Vision initialization
   useEffect(() => {
     let cancelled = false;
     const visionAnalyzer = visionAnalyzerRef.current;
@@ -85,7 +88,7 @@ export function InterviewPage({
         console.error(e);
         setOverlay({
           ...DEFAULT_OVERLAY,
-          message: "Kamera açılamadı; görüntü analizi devre dışı kalacak.",
+          message: "Kamera devre dışı; analitik veriler kısıtlı kalacak.",
         });
       }
     })();
@@ -100,6 +103,7 @@ export function InterviewPage({
     };
   }, [sessionId, supportiveMode]);
 
+  // Realtime Connection initialization
   useEffect(() => {
     if (connectingRef.current) return;
     if (connRef.current) return;
@@ -111,8 +115,6 @@ export function InterviewPage({
     (async () => {
       try {
         setStatus("connecting");
-        setErrorText("");
-
         const conn = await connectRealtimeInterview({
           backendBaseUrl: BACKEND_URL,
           sessionId,
@@ -139,7 +141,6 @@ export function InterviewPage({
         setStatus("connected");
 
         const buf = new Uint8Array(conn.analyser.fftSize);
-
         const SPEAKING_THRESHOLD = 0.04;
         const SPEAKING_RELEASE_MS = 850;
 
@@ -171,10 +172,9 @@ export function InterviewPage({
         };
 
         raf = requestAnimationFrame(tick);
-      } catch (error: unknown) {
-        console.error(error);
+      } catch (error: any) {
         setStatus("error");
-        setErrorText(error instanceof Error ? error.message : "Bilinmeyen hata");
+        setErrorText(error?.message || "Bağlantı kurulamadı.");
       } finally {
         connectingRef.current = false;
       }
@@ -191,19 +191,13 @@ export function InterviewPage({
     };
   }, [config, sessionId]);
 
-  function buildAnswerUploadKey(answer: Partial<CandidateAnswerAudio>) {
-    return [Number(answer?.questionIndex || 0), Number(answer?.startedAt || 0), Number(answer?.endedAt || 0)].join(":");
-  }
-
   const flushIncrementalAnswers = useCallback(async () => {
     const conn = connRef.current;
     if (!conn?.getCandidateAnswerAudios) return;
-
     const audios = (await conn.getCandidateAnswerAudios(false)) as CandidateAnswerAudio[];
     for (const answer of audios) {
-      const key = buildAnswerUploadKey(answer);
+      const key = [Number(answer?.questionIndex || 0), Number(answer?.startedAt || 0), Number(answer?.endedAt || 0)].join(":");
       if (uploadedAnswerKeysRef.current.has(key)) continue;
-
       await uploadCandidateAnswerIncremental(sessionId, answer);
       uploadedAnswerKeysRef.current.add(key);
     }
@@ -211,54 +205,20 @@ export function InterviewPage({
 
   useEffect(() => {
     if (status !== "connected") return;
-
     const intervalId = window.setInterval(() => {
-      if (finishingRef.current) return;
-
-      flushIncrementalAnswers().catch((error) => {
-        console.error("incremental answer upload failed", error);
-      });
+      if (!finishingRef.current) flushIncrementalAnswers().catch(() => {});
     }, 2500);
-
     return () => window.clearInterval(intervalId);
   }, [flushIncrementalAnswers, status]);
-
-  async function enableAudio() {
-    const conn = connRef.current;
-    if (!conn) return;
-    try {
-      if (conn.audioCtx.state !== "running") await conn.audioCtx.resume();
-      await conn.audioEl.play();
-    } catch (e) {
-      console.error("enableAudio failed", e);
-    }
-  }
-
-  function stopMedia() {
-    connRef.current?.close();
-    connRef.current = null;
-    connectingRef.current = false;
-
-    visionAnalyzerRef.current.stop();
-    if (camStreamRef.current) {
-      camStreamRef.current.getTracks().forEach((t) => t.stop());
-      camStreamRef.current = null;
-    }
-    if (videoRef.current) videoRef.current.srcObject = null;
-  }
 
   async function finish() {
     if (finishingRef.current) return;
     finishingRef.current = true;
     setIsFinishing(true);
-    setFinishingMessage("Ses, transcript ve görüntü verileri toplanıyor...");
-
-    await new Promise((resolve) => setTimeout(resolve, 900));
-
-    await flushIncrementalAnswers().catch((error) => {
-      console.error("final incremental flush failed", error);
-    });
-    setFinishingMessage("Oturum kapatılıyor ve ilk rapor oluşturuluyor...");
+    setFinishingMessage("Analiz verileri toplanıyor...");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await flushIncrementalAnswers().catch(() => {});
+    setFinishingMessage("Rapor oluşturuluyor...");
 
     const transcript = connRef.current?.getTranscript() ?? [];
     let candidateAnswerAudios: CandidateAnswerAudio[] = [];
@@ -266,100 +226,73 @@ export function InterviewPage({
       candidateAnswerAudios = await connRef.current.getCandidateAnswerAudios(true);
     }
 
-    stopMedia();
+    connRef.current?.close();
+    connRef.current = null;
+    visionAnalyzerRef.current.stop();
+    if (camStreamRef.current) {
+      camStreamRef.current.getTracks().forEach((t) => t.stop());
+      camStreamRef.current = null;
+    }
 
     const optimisticReport: FeedbackReport = {
       sessionId,
       overallScore: 0,
-      notes: ["İlk rapor hazırlanıyor. Detay analizler arka planda güncellenecek."],
+      notes: ["Analiz devam ediyor..."],
       recommendations: [],
       content: [],
       communication: [],
       behavioral: [],
       transcript,
-      transcriptText: transcript
-        .map((item) => {
-          const role = item.role === "interviewer" ? "Interviewer" : "Candidate";
-          return `[${role}] ${String(item.text || "").trim()}`;
-        })
-        .filter(Boolean)
-        .join("\n"),
+      transcriptText: transcript.map(i => `[${i.role}] ${i.text}`).join("\n"),
       audioAnalysis: { model: null },
       audioLlmReport: null,
       transcriptAnalysis: null,
       visionLlmAnalysis: null,
-      analysisStatus: {
-        audio: false,
-        audioLlm: false,
-        transcript: false,
-        vision: false,
-        visionLlm: false,
-      },
+      analysisStatus: { audio: false, audioLlm: false, transcript: false, vision: false, visionLlm: false },
     };
 
     onFinish(optimisticReport);
-
     try {
       const rep = await endSession(sessionId, transcript, candidateAnswerAudios);
       onReportUpdate?.(rep);
-    } catch (error) {
-      console.error("final report generation failed", error);
-    }
-  }
-
-  function goBack() {
-    stopMedia();
-    onBack();
+    } catch (e) { console.error(e); }
   }
 
   // Supportive Mode UI States
   const [hints, setHints] = useState<{id: string, text: string, active: boolean}[]>([]);
-  const [toasts, setToasts] = useState<{id: number, type: "success"|"info"|"warning", icon: string, title: string, text: string, visible: boolean}[]>([]);
-  
-  // Ref to track last evaluated answer to avoid spam
+  const [toasts, setToasts] = useState<{id: number, type: string, icon: string, title: string, text: string, visible: boolean}[]>([]);
   const lastEvaluatedAnswerTsRef = useRef<number>(0);
+  const hintsTimeoutRef = useRef<number | null>(null);
 
-  const pushToast = (type: "success"|"info"|"warning", icon: string, title: string, text: string) => {
+  const pushToast = (type: string, icon: string, title: string, text: string) => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, type, icon, title, text, visible: false }]);
-    setTimeout(() => {
-      setToasts(prev => prev.map(t => t.id === id ? { ...t, visible: true } : t));
-    }, 50);
+    setTimeout(() => setToasts(prev => prev.map(t => t.id === id ? { ...t, visible: true } : t)), 50);
     setTimeout(() => {
       setToasts(prev => prev.map(t => t.id === id ? { ...t, visible: false } : t));
-      setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, 500);
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 510);
     }, 5000);
   };
-
-  // Ref for transcript update to avoid stale closures in RTC callback
-  const onTranscriptUpdateRef = useRef<((transcript: TranscriptEntry[]) => void) | undefined>(undefined);
+  const onTranscriptUpdateRef = useRef<((t: TranscriptEntry[]) => void) | undefined>(undefined);
   const onInterviewerFinishedRef = useRef<((text: string) => void) | undefined>(undefined);
 
   useEffect(() => {
     onTranscriptUpdateRef.current = async (transcript: TranscriptEntry[]) => {
       if (!supportiveMode || transcript.length < 2) return;
-      
-      // When AI starts talking (role === interviewer), candidate turn is over.
-      const lastMsg = transcript[transcript.length - 1];
-      const prevMsg = transcript[transcript.length - 2];
-      
-      if (lastMsg.role === "interviewer" && prevMsg.role === "candidate") {
-        if (lastEvaluatedAnswerTsRef.current === prevMsg.ts) return; 
-        lastEvaluatedAnswerTsRef.current = prevMsg.ts;
-        
-        let questionText = "Bize kendinden bahseder misin?";
+      const last = transcript[transcript.length - 1];
+      const prev = transcript[transcript.length - 2];
+      if (last.role === "interviewer" && prev.role === "candidate") {
+        if (lastEvaluatedAnswerTsRef.current === prev.ts) return;
+        lastEvaluatedAnswerTsRef.current = prev.ts;
+        let questionText = "";
         for (let i = transcript.length - 3; i >= 0; i--) {
           if (transcript[i].role === "interviewer") {
             questionText = transcript[i].text;
             break;
           }
         }
-        
-        const answerText = prevMsg.text;
-        if (!answerText || answerText.length < 5) return; 
-        
+        const answerText = prev.text;
+        if (!answerText || answerText.length < 5) return;
         try {
           const res = await fetch(`${BACKEND_URL}/session/${sessionId}/supportive/feedback`, {
             method: "POST",
@@ -368,212 +301,251 @@ export function InterviewPage({
           });
           if (res.ok) {
             const { feedback } = await res.json();
-            if (feedback && feedback.message) {
-              pushToast(feedback.type || "info", feedback.type === "success" ? "✅" : "💡", feedback.title || "Geri Bildirim", feedback.message);
+            if (feedback?.message) {
+              const icon = feedback.type === "success" ? "✓" : "💡";
+              pushToast(feedback.type || "info", icon, feedback.title || "Anlık Geri Bildirim", feedback.message);
             }
           }
-        } catch (e) {
-          console.error("Supportive feedback fetch failed", e);
-        }
+        } catch {}
       }
-      
-      // Aday konuşmaya başladığında veya 8 saniye sonra ipuçlarını temizle
-      if (lastMsg.role === "candidate" && hints.length > 0) {
-         setHints([]);
-      }
+      if (last.role === "candidate") setHints([]);
     };
 
     onInterviewerFinishedRef.current = async (text: string) => {
       if (!supportiveMode || !text) return;
       try {
         const res = await fetch(`${BACKEND_URL}/session/${sessionId}/supportive/hints`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ question: text })
         });
         if (res.ok) {
           const data = await res.json();
-          if (data.hints && Array.isArray(data.hints) && data.hints.length > 0) {
-            setHints(data.hints.slice(0, 3).map((h: string, i: number) => ({ 
-              id: `hint-dyn-${Date.now()}-${i}`, 
-              text: h, 
-              active: true 
-            })));
-            setTimeout(() => setHints([]), 8000); // 8 saniye sonra temizle
+          if (data.hints?.length) {
+            setHints(data.hints.slice(0,3).map((h:any, i:any) => ({ id: `h-${i}`, text: h, active: true })));
+            if (hintsTimeoutRef.current) window.clearTimeout(hintsTimeoutRef.current);
+            hintsTimeoutRef.current = window.setTimeout(() => setHints([]), 12000);
           }
         }
-      } catch (e) {
-        console.error("Supportive hints fetch failed", e);
-      }
+      } catch {}
     };
-  });
-
-  const overlayToneClass = overlay.attentionLevel === "danger"
-    ? "border-red-400 shadow-[0_0_0_9999px_rgba(127,29,29,0.18)]"
-    : overlay.attentionLevel === "warn"
-      ? "border-yellow-300 shadow-[0_0_0_9999px_rgba(120,53,15,0.16)]"
-      : "border-emerald-400 shadow-[0_0_0_9999px_rgba(16,24,40,0.08)]";
+    return () => {
+      if (hintsTimeoutRef.current) window.clearTimeout(hintsTimeoutRef.current);
+    };
+  }, [sessionId, supportiveMode]);
 
   const needsUserGesture = connRef.current?.audioCtx?.state === "suspended";
+  const boxCenterX = overlay.box ? overlay.box.x + overlay.box.width / 2 : 0;
+  const boxCenterY = overlay.box ? overlay.box.y + overlay.box.height / 2 : 0;
+  const frameWidth = Math.max(overlay.imageWidth || 0, 1);
+  const frameHeight = Math.max(overlay.imageHeight || 0, 1);
+  const dx = Math.abs((boxCenterX / frameWidth) - 0.5);
+  const dy = Math.abs((boxCenterY / frameHeight) - 0.5);
+  const isCentered = overlay.hasFace && dx <= 0.14 && dy <= 0.16;
+  const guideTone = isCentered ? "green" : "red";
+  const framingGuideClass = guideTone === "green"
+    ? "border-emerald-400/80 shadow-[0_0_0_1px_rgba(16,185,129,0.35),0_0_16px_rgba(16,185,129,0.2)]"
+    : "border-red-400/80 shadow-[0_0_0_1px_rgba(248,113,113,0.35),0_0_16px_rgba(248,113,113,0.2)]";
+  const pipStatusClass = guideTone === "green" ? "text-emerald-400" : "text-red-400";
+  const pipStatusText = !overlay.hasFace
+    ? "Yüz algılanmadı"
+    : guideTone === "green"
+      ? `${Math.max(overlay.faceCount || 1, 1)} yüz algılandı · Kadraj uygun`
+      : `${Math.max(overlay.faceCount || 1, 1)} yüz algılandı · Kadrajı ortala`;
 
   return (
-    <div className="relative min-h-[calc(100vh-56px)] w-full overflow-hidden rounded-2xl border">
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0B1020] via-[#11153A] to-[#090A16]" />
+    <div className="relative h-screen w-full bg-[#05060f] overflow-hidden flex flex-col">
+      {/* Immersive Background Glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-enterprise-accent/10 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="relative z-10 flex items-center justify-between gap-3 p-4 md:p-5">
-        <Button variant="outline" className="rounded-xl" onClick={goBack}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Geri
-        </Button>
-
-        <div className="flex items-center gap-2 rounded-full border bg-background/10 px-4 py-2 text-sm text-white/80 backdrop-blur">
-          <Mic className="h-4 w-4" />
-          <span>
-            {config.mode} • {status === "connected" ? "Canlı" : status === "connecting" ? "Bağlanıyor" : "Hata"}
-          </span>
+      {/* Top Bar */}
+      <div className="relative z-50 flex items-center justify-between px-8 h-20 bg-gradient-to-b from-black/40 to-transparent">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+            <Radio className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+            <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Live Session</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-enterprise-surface border border-enterprise-border">
+            <Activity className="w-3.5 h-3.5 text-enterprise-accent" />
+            <span className="text-[10px] font-bold text-enterprise-text-2 uppercase tracking-widest">{config.mode} Mode</span>
+          </div>
         </div>
 
-        <Button variant="outline" className="rounded-xl" onClick={finish}>
-          <Flag className="mr-2 h-4 w-4" /> Bitir
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button 
+            className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 rounded-xl h-10 px-6 text-xs font-bold transition-all shadow-[0_4px_12px_rgba(239,68,68,0.1)]"
+            onClick={finish}
+            disabled={isFinishing}
+          >
+            <Flag className="w-4 h-4 mr-2" />
+            Mülakatı Bitir
+          </Button>
+        </div>
       </div>
 
-      <div className="relative z-10 grid h-[calc(100vh-56px-84px)] place-items-center px-4">
-        <div className="w-full max-w-[980px]">
-          <div className="mb-4 text-center">
-            <div className="text-3xl font-semibold tracking-tight text-white md:text-4xl">Yapay Zeka Mülakatçı</div>
-            <div className="mt-2 text-white/70">
-              {status === "connected"
-                ? aiSpeaking
-                  ? "AI konuşuyor..."
-                  : "Sıra sende — konuş."
-                : status === "connecting"
-                  ? "Bağlanıyor..."
-                  : "Bağlantı hatası"}
+      {/* Main Stage */}
+      <div className="flex-1 relative flex flex-col items-center justify-center px-8 pb-20">
+        <div className="w-full max-w-[1000px] space-y-12">
+          {/* AI Profile / Avatar Container */}
+          <div className="relative flex flex-col items-center">
+            {/* Mode Indicator Floating */}
+            <div className="absolute -top-12 flex items-center gap-2 px-3 py-1 rounded-full bg-enterprise-surface-2 border border-enterprise-border text-[9px] font-bold text-enterprise-text-3 uppercase tracking-tighter shadow-xl">
+              <Sparkles className="w-3 h-3 text-enterprise-accent" />
+              Sesli Etkileşim Aktif
             </div>
-            
-            {supportiveMode && hints.length > 0 && (
-              <div className="mt-6 flex flex-col items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
-                <div className="text-xs font-medium text-blue-300 uppercase tracking-widest">💡 Değinmen Gereken Konular</div>
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  {hints.map(hint => (
-                    <div 
-                      key={hint.id} 
-                      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-500 ${hint.active ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-white/60'}`}
-                    >
-                      {hint.active ? "✅ " : "# "}{hint.text}
-                    </div>
-                  ))}
+
+            <div className={cn(
+              "w-[520px] h-[380px] rounded-[40px] border border-enterprise-border bg-enterprise-surface/30 backdrop-blur-xl relative overflow-hidden transition-all duration-700 shadow-2xl",
+              aiSpeaking && "ring-2 ring-enterprise-accent/30"
+            )}>
+              {isFinishing ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-enterprise-bg/90 z-50">
+                  <div className="w-12 h-12 border-4 border-enterprise-accent/20 border-t-enterprise-accent rounded-full animate-spin mb-4" />
+                  <p className="text-sm font-bold text-white uppercase tracking-widest">{finishingMessage}</p>
                 </div>
+              ) : (
+                <div className="w-full h-full relative">
+                  {visualMode === "avatar" ? (
+                    <AvatarVideo speaking={aiSpeaking} />
+                  ) : visualMode === "avaturn" ? (
+                    <AvaturnAvatar speaking={aiSpeaking} level={level} audioClip={interviewerAudioClip} />
+                  ) : (
+                    <VoiceWaveCanvas speaking={aiSpeaking} level={level} />
+                  )}
+
+                  {/* Visual Mode Switcher Overlay */}
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {(["avatar", "wave", "avaturn"] as const).map(m => (
+                      <button
+                        key={m}
+                        onClick={() => setVisualMode(m)}
+                        className={cn(
+                          "px-3 py-1 rounded-full text-[9px] font-bold uppercase transition-all",
+                          visualMode === m ? "bg-enterprise-accent text-white" : "text-white/40 hover:text-white"
+                        )}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Status indicator below avatar */}
+            <div className="mt-8 flex flex-col items-center gap-3">
+              <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-enterprise-surface-2 border border-enterprise-border shadow-lg">
+                <div className={cn(
+                  "w-2 h-2 rounded-full animate-pulse",
+                  aiSpeaking ? "bg-enterprise-accent" : "bg-emerald-500"
+                )} />
+                <span className="text-xs font-bold text-white uppercase tracking-widest">
+                  {aiSpeaking ? "AI konuşuyor..." : "Sıra sende konuş"}
+                </span>
               </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-center gap-2 pb-4 text-xs text-white/70">
-            <ScanFace className={`h-4 w-4 ${overlay.attentionLevel === "danger" ? "text-red-300" : overlay.attentionLevel === "warn" ? "text-yellow-200" : "text-emerald-300"}`} />
-            <span>{overlay.message}</span>
-          </div>
-
-          <div className="flex justify-center pb-4">
-            <div className="inline-flex rounded-full border border-white/15 bg-white/5 p-1 text-xs text-white/70 backdrop-blur">
-              <button
-                type="button"
-                onClick={() => setVisualMode("avatar")}
-                className={`rounded-full px-3 py-1 transition ${visualMode === "avatar" ? "bg-white/20 text-white" : "text-white/60 hover:text-white"}`}
-              >
-                Avatar
-              </button>
-              <button
-                type="button"
-                onClick={() => setVisualMode("wave")}
-                className={`rounded-full px-3 py-1 transition ${visualMode === "wave" ? "bg-white/20 text-white" : "text-white/60 hover:text-white"}`}
-              >
-                Ses Dalga
-              </button>
-              <button
-                type="button"
-                onClick={() => setVisualMode("avaturn")}
-                className={`rounded-full px-3 py-1 transition ${visualMode === "avaturn" ? "bg-white/20 text-white" : "text-white/60 hover:text-white"}`}
-              >
-                Avaturn
-              </button>
+              
+              {supportiveMode && hints.length > 0 && (
+                <div className="mt-1 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-enterprise-accent">
+                    Değinmen Gereken Konular
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {hints.map((h) => (
+                      <Badge key={h.id} className="bg-emerald-500/10 border-emerald-400/30 text-emerald-300 text-[11px] px-3 py-1 rounded-full font-medium">
+                        {h.text}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+        </div>
+      </div>
 
-          <div className="flex h-[360px] w-full flex-col items-center justify-center rounded-3xl border border-white/10 bg-white/5 p-2 backdrop-blur md:h-[480px] md:p-3">
-            {isFinishing ? (
-              <div className="animate-in fade-in flex flex-col items-center gap-4 duration-500">
-                <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-                <div className="text-xl font-medium text-white/90">Mülakat Bitiriliyor...</div>
-                <div className="text-sm text-white/50">{finishingMessage}</div>
-              </div>
-            ) : (
-              visualMode === "avatar"
-                ? <AvatarVideo speaking={aiSpeaking} />
-                : visualMode === "avaturn"
-                  ? <AvaturnAvatar speaking={aiSpeaking} level={level} audioClip={interviewerAudioClip} />
-                  : <VoiceWaveCanvas speaking={aiSpeaking} level={level} />
-            )}
-          </div>
-
-          {needsUserGesture && (
-            <div className="mt-4 flex justify-center">
-              <Button className="rounded-xl" onClick={enableAudio}>
-                <Volume2 className="mr-2 h-4 w-4" /> Sesi Etkinleştir
-              </Button>
+      {/* Floating PIP / Controls Bar */}
+      <div className="absolute bottom-10 left-8 right-8 flex items-end justify-between pointer-events-none">
+        {/* Connection Tooltip / Error */}
+        <div className="pointer-events-auto">
+          {status === "error" && (
+            <div className="p-4 rounded-2xl bg-red-900/40 border border-red-500/40 text-red-200 text-xs flex items-center gap-3">
+              <ShieldAlert className="w-5 h-5" />
+              {errorText}
             </div>
           )}
+          {needsUserGesture && (
+            <Button className="bg-enterprise-accent hover:bg-enterprise-accent-2 text-white font-bold rounded-xl h-12 shadow-2xl" onClick={async () => {
+              const c = connRef.current;
+              if (c) {
+                if (c.audioCtx.state === 'suspended') await c.audioCtx.resume();
+                await c.audioEl.play();
+              }
+            }}>
+              <Volume2 className="w-4 h-4 mr-2" />
+              Sesi Etkinleştir
+            </Button>
+          )}
+        </div>
 
-          {status === "error" && <div className="mt-4 text-center text-sm text-red-200">{errorText}</div>}
+        {/* Global Controls */}
+        <div className="pointer-events-auto flex items-center gap-3 p-2 bg-enterprise-surface/80 backdrop-blur-2xl border border-enterprise-border rounded-[24px] shadow-2xl scale-110">
+          <Button variant="ghost" size="icon" className="w-12 h-12 rounded-2xl border border-enterprise-border hover:bg-enterprise-surface-2 text-enterprise-text-2 hover:text-white">
+            <Mic className="w-5 h-5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="w-12 h-12 rounded-2xl border border-enterprise-border hover:bg-enterprise-surface-2 text-enterprise-text-2 hover:text-white">
+            <Video className="w-5 h-5" />
+          </Button>
+          <div className="w-[1px] h-8 bg-enterprise-border mx-1" />
+          <Button variant="ghost" size="icon" className="w-12 h-12 rounded-2xl border border-enterprise-border hover:bg-enterprise-surface-2 text-enterprise-text-2 hover:text-white">
+            <LayoutGrid className="w-5 h-5" />
+          </Button>
         </div>
-      </div>
 
-      <div className="absolute bottom-4 left-4 z-20 w-[220px] overflow-hidden rounded-2xl border border-white/15 bg-black/30 backdrop-blur md:w-[260px]">
-        <div className="flex items-center justify-between px-3 py-2 text-xs text-white/70">
-          <span>Sen (Kamera)</span>
-          <span>{overlay.hasFace ? `${overlay.faceCount || 1} yüz` : 'yüz yok'}</span>
-        </div>
-        <div className="relative aspect-video w-full bg-black">
-          <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
-          {supportiveMode && overlay.box ? (
-            <div
-              className={`pointer-events-none absolute border-2 ${overlayToneClass}`}
-              style={{
-                left: `${(overlay.box.x / Math.max(overlay.imageWidth || videoRef.current?.videoWidth || 1, 1)) * 100}%`,
-                top: `${(overlay.box.y / Math.max(overlay.imageHeight || videoRef.current?.videoHeight || 1, 1)) * 100}%`,
-                width: `${(overlay.box.width / Math.max(overlay.imageWidth || videoRef.current?.videoWidth || 1, 1)) * 100}%`,
-                height: `${(overlay.box.height / Math.max(overlay.imageHeight || videoRef.current?.videoHeight || 1, 1)) * 100}%`,
-              }}
-            />
-          ) : null}
-        </div>
-        <div className="border-t border-white/10 px-3 py-2 text-[11px] text-white/60">
-          {supportiveMode
-            ? 'Supportive modda yüz çerçevesi ve kadraj desteği aktif.'
-            : 'Neutral modda yalnızca arka planda görüntü analizi toplanır.'}
-        </div>
-      </div>
-
-      {/* Live Supportive Toasts */}
-      {supportiveMode && (
-        <div className="absolute top-6 right-6 z-50 flex flex-col gap-3 w-80 pointer-events-none">
-          {toasts.map(toast => (
-            <div 
-              key={toast.id}
-              className={`p-4 rounded-xl border flex gap-3 shadow-2xl transition-all duration-500 transform ${toast.visible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'} ${
-                toast.type === 'success' ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-100' :
-                toast.type === 'warning' ? 'bg-amber-950/80 border-amber-500/50 text-amber-100' :
-                'bg-blue-950/80 border-blue-500/50 text-blue-100'
-              } backdrop-blur-md`}
-            >
-              <div className="text-xl">{toast.icon}</div>
-              <div className="flex flex-col gap-1">
-                <div className="font-semibold text-sm">{toast.title}</div>
-                <div className="text-xs opacity-80 leading-snug">{toast.text}</div>
-              </div>
+        {/* Candidate PIP */}
+        <div className="pointer-events-auto relative group">
+          <div className="w-64 md:w-72 aspect-video bg-black rounded-3xl border border-enterprise-border overflow-hidden shadow-2xl transition-transform duration-500">
+            <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover mirror" />
+            <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-black/40 backdrop-blur border border-white/10">
+              <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]", guideTone === "green" ? "bg-emerald-500" : "bg-red-500")} />
+              <span className="text-[9px] font-bold text-white uppercase tracking-tighter">Aday Kamerası</span>
             </div>
-          ))}
+            {supportiveMode && (
+              <div className={cn("absolute left-1/2 top-1/2 w-[56%] h-[72%] -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 transition-colors duration-300", framingGuideClass)} />
+            )}
+            
+            {/* Vision Analyzer Overlay */}
+            <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
+               <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur text-[8px] font-medium text-white/70">
+                 <MonitorCheck className="w-2.5 h-2.5" />
+                 <span className={pipStatusClass}>{pipStatusText}</span>
+               </div>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Toasts */}
+      <div className="absolute top-[72px] right-5 z-[100] flex flex-col gap-3 w-[320px] pointer-events-none">
+        {toasts.map(t => (
+          <div key={t.id} className={cn(
+            "px-4 py-3 rounded-2xl border backdrop-blur-xl shadow-2xl transition-all duration-500 flex gap-3",
+            t.visible ? "translate-x-0 opacity-100" : "translate-x-6 opacity-0",
+            t.type === "success" ? "bg-emerald-950/75 border-emerald-500/35 text-emerald-100" : "bg-blue-950/80 border-blue-500/35 text-blue-100"
+          )}>
+            <div className={cn(
+              "w-8 h-8 rounded-lg border flex items-center justify-center text-sm font-bold",
+              t.type === "success" ? "bg-emerald-500/10 border-emerald-400/30 text-emerald-300" : "bg-blue-500/10 border-blue-400/30 text-blue-200"
+            )}>
+              {t.icon}
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="text-[13px] font-semibold">{t.title}</div>
+              <div className="text-[11px] opacity-80 leading-relaxed">{t.text}</div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
+
+

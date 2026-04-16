@@ -1,21 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Mic, MicOff, Video, VideoOff } from "lucide-react";
-
+import { Mic, MicOff, Video, VideoOff, Loader2, Sparkles, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { generatePreviewQuestions, updateSessionConfig } from "@/lib/api";
 import type { CandidateBrief, SessionConfig } from "@/lib/types";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
 
 const EMPTY_CANDIDATE_BRIEF: CandidateBrief = {
   headline: "",
@@ -27,10 +19,7 @@ const EMPTY_CANDIDATE_BRIEF: CandidateBrief = {
 };
 
 const parseLines = (text: string) =>
-  text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+  text.split("\n").map((line) => line.trim()).filter(Boolean);
 
 const linesToText = (items: string[] = []) => items.join("\n");
 
@@ -47,23 +36,22 @@ export function PreviewPage({
   onStartInterview: () => void;
   onBack: () => void;
 }) {
-  // --- Camera preview state ---
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [camOn, setCamOn] = useState(false);
   const camStreamRef = useRef<MediaStream | null>(null);
 
-  // --- Mic preview state ---
   const [micOn, setMicOn] = useState(false);
   const micStreamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number | null>(null);
-  const [level, setLevel] = useState(0); // 0..1
+  const [level, setLevel] = useState(0);
 
-  const canMedia = useMemo(() => {
-    return typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
-  }, []);
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [startingSession, setStartingSession] = useState(false);
 
-  // -------- Camera handlers ----------
+  const canMedia = useMemo(() => typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia, []);
+
   const startCamera = async () => {
     if (!canMedia) return;
     try {
@@ -90,44 +78,35 @@ export function PreviewPage({
     setCamOn(false);
   };
 
-  // -------- Mic handlers ----------
   const startMic = async () => {
     if (!canMedia) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: false,
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       micStreamRef.current = stream;
       setMicOn(true);
 
-      const AudioContextCtor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
       const ctx = new AudioContextCtor();
       audioCtxRef.current = ctx;
-
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
+      analyser.fftSize = 256;
       source.connect(analyser);
-
-      const data = new Uint8Array(analyser.fftSize);
+      const data = new Uint8Array(analyser.frequencyBinCount);
 
       const tick = () => {
-        analyser.getByteTimeDomainData(data);
+        analyser.getByteFrequencyData(data);
         let sum = 0;
-        for (let i = 0; i < data.length; i++) {
-          const v = (data[i] - 128) / 128;
-          sum += v * v;
-        }
-        const rms = Math.sqrt(sum / data.length);
-        setLevel(Math.min(1, rms * 2.2));
+        for (let i = 0; i < data.length; i++) sum += data[i];
+        const avg = sum / data.length;
+        // Increased sensitivity: Normal speech usually has low average frequency energy.
+        // Mapping higher range to 0-1.
+        setLevel(Math.min(1, avg / 48)); 
         rafRef.current = requestAnimationFrame(tick);
       };
-
       rafRef.current = requestAnimationFrame(tick);
     } catch (e) {
       console.error("Mic preview error:", e);
@@ -138,72 +117,21 @@ export function PreviewPage({
   const stopMic = async () => {
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
-
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
     setLevel(0);
-
     if (audioCtxRef.current) {
-      try {
-        await audioCtxRef.current.close();
-      } catch (error) {
-        console.debug("Mic preview cleanup skipped", error);
-      }
+      try { await audioCtxRef.current.close(); } catch {}
       audioCtxRef.current = null;
     }
-
     setMicOn(false);
   };
 
   useEffect(() => {
-    return () => {
-      stopCamera();
-      stopMic();
-    };
+    return () => { stopCamera(); stopMic(); };
   }, []);
 
-  const [questions, setQuestions] = useState<string[]>([]);
-  const [loadingQuestions, setLoadingQuestions] = useState(false);
-  const [startingSession, setStartingSession] = useState(false);
   const candidateBrief = config.candidateBrief || EMPTY_CANDIDATE_BRIEF;
-  const previewQuestionConfig = useMemo(() => ({
-    interviewType: config.interviewType,
-    role: config.role,
-    companyOrIndustry: config.companyOrIndustry,
-    domainInterest: config.domainInterest,
-    difficulty: config.difficulty,
-    mode: config.mode,
-    gender: config.gender,
-    firstName: config.firstName,
-    lastName: config.lastName,
-    consent: config.consent,
-    cvFile: config.cvFile,
-    candidateBrief,
-  }), [
-    candidateBrief,
-    config.companyOrIndustry,
-    config.consent,
-    config.cvFile,
-    config.difficulty,
-    config.domainInterest,
-    config.firstName,
-    config.gender,
-    config.interviewType,
-    config.lastName,
-    config.mode,
-    config.role,
-  ]);
-
-  const updateBrief = (patch: Partial<CandidateBrief>) => {
-    setConfig({
-      ...config,
-      candidateBrief: {
-        ...EMPTY_CANDIDATE_BRIEF,
-        ...candidateBrief,
-        ...patch,
-      },
-    });
-  };
+  const previewQuestionConfig = useMemo(() => ({ ...config, candidateBrief }), [config, candidateBrief]);
 
   useEffect(() => {
     let mounted = true;
@@ -212,20 +140,15 @@ export function PreviewPage({
       setLoadingQuestions(true);
       try {
         const qs = await generatePreviewQuestions(previewQuestionConfig);
-        if (mounted) {
-          setQuestions(qs);
-        }
+        if (mounted) setQuestions(qs);
       } catch (e) {
         console.error("Failed to generate questions", e);
       } finally {
         if (mounted) setLoadingQuestions(false);
       }
     }
-    timer = window.setTimeout(fetchQuestions, 250);
-    return () => {
-      mounted = false;
-      if (timer) window.clearTimeout(timer);
-    };
+    timer = window.setTimeout(fetchQuestions, 500);
+    return () => { mounted = false; if (timer) window.clearTimeout(timer); };
   }, [previewQuestionConfig]);
 
   const handleStartInterview = async () => {
@@ -233,7 +156,7 @@ export function PreviewPage({
     stopMic();
     setStartingSession(true);
     try {
-      if (!sessionId) throw new Error("Oturum bulunamadi.");
+      if (!sessionId) throw new Error("Oturum bulunamadı.");
       await updateSessionConfig(sessionId, config);
       onStartInterview();
     } catch (e) {
@@ -242,253 +165,251 @@ export function PreviewPage({
     }
   };
 
+  const updateBrief = (patch: Partial<CandidateBrief>) => {
+    setConfig({
+      ...config,
+      candidateBrief: { ...EMPTY_CANDIDATE_BRIEF, ...candidateBrief, ...patch },
+    });
+  };
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr] lg:min-h-[calc(100vh-80px)]">
-      {/* LEFT: Camera + Mic Panels */}
-      <div className="space-y-6 lg:space-y-0 lg:gap-6 lg:h-full lg:flex lg:flex-col">
-        <Card className="rounded-2xl lg:flex-1">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Kamera Önizleme</CardTitle>
-            <Button
-              variant="outline"
-              className="rounded-xl"
-              onClick={() => (camOn ? stopCamera() : startCamera())}
-              disabled={!canMedia}
-            >
-              {camOn ? (
-                <>
-                  <VideoOff className="mr-2 h-4 w-4" /> Kapat
-                </>
-              ) : (
-                <>
-                  <Video className="mr-2 h-4 w-4" /> Aç
-                </>
-              )}
-            </Button>
-          </CardHeader>
+    <div className="max-w-[1280px] mx-auto px-8 py-10">
+      <header className="mb-10">
+        <h2 className="text-[28px] font-extrabold text-white tracking-tight mb-2">Cihaz Testi</h2>
+        <p className="text-sm text-enterprise-text-2">Mülakata başlamadan önce kamera ve mikrofonunuzu kontrol edin.</p>
+      </header>
 
-          <CardContent className="space-y-3">
-            <div className="rounded-2xl border overflow-hidden bg-muted/30 aspect-video">
-              <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Işık yüzüne gelsin, kamera göz hizasında olsun. Önizleme sadece kontrol amaçlıdır.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-10 lg:grid-cols-[1fr_500px]">
+        {/* Left: Media Tests */}
+        <div className="space-y-8">
 
-        <Card className="rounded-2xl lg:flex-1">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Mikrofon Testi</CardTitle>
-            <Button
-              variant="outline"
-              className="rounded-xl"
-              onClick={() => (micOn ? stopMic() : startMic())}
-              disabled={!canMedia}
-            >
-              {micOn ? (
-                <>
-                  <MicOff className="mr-2 h-4 w-4" /> Kapat
-                </>
-              ) : (
-                <>
-                  <Mic className="mr-2 h-4 w-4" /> Aç
-                </>
-              )}
-            </Button>
-          </CardHeader>
-
-          <CardContent className="space-y-3">
-            <div className="rounded-2xl border p-4">
-              <div className="text-sm font-medium">Ses Seviyesi</div>
-              <div className="mt-3 h-3 w-full rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-foreground transition-[width] duration-100"
-                  style={{ width: `${Math.round(level * 100)}%` }}
-                />
-              </div>
-              <div className="mt-2 text-xs text-muted-foreground">
-                Konuşunca bar yükselmeli. Çok düşükse mikrofona yaklaş veya sistem ses ayarını kontrol et.
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-        {/* RIGHT: Selected details + Sample Questions + Tip stacked */}
-      <div className="space-y-6 lg:h-full lg:flex lg:flex-col lg:overflow-y-auto pr-1">
-        
-        {/* Interview Setup Summary */}
-        <Card className="rounded-2xl shrink-0">
-          <CardHeader className="pb-3 border-b">
-            <CardTitle className="text-lg">Mülakat Özeti</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4 space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Tip:</span>
-              <Badge variant="secondary" className="font-medium">
-                {config.interviewType === "HR" ? "İnsan Kaynakları" : "Teknik"}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Rol:</span>
-              <span className="font-medium text-right break-words max-w-[60%]">{config.role}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Şirket/Sektör:</span>
-              <span className="font-medium text-right break-words max-w-[60%]">{config.companyOrIndustry}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">İlgi Alanı:</span>
-              <span className="font-medium text-right break-words max-w-[60%]">{config.domainInterest}</span>
-            </div>
-            
-            {config.interviewType === "Technical" && (
-              <div className="pt-2 border-t mt-2 flex items-center justify-between text-sm gap-4">
-                <span className="text-muted-foreground font-medium shrink-0">Zorluk Seçin:</span>
-                <Select
-                  value={config.difficulty}
-                  onValueChange={(v) => setConfig({ ...config, difficulty: v as "Junior" | "Intermediate" })}
+          <div className="space-y-6">
+            <div className="card-style bg-enterprise-surface/40 p-6 overflow-hidden relative">
+              <div className="flex items-center justify-between mb-4 relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-enterprise-accent/10 flex items-center justify-center border border-enterprise-accent/20">
+                    <Video className="w-4 h-4 text-enterprise-accent" />
+                  </div>
+                  <span className="text-sm font-bold text-white uppercase tracking-wider">Kamera Kontrolü</span>
+                </div>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="rounded-lg h-8 border border-enterprise-border text-enterprise-text-2 hover:text-white"
+                  onClick={() => camOn ? stopCamera() : startCamera()}
                 >
-                  <SelectTrigger className="h-8 text-xs w-[140px] rounded-xl">
-                    <SelectValue placeholder="Zorluk" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Junior">Junior (Başlangıç)</SelectItem>
-                    <SelectItem value="Intermediate">Intermediate (Orta)</SelectItem>
-                  </SelectContent>
-                </Select>
+                  {camOn ? <VideoOff className="w-3.5 h-3.5 mr-2" /> : <Video className="w-3.5 h-3.5 mr-2" />}
+                  {camOn ? "Kapat" : "Test Et"}
+                </Button>
+              </div>
+
+              <div className="aspect-video rounded-2xl bg-enterprise-surface-2 border border-enterprise-border overflow-hidden relative group">
+                {!camOn && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-enterprise-text-3">
+                    <Video className="w-12 h-12 mb-3 opacity-20" />
+                    <span className="text-xs uppercase font-bold tracking-widest opacity-40">Kamera Kapalı</span>
+                  </div>
+                )}
+                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                <div className="absolute top-4 left-4 flex gap-2">
+                  <Badge className="bg-black/40 backdrop-blur border-none text-[10px] font-bold text-emerald-400">720P HD</Badge>
+                  {camOn && <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[10px] font-bold">AKTİF</Badge>}
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-start gap-3 p-3 rounded-xl bg-enterprise-surface-2/40 border border-enterprise-border">
+                <AlertCircle className="w-4 h-4 text-enterprise-accent mt-0.5" />
+                <p className="text-[11px] text-enterprise-text-2 leading-relaxed italic">
+                  Görüntü kalitesini artırmak için ışığın karşıdan gelmesine dikkat edin.
+                </p>
+              </div>
+            </div>
+
+            <div className="card-style bg-enterprise-surface/40 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                    <Mic className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <span className="text-sm font-bold text-white uppercase tracking-wider">Mikrofon Testi</span>
+                </div>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="rounded-lg h-8 border border-enterprise-border text-enterprise-text-2 hover:text-white"
+                  onClick={() => micOn ? stopMic() : startMic()}
+                >
+                  {micOn ? <MicOff className="w-3.5 h-3.5 mr-2" /> : <Mic className="w-3.5 h-3.5 mr-2" />}
+                  {micOn ? "Kapat" : "Test Et"}
+                </Button>
+              </div>
+
+              <div className="mt-10 px-1">
+                <div className="h-3 w-full bg-enterprise-surface-2 rounded-full overflow-hidden relative border border-enterprise-border/50">
+                  {/* Real-time Level Bar */}
+                  <div 
+                    className="h-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                    style={{ width: `${level * 100}%` }}
+                  />
+
+                  {/* Ideal Range 'Hatched' Zone (Tarama Efekti) */}
+                  <div 
+                    className="absolute inset-y-0 left-[40%] right-[20%] z-20 border-x border-enterprise-accent/30"
+                    style={{
+                      background: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(124, 92, 252, 0.15) 4px, rgba(124, 92, 252, 0.15) 8px)'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Right: Summary & Questions */}
+        <div className="space-y-6">
+          {/* Mülakat Özeti */}
+          <div className="card-style bg-enterprise-surface p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Sparkles className="w-5 h-5 text-enterprise-accent" />
+              <h3 className="font-bold text-white uppercase tracking-wider text-xs">Mülakat Özeti</h3>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
+                <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Rol</span>
+                <span className="text-xs font-bold text-white">{config.role}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
+                <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Şirket</span>
+                <span className="text-xs font-bold text-white">{config.companyOrIndustry}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
+                <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Tip</span>
+                <Badge className="bg-enterprise-accent/15 border-enterprise-accent/20 text-enterprise-accent-2 text-[10px] uppercase">{config.interviewType === "HR" ? "İnsan Kaynakları" : "Teknik"}</Badge>
+              </div>
+            </div>
+
+            {config.interviewType === "Technical" && (
+              <div className="space-y-2 mt-4 p-3 rounded-xl bg-enterprise-surface-2 border border-enterprise-border">
+                 <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Zorluk Seviyesi</Label>
+                 <Select
+                    value={config.difficulty}
+                    onValueChange={(v) => setConfig({ ...config, difficulty: v as "Junior" | "Intermediate" })}
+                  >
+                    <SelectTrigger className="h-9 bg-enterprise-surface border-none text-xs rounded-lg ring-0 focus:ring-0">
+                      <SelectValue placeholder="Zorluk" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-enterprise-surface border-enterprise-border text-white">
+                      <SelectItem value="Junior">Junior (Başlangıç)</SelectItem>
+                      <SelectItem value="Intermediate">Intermediate (Orta)</SelectItem>
+                    </SelectContent>
+                  </Select>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
 
-        {(config.cvFile || config.candidateBrief) && (
-          <Card className="rounded-2xl shrink-0">
-            <CardHeader className="pb-3 border-b">
-              <CardTitle className="text-lg">CV Özeti</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Bu alan CV’nizden otomatik çıkarıldı. Eşleşmeyen veya eksik bilgiler varsa mülakata başlamadan önce düzenleyin.
-              </p>
-
-              <div className="grid gap-2">
-                <div className="text-sm font-medium">Başlık</div>
-                <Input
-                  className="rounded-xl"
-                  value={candidateBrief.headline}
-                  placeholder="Örn: Optimization Engineer / Frontend Developer"
-                  onChange={(e) => updateBrief({ headline: e.target.value })}
-                />
+          {/* Soru Önizleme */}
+          <div className="card-style bg-enterprise-surface p-6 border-enterprise-accent/30 shadow-[0_0_30px_rgba(124,92,252,0.05)]">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                <h3 className="font-bold text-white uppercase tracking-wider text-xs">Soru Önizleme</h3>
               </div>
+              {loadingQuestions && <Loader2 className="w-4 h-4 text-enterprise-accent animate-spin" />}
+            </div>
 
-              <div className="grid gap-2">
-                <div className="text-sm font-medium">Genel Özet</div>
-                <Textarea
-                  className="min-h-24 rounded-xl resize-none"
-                  value={candidateBrief.summary}
-                  placeholder="CV'nizden çıkan kısa özet burada yer alır."
-                  onChange={(e) => updateBrief({ summary: e.target.value })}
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <div className="text-sm font-medium">Eğitim Öne Çıkanlar</div>
-                  <Textarea
-                    className="min-h-28 rounded-xl"
-                    value={linesToText(candidateBrief.educationHighlights)}
-                    placeholder="Her satıra bir madde"
-                    onChange={(e) => updateBrief({ educationHighlights: parseLines(e.target.value) })}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <div className="text-sm font-medium">Yetkinlikler</div>
-                  <Textarea
-                    className="min-h-28 rounded-xl"
-                    value={linesToText(candidateBrief.skillHighlights)}
-                    placeholder="Her satıra bir yetkinlik"
-                    onChange={(e) => updateBrief({ skillHighlights: parseLines(e.target.value) })}
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <div className="text-sm font-medium">Deneyim Öne Çıkanlar</div>
-                  <Textarea
-                    className="min-h-36 rounded-xl"
-                    value={linesToText(candidateBrief.experienceHighlights)}
-                    placeholder="Her satıra bir deneyim özeti"
-                    onChange={(e) => updateBrief({ experienceHighlights: parseLines(e.target.value) })}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <div className="text-sm font-medium">Proje Öne Çıkanlar</div>
-                  <Textarea
-                    className="min-h-36 rounded-xl"
-                    value={linesToText(candidateBrief.projectHighlights)}
-                    placeholder="Her satıra bir proje özeti"
-                    onChange={(e) => updateBrief({ projectHighlights: parseLines(e.target.value) })}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card className="rounded-2xl">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Soru Önizleme</CardTitle>
-          </CardHeader>
-
-          <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <div>
-                <div className="text-sm font-medium">Örnek Sorular</div>
-              </div>
-
+            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
               {loadingQuestions ? (
-                <div className="py-8 flex flex-col items-center justify-center text-muted-foreground">
-                   <Loader2 className="h-6 w-6 animate-spin mb-2" />
-                   <span className="text-sm">Yapay zeka soruları hazırlıyor...</span>
-                </div>
-              ) : (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-20 w-full animate-pulse bg-enterprise-surface-2 border border-enterprise-border rounded-xl" />
+                ))
+              ) : questions.length > 0 ? (
                 questions.map((q, i) => (
-                  <div key={i} className="rounded-2xl border p-4">
-                    <div className="text-sm font-medium">Örnek Soru {i + 1}</div>
-                    <div className="mt-2 text-base">{q}</div>
+                  <div key={i} className="p-4 rounded-xl bg-enterprise-surface-2 border border-enterprise-border hover:border-enterprise-accent/30 transition-all">
+                    <div className="text-[10px] font-bold text-enterprise-accent uppercase mb-2">Örnek Soru {i + 1}</div>
+                    <p className="text-xs text-white leading-relaxed">{q}</p>
                   </div>
                 ))
+              ) : (
+                <div className="text-center py-6 text-enterprise-text-3 text-xs italic">Sorular yükleniyor...</div>
               )}
             </div>
 
+          </div>
 
-
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Button variant="outline" className="rounded-xl" onClick={onBack} disabled={startingSession}>
-                Kuruluma dön
-              </Button>
-              <Button
-                className="rounded-xl"
-                onClick={handleStartInterview}
-                disabled={startingSession || loadingQuestions}
-              >
-                {startingSession ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Başlatılıyor...
-                  </>
-                ) : (
-                  <>
-                    <Play className="mr-2 h-4 w-4" /> Mülakata Başla
-                  </>
-                )}
-              </Button>
+          {/* CV Detayları - Collapsible-like section */}
+          {(config.cvFile || config.candidateBrief) && (
+            <div className="card-style bg-enterprise-surface p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <Settings className="w-5 h-5 text-enterprise-text-2" />
+                  <h3 className="font-bold text-white uppercase tracking-wider text-xs">CV Detayları</h3>
+                </div>
+              </div>
+              
+              <div className="space-y-5">
+                <div className="grid gap-2">
+                  <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Başlık</Label>
+                  <Input
+                    className="h-9 bg-enterprise-surface-2 border-enterprise-border rounded-lg text-xs"
+                    value={candidateBrief.headline}
+                    onChange={(e) => updateBrief({ headline: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Özet</Label>
+                  <Textarea
+                    className="bg-enterprise-surface-2 border-enterprise-border rounded-lg text-xs min-h-[80px] resize-none"
+                    value={candidateBrief.summary}
+                    onChange={(e) => updateBrief({ summary: e.target.value })}
+                  />
+                </div>
+                {/* Advanced highlights in grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Eğitim</Label>
+                    <Textarea className="h-24 bg-enterprise-surface-2 border-enterprise-border text-[10px]" value={linesToText(candidateBrief.educationHighlights)} onChange={(e) => updateBrief({ educationHighlights: parseLines(e.target.value) })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Yetenekler</Label>
+                    <Textarea className="h-24 bg-enterprise-surface-2 border-enterprise-border text-[10px]" value={linesToText(candidateBrief.skillHighlights)} onChange={(e) => updateBrief({ skillHighlights: parseLines(e.target.value) })} />
+                  </div>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-12 pt-10 border-t border-enterprise-border flex items-center justify-between">
+        <Button 
+          className="bg-enterprise-surface border border-enterprise-border text-enterprise-text-2 hover:text-white rounded-xl h-12 px-8 text-sm font-semibold transition-all"
+          onClick={onBack}
+        >
+          <ChevronLeft className="w-4 h-4 mr-2" />
+          Kuruluma Dön
+        </Button>
+
+        <Button 
+          className="bg-gradient-to-br from-enterprise-accent to-enterprise-accent-2 transition-all text-white font-extrabold rounded-xl h-12 px-8 group shadow-[0_10px_30px_rgba(124,92,252,0.3)] disabled:opacity-50"
+          disabled={startingSession || loadingQuestions}
+          onClick={handleStartInterview}
+        >
+          {startingSession ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              HAZIRLANIYOR...
+            </span>
+          ) : (
+            <span className="flex items-center justify-center gap-2">
+              MÜLAKATA BAŞLA
+              <ChevronRight className="w-4 h-4 ml-2" />
+            </span>
+          )}
+        </Button>
       </div>
     </div>
   );
 }
+

@@ -1,327 +1,132 @@
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import type { FeedbackReport } from "@/lib/types";
 import { getReport } from "@/lib/api";
 import { TranscriptAnalysisTab } from "@/components/feedback/TranscriptAnalysisTab";
-import { ProgressDashboardTab } from "@/components/feedback/ProgressDashboardTab";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, BarChart3, Headphones, Eye, AlertTriangle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+const POLL_INTERVAL_MS = 2500;
+const MISSING_REPORT_POLL_INTERVAL_MS = 1500;
+const MAX_ANALYSIS_WAIT_MS = 90_000;
 
+function normalizeMetricLabel(label: string) {
+  return String(label || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replaceAll("ı", "i").trim();
+}
 
-
-
-function AudioAnalysisTab({ report }: { report: FeedbackReport }) {
-  const llm = report.audioLlmReport;
-  
-  if (!llm) {
-    return (
-      <Card className="rounded-2xl">
-        <CardContent className="pt-6">
-          <p className="text-sm text-muted-foreground">Ses analizi henüz hazır değil. Lütfen bekleyin...</p>
-        </CardContent>
-      </Card>
-    );
+function computeOverallAudioPerformance(scores: Array<{ label: string; score: number }> = []) {
+  if (!Array.isArray(scores) || scores.length === 0) return 0;
+  const weightedKeywords = [
+    { keywords: ["netlik", "clarity"], weight: 0.35 },
+    { keywords: ["hiz", "speed", "pacing"], weight: 0.25 },
+    { keywords: ["akicilik", "fluency"], weight: 0.2 },
+    { keywords: ["duygusal", "emotion", "denge", "ton"], weight: 0.2 },
+  ];
+  let weightedTotal = 0;
+  let weightTotal = 0;
+  for (const item of scores) {
+    const numericScore = Number(item?.score);
+    if (!Number.isFinite(numericScore)) continue;
+    const normalizedLabel = normalizeMetricLabel(item?.label || "");
+    const matched = weightedKeywords.find(({ keywords }) => keywords.some((keyword) => normalizedLabel.includes(keyword)));
+    if (!matched) continue;
+    weightedTotal += numericScore * matched.weight;
+    weightTotal += matched.weight;
   }
+  if (weightTotal > 0) return Math.round(weightedTotal / weightTotal);
+  const validScores = scores.map((item) => Number(item?.score)).filter((value) => Number.isFinite(value));
+  if (validScores.length === 0) return 0;
+  return Math.round(validScores.reduce((sum, value) => sum + value, 0) / validScores.length);
+}
 
-  const scores = llm.scores ?? [];
-  const clarityScore = scores.find(s => s.label === "Ses Netliği")?.score ?? 0;
-
+function PendingAnalysisState({
+  icon,
+  title,
+  description,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+}) {
   return (
-    <div className="space-y-6">
-      {/* Hero row */}
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
-        <Card className="rounded-2xl">
-          <CardContent className="pt-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 min-h-[180px]">
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">Genel Ses Netliği</p>
-              <p className="text-6xl font-extrabold leading-none mb-3">
-                {clarityScore}
-                <span className="text-2xl font-semibold">/100</span>
-              </p>
-              <Badge className="rounded-full bg-blue-50 text-blue-700 border-blue-200" variant="outline">
-                {llm.clarityBadge ?? "Analiz Edilemedi"}
-              </Badge>
-            </div>
-            
-            <div className="grid gap-3 w-full md:w-[42%]">
-              <div className="rounded-xl border bg-gray-50/50 p-3.5">
-                <div className="text-[12px] uppercase text-muted-foreground tracking-wider mb-1.5">Baskın Duygusal Eğilim</div>
-                <div className="text-sm font-semibold leading-snug">{llm.dominantEmotion ?? "—"}</div>
-              </div>
-              <div className="rounded-xl border bg-gray-50/50 p-3.5">
-                <div className="text-[12px] uppercase text-muted-foreground tracking-wider mb-1.5">İkinci Eğilim</div>
-                <div className="text-sm font-semibold leading-snug">{llm.secondaryEmotion ?? "Yok"}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle className="text-[20px]">Genel Değerlendirme</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-[15px] text-muted-foreground leading-[1.6]">
-              {llm.overallAnalysis ?? "Ses analizi yorumu bekleniyor..."}
-            </p>
-          </CardContent>
-        </Card>
+    <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+      <div className="w-16 h-16 rounded-3xl bg-enterprise-surface border border-enterprise-border flex items-center justify-center mb-6 animate-pulse">
+        {icon}
       </div>
-
-      {/* Dimension scores */}
-      {scores.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {scores.map((s) => (
-            <Card key={s.label} className="rounded-2xl">
-              <CardContent className="pt-5 flex flex-col min-h-[180px]">
-                <h4 className="font-semibold text-[15px] mb-2.5 min-h-[38px]">{s.label}</h4>
-                <div className="text-[28px] font-extrabold mb-2.5">{s.score}</div>
-                <div className="text-[13px] text-muted-foreground leading-[1.5] mb-3 flex-1 min-h-[42px]">
-                  {s.detail}
-                </div>
-                <Progress value={s.score} className="h-[10px] mt-auto" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Content Grid: Ton Dağılımı + Konuşma Özeti */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {llm.tonDistribution && llm.tonDistribution.length > 0 && (
-          <Card className="rounded-2xl">
-            <CardHeader><CardTitle className="text-[20px]">Genel Ton Dağılımı</CardTitle></CardHeader>
-            <CardContent>
-              <ul className="space-y-2.5 pl-5 text-foreground list-disc marker:text-muted-foreground">
-                {llm.tonDistribution.map((item, i) => (
-                  <li key={i} className="leading-[1.6]">
-                    <strong>{item.label}:</strong> %{item.score}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
-        
-        {llm.speechSummary && llm.speechSummary.length > 0 && (
-          <Card className="rounded-2xl">
-            <CardHeader><CardTitle className="text-[20px]">Konuşma Özeti</CardTitle></CardHeader>
-            <CardContent>
-              <ul className="space-y-2.5 pl-5 text-foreground list-disc marker:text-muted-foreground">
-                {llm.speechSummary.map((item, i) => (
-                  <li key={i} className="leading-[1.6]">{item}</li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Recommendations */}
-      {llm.recommendations && (llm.recommendations.nextInterview || llm.recommendations.performanceDevelopment) && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {llm.recommendations.nextInterview && (
-            <Card className="rounded-2xl">
-              <CardHeader><CardTitle className="text-base text-foreground">Bir Sonraki Mülakatta</CardTitle></CardHeader>
-              <CardContent>
-                <p className="text-[15px] text-zinc-700 leading-[1.7]">
-                  {llm.recommendations.nextInterview}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-          {llm.recommendations.performanceDevelopment && (
-            <Card className="rounded-2xl">
-              <CardHeader><CardTitle className="text-base text-foreground">Performans Geliştirme</CardTitle></CardHeader>
-              <CardContent>
-                <p className="text-[15px] text-zinc-700 leading-[1.7]">
-                  {llm.recommendations.performanceDevelopment}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+      <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
+      <p className="text-sm text-enterprise-text-2 max-w-xs mx-auto">{description}</p>
     </div>
   );
 }
 
-
-function VisionAnalysisTab({ report }: { report: FeedbackReport }) {
-  const r = report.visionLlmAnalysis?.report;
-
-  if (!r) {
-    const pending = !report.analysisStatus?.visionLlm;
+function AudioAnalysisTab({ report }: { report: FeedbackReport }) {
+  const llm = report.audioLlmReport;
+  if (!llm) {
     return (
-      <Card className="rounded-2xl">
-        <CardContent className="pt-6">
-          <p className="text-sm text-muted-foreground">
-            {pending
-              ? "Görüntü analizi arka planda hazırlanıyor. Lütfen bekleyin..."
-              : "Görüntü analizi bu oturum için mevcut değil."}
-          </p>
-        </CardContent>
-      </Card>
+      <PendingAnalysisState
+        icon={<Headphones className="w-8 h-8 text-enterprise-accent opacity-50" />}
+        title="Ses Analizi Bekleniyor"
+        description="Ses verileri işlendiğinde bu alanda detaylı değerlendirme görünecek."
+      />
     );
   }
 
-  const overallScore    = Number(r.overallScore   ?? 0);
-  const overallLabel    = r.overallLabel    ?? "";
-  const overallAnalysis = r.overallAnalysis ?? "";
-  const standardStatus  = r.standardStatus  ?? "";
-  const riskPoint       = r.riskPoint       ?? "";
-  const scores          = Array.isArray(r.scores)          ? r.scores          : [];
-  const strengths       = Array.isArray(r.strengths)       ? r.strengths       : [];
-  const improvementAreas= Array.isArray(r.improvementAreas)? r.improvementAreas: [];
-  const recs            = r.recommendations ?? {};
-  const nextInterview   = Array.isArray(recs.nextInterview)        ? recs.nextInterview        : [];
-  const perfDev         = Array.isArray(recs.performanceDevelopment)? recs.performanceDevelopment: [];
+  const scores = llm.scores ?? [];
+  const overallAudioPerformance = computeOverallAudioPerformance(scores);
+  return (
+    <div className="space-y-4">
+      <div className="card-style bg-enterprise-surface p-6">
+        <p className="text-[10px] uppercase tracking-widest text-enterprise-text-3 mb-2">Genel Ses Performansı</p>
+        <p className="text-6xl font-black text-white">{overallAudioPerformance}</p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        {scores.map((s, i) => (
+          <div key={i} className="card-style bg-enterprise-surface p-5">
+            <div className="text-[11px] text-enterprise-text-3 mb-2">{s.label}</div>
+            <div className="text-3xl font-black text-white mb-2">{s.score}</div>
+            <p className="text-xs text-enterprise-text-2">{s.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VisionAnalysisTab({ report }: { report: FeedbackReport }) {
+  const visionReport = report.visionLlmAnalysis?.report;
+  if (!visionReport) {
+    return (
+      <PendingAnalysisState
+        icon={<Eye className="w-8 h-8 text-enterprise-accent opacity-50" />}
+        title="Görüntü Analizi Bekleniyor"
+        description="Kamera verisi işlendiğinde görsel analiz burada listelenecek."
+      />
+    );
+  }
 
   return (
-    <div className="space-y-5">
-      {/* ── Hero grid ───────────────────────────────────────────── */}
-      <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
-        {/* Sol: Büyük skor + mini-box'lar */}
-        <Card className="rounded-2xl">
-          <CardContent className="pt-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 min-h-[180px]">
-            <div>
-              <p className="text-sm text-muted-foreground mb-2.5">Genel Görsel Puan</p>
-              <p className="text-[64px] font-extrabold leading-none mb-3">
-                {overallScore}
-                <span className="text-2xl font-semibold">/100</span>
-              </p>
-              {overallLabel && (
-                <span className="inline-block px-3 py-2 rounded-full text-[13px] font-bold border border-green-200 bg-green-50 text-green-700">
-                  {overallLabel}
-                </span>
-              )}
-            </div>
-
-            <div className="grid gap-3 w-full md:w-[42%]">
-              {standardStatus && (
-                <div className="rounded-xl border bg-muted/40 p-3.5">
-                  <div className="text-[12px] uppercase text-muted-foreground tracking-wider mb-1.5">
-                    Standart Uygunluk
-                  </div>
-                  <div className="text-sm font-semibold leading-snug">{standardStatus}</div>
-                </div>
-              )}
-              {riskPoint && (
-                <div className="rounded-xl border bg-muted/40 p-3.5">
-                  <div className="text-[12px] uppercase text-muted-foreground tracking-wider mb-1.5">
-                    Risk Noktası
-                  </div>
-                  <div className="text-sm font-semibold leading-snug">{riskPoint}</div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Sağ: Genel Değerlendirme */}
-        {overallAnalysis && (
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle className="text-[20px]">Genel Değerlendirme</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-[15px] text-muted-foreground leading-[1.75]">
-                {overallAnalysis}
-              </p>
-            </CardContent>
-          </Card>
-        )}
+    <div className="space-y-4">
+      <div className="card-style bg-enterprise-surface p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-enterprise-text-3 mb-2">Görsel Profil Skoru</p>
+            <p className="text-6xl font-black text-white">{visionReport.overallScore ?? 0}</p>
+          </div>
+          <Badge className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">{visionReport.standardStatus || "Standart"}</Badge>
+        </div>
+        <p className="text-sm text-enterprise-text-2 mt-5">{visionReport.overallAnalysis || "Analiz metni bulunamadı."}</p>
       </div>
-
-      {/* ── 4 boyut kartı ───────────────────────────────────────── */}
-      {scores.length > 0 && (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {scores.map((s) => (
-            <Card key={s.key} className="rounded-2xl">
-              <CardContent className="pt-5 flex flex-col min-h-[180px]">
-                <h4 className="font-semibold text-[15px] mb-2.5 min-h-[38px]">{s.label}</h4>
-                <div className="text-[28px] font-extrabold mb-2.5">{s.score}</div>
-                <div className="text-[13px] text-muted-foreground leading-[1.5] mb-3 flex-1 min-h-[42px]">
-                  {s.detail}
-                </div>
-                <Progress value={s.score} className="h-[10px] mt-auto" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* ── Standartta Olan / Riskler ────────────────────────────── */}
-      {(strengths.length > 0 || improvementAreas.length > 0) && (
-        <div className="grid gap-5 md:grid-cols-2">
-          {strengths.length > 0 && (
-            <Card className="rounded-2xl">
-              <CardHeader>
-                <CardTitle className="text-[20px]">Standartta Olan Noktalar</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2.5 pl-5 list-disc marker:text-muted-foreground">
-                  {strengths.map((item, i) => (
-                    <li key={i} className="text-sm leading-[1.6]">{item}</li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-          {improvementAreas.length > 0 && (
-            <Card className="rounded-2xl">
-              <CardHeader>
-                <CardTitle className="text-[20px]">Riskler</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2.5 pl-5 list-disc marker:text-muted-foreground">
-                  {improvementAreas.map((item, i) => (
-                    <li key={i} className="text-sm leading-[1.6]">{item}</li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {/* ── Öneriler ────────────────────────────────────────────── */}
-      {(nextInterview.length > 0 || perfDev.length > 0) && (
-        <div className="grid gap-5 md:grid-cols-2">
-          {nextInterview.length > 0 && (
-            <Card className="rounded-2xl">
-              <CardHeader>
-                <CardTitle className="text-base">Bir Sonraki Mülakatta</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2.5 pl-5 list-disc marker:text-muted-foreground">
-                  {nextInterview.map((item, i) => (
-                    <li key={i} className="text-[15px] text-zinc-700 leading-[1.7]">{item}</li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-          {perfDev.length > 0 && (
-            <Card className="rounded-2xl">
-              <CardHeader>
-                <CardTitle className="text-base">Performans Geliştirme</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2.5 pl-5 list-disc marker:text-muted-foreground">
-                  {perfDev.map((item, i) => (
-                    <li key={i} className="text-[15px] text-zinc-700 leading-[1.7]">{item}</li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        {(visionReport.scores || []).map((s, i) => (
+          <div key={i} className="card-style bg-enterprise-surface p-5">
+            <div className="text-[11px] text-enterprise-text-3 mb-2">{s.label}</div>
+            <div className="text-3xl font-black text-white mb-2">{s.score}</div>
+            <p className="text-xs text-enterprise-text-2">{s.detail}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -347,29 +152,23 @@ export function FeedbackPage({ initialReport, sessionId, onNew }: { initialRepor
           setRefreshError("");
         }
         const done = Boolean(
-          latest.analysisStatus?.audio
-          && latest.analysisStatus?.audioLlm
-          && latest.analysisStatus?.transcript
-          && (!latest.analysisStatus?.vision || latest.analysisStatus?.visionLlm)
+          latest.analysisStatus?.audio &&
+          latest.analysisStatus?.audioLlm &&
+          latest.analysisStatus?.transcript &&
+          (!latest.analysisStatus?.vision || latest.analysisStatus?.visionLlm)
         );
         attempts += 1;
-        if (!cancelled && !done && attempts < 20) {
-          retryTimer = window.setTimeout(refresh, 2500);
+        if (!cancelled && !done && attempts < Math.ceil(MAX_ANALYSIS_WAIT_MS / POLL_INTERVAL_MS)) {
+          retryTimer = window.setTimeout(refresh, POLL_INTERVAL_MS);
         }
-      } catch (error: unknown) {
+      } catch (error: any) {
         attempts += 1;
-        const message = error instanceof Error ? error.message : "";
-        const isTransientMissingReport =
-          message.toLowerCase().includes("report not found")
-          || message.toLowerCase().includes("request failed: 404");
-
-        if (!cancelled && isTransientMissingReport && attempts < 20) {
-          retryTimer = window.setTimeout(refresh, 1500);
+        if (!cancelled && attempts < Math.ceil(MAX_ANALYSIS_WAIT_MS / MISSING_REPORT_POLL_INTERVAL_MS)) {
+          retryTimer = window.setTimeout(refresh, MISSING_REPORT_POLL_INTERVAL_MS);
           return;
         }
-
         if (!cancelled) {
-          setRefreshError(error instanceof Error ? error.message : "Feedback yenilenemedi.");
+          setRefreshError(error?.message || "Rapor alınırken bir hata oluştu.");
         }
       }
     };
@@ -381,43 +180,91 @@ export function FeedbackPage({ initialReport, sessionId, onNew }: { initialRepor
     };
   }, [sessionId]);
 
+  const transcriptReady = Boolean(report.analysisStatus?.transcript);
+  const audioReady = Boolean(report.analysisStatus?.audioLlm);
+  const visionReady = Boolean(report.analysisStatus?.visionLlm);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
+    <div className="max-w-[1280px] mx-auto px-8 py-10 space-y-6">
+      <header className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
-          <div className="text-lg font-semibold">Geri Bildirim Raporu</div>
-          <div className="text-sm text-muted-foreground">Oturum: {report.sessionId}</div>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight mb-2">Mülakat Raporu</h1>
+          <p className="text-sm text-enterprise-text-3">Oturum: #{sessionId.slice(0, 8)}</p>
         </div>
-        <Button className="rounded-xl" onClick={onNew}>
-          <RotateCcw className="mr-2 h-4 w-4" /> Yeni mülakat başlat
+        <Button className="h-11 px-6 rounded-xl bg-gradient-to-r from-enterprise-accent to-enterprise-accent-2 text-white font-semibold" onClick={onNew}>
+          <RotateCcw className="w-4 h-4 mr-2" />
+          Yeni Mülakat
         </Button>
+      </header>
+
+      <div className="grid gap-4 lg:grid-cols-[200px_1fr_1fr]">
+        <div className="card-style bg-enterprise-surface p-6 flex flex-col items-center justify-center">
+          <div className="text-5xl font-black text-white">{Number(report.overallScore || 0)}</div>
+          <div className="text-xs text-enterprise-text-3 mt-1">/100</div>
+          <Badge className="mt-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] uppercase tracking-wider">
+            Genel Skor
+          </Badge>
+        </div>
+        <div className="card-style bg-enterprise-surface p-6">
+          <p className="text-[10px] font-bold text-enterprise-text-3 uppercase tracking-widest mb-3">Genel Değerlendirme</p>
+          <p className="text-sm text-enterprise-text-2 leading-relaxed">{report.notes?.[0] || "Değerlendirme hazırlanıyor."}</p>
+        </div>
+        <div className="card-style bg-enterprise-surface p-6">
+          <p className="text-[10px] font-bold text-enterprise-text-3 uppercase tracking-widest mb-3">Analiz Durumu</p>
+          <div className="space-y-2 text-xs">
+            <div className="flex items-center justify-between bg-enterprise-surface-2 border border-enterprise-border rounded-lg px-3 py-2">
+              <span className="text-enterprise-text-2">Yanıt Analizi</span>
+              <span className={transcriptReady ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                {transcriptReady ? "Tamamlandı" : "Yanıt analizi bekleniyor"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between bg-enterprise-surface-2 border border-enterprise-border rounded-lg px-3 py-2">
+              <span className="text-enterprise-text-2">Ses Analizi</span>
+              <span className={audioReady ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                {audioReady ? "Tamamlandı" : "Ses analizi bekleniyor"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between bg-enterprise-surface-2 border border-enterprise-border rounded-lg px-3 py-2">
+              <span className="text-enterprise-text-2">Görüntü Analizi</span>
+              <span className={visionReady ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                {visionReady ? "Tamamlandı" : "Görüntü analizi bekleniyor"}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {refreshError ? <div className="rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">{refreshError}</div> : null}
+      {refreshError && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 text-red-300 px-4 py-3 text-sm inline-flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4" />
+          {refreshError}
+        </div>
+      )}
 
       <Tabs defaultValue="transcript" className="w-full">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl md:grid-cols-4">
-            <TabsTrigger value="transcript">Yanıt Analizi</TabsTrigger>
-            <TabsTrigger value="audio">Ses Analizi</TabsTrigger>
-            <TabsTrigger value="vision">Görüntü Analizi</TabsTrigger>
-            <TabsTrigger value="progress">Gelişim Paneli</TabsTrigger>
-          </TabsList>
+        <TabsList className="bg-enterprise-surface p-1 rounded-xl border border-enterprise-border inline-flex h-auto mb-4">
+          <TabsTrigger value="transcript" className="rounded-lg px-6 py-2 text-xs font-semibold data-[state=active]:bg-enterprise-surface-2">
+            <BarChart3 className="w-3.5 h-3.5 mr-2" />
+            Yanıt Analizi
+          </TabsTrigger>
+          <TabsTrigger value="audio" className="rounded-lg px-6 py-2 text-xs font-semibold data-[state=active]:bg-enterprise-surface-2">
+            <Headphones className="w-3.5 h-3.5 mr-2" />
+            Ses Analizi
+          </TabsTrigger>
+          <TabsTrigger value="vision" className="rounded-lg px-6 py-2 text-xs font-semibold data-[state=active]:bg-enterprise-surface-2">
+            <Eye className="w-3.5 h-3.5 mr-2" />
+            Görüntü Analizi
+          </TabsTrigger>
+        </TabsList>
 
-
-        <TabsContent value="transcript" className="space-y-6 pt-4">
+        <TabsContent value="transcript">
           <TranscriptAnalysisTab report={report} />
         </TabsContent>
-
-        <TabsContent value="audio" className="space-y-6 pt-4">
+        <TabsContent value="audio">
           <AudioAnalysisTab report={report} />
         </TabsContent>
-
-        <TabsContent value="vision" className="space-y-6 pt-4">
+        <TabsContent value="vision">
           <VisionAnalysisTab report={report} />
-        </TabsContent>
-
-        <TabsContent value="progress" className="space-y-6 pt-4">
-          <ProgressDashboardTab currentReport={report} currentSessionId={sessionId} />
         </TabsContent>
       </Tabs>
     </div>

@@ -7,11 +7,22 @@ export default {
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			sm: 'calc(var(--radius) - 4px)',
+        '2xl': '1.125rem',
+        '3xl': '1.5rem',
   		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
+        'enterprise-bg': '#05060f',
+        'enterprise-surface': '#0d0f1c',
+        'enterprise-surface-2': '#131525',
+        'enterprise-surface-3': '#1a1d30',
+        'enterprise-accent': '#7c5cfc',
+        'enterprise-accent-2': '#5b8af7',
+        'enterprise-border': 'rgba(255, 255, 255, 0.06)',
+        'enterprise-text-2': '#8b8fa8',
+        'enterprise-text-3': '#555870',
   			card: {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'

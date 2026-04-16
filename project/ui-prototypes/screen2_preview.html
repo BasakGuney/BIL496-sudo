@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InterviewAI — Cihaz Testi &amp; Önizleme</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#05060f;--surface:#0d0f1c;--surface-2:#131525;--surface-3:#1a1d30;
+  --border:rgba(255,255,255,0.06);--border-ho:rgba(255,255,255,0.12);
+  --accent:#7c5cfc;--accent-2:#5b8af7;
+  --text:#e8eaf2;--text-2:#8b8fa8;--text-3:#555870;
+  --green:#22c55e;
+}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 70% 45% at 15% -5%,rgba(124,92,252,0.11) 0%,transparent 65%),
+             radial-gradient(ellipse 50% 35% at 85% 105%,rgba(91,138,247,0.07) 0%,transparent 60%);
+}
+.nav{position:sticky;top:0;z-index:100;border-bottom:1px solid var(--border);background:rgba(5,6,15,0.85);backdrop-filter:blur(20px)}
+.nav-in{max-width:1280px;margin:0 auto;padding:0 2rem;height:58px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#7c5cfc,#5b8af7);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(124,92,252,.4)}
+.logo-mark svg{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.logo-name{font-size:14px;font-weight:700;letter-spacing:-0.3px}
+.logo-tag{font-size:10px;font-weight:600;padding:2px 7px;background:rgba(124,92,252,.15);border:1px solid rgba(124,92,252,.28);color:#a78bfa;border-radius:40px}
+.btn-ghost{background:none;border:1px solid var(--border);color:var(--text-2);border-radius:9px;padding:6px 14px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s}
+.btn-ghost:hover{border-color:var(--border-ho);color:var(--text)}
+
+/* Stepper */
+.stepper-area{max-width:1280px;margin:0 auto;padding:28px 2rem 0;position:relative;z-index:1}
+.stepper{display:flex;align-items:flex-start;width:560px;margin:0 auto 36px}
+.s-item{display:flex;flex-direction:column;align-items:center;position:relative;flex:1}
+.s-line{position:absolute;top:15px;left:calc(50% + 16px);right:calc(-50% + 16px);height:1px;z-index:0}
+.s-line.done{background:rgba(124,92,252,.4)}.s-line.pen{background:var(--border)}
+.s-item:last-child .s-line{display:none}
+.s-dot{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text-3);position:relative;z-index:1}
+.s-item.done .s-dot{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3);color:var(--green)}
+.s-item.active .s-dot{background:linear-gradient(135deg,#7c5cfc,#5b8af7);border:none;color:#fff;box-shadow:0 0 18px rgba(124,92,252,.5)}
+.s-lbl{font-size:10px;font-weight:500;margin-top:7px;color:var(--text-3)}
+.s-item.active .s-lbl{color:var(--text-2)}.s-item.done .s-lbl{color:var(--green)}
+
+/* Page */
+.page{max-width:1280px;margin:0 auto;padding:0 2rem;display:grid;grid-template-columns:0.85fr 1.15fr;gap:22px;position:relative;z-index:1;padding-bottom:80px}
+@media(max-width:880px){.page{grid-template-columns:1fr}}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,.03),0 8px 32px rgba(0,0,0,.45);margin-bottom:14px}
+.card:last-child{margin-bottom:0}
+.card-hd{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-hd-t{font-size:13px;font-weight:600}
+.card-hd-s{font-size:11px;color:var(--text-3);margin-top:2px}
+.card-bd{padding:20px}
+.btn-sm{padding:5px 13px;border-radius:8px;border:1px solid var(--border);background:var(--surface-3);color:var(--text-2);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s}
+.btn-sm:hover{border-color:var(--border-ho);color:var(--text)}
+.btn-sm.active-cam{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.28);color:#fca5a5}
+
+/* Camera */
+.video-box{width:100%;aspect-ratio:16/9;border-radius:12px;background:#000;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.cam-ph{text-align:center;color:var(--text-3)}
+.cam-ph svg{width:28px;height:28px;stroke:var(--text-3);fill:none;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;opacity:.3;margin-bottom:8px}
+.cam-ph p{font-size:12px}
+.cam-tip{font-size:11px;color:var(--text-3);margin-top:10px;line-height:1.5}
+
+/* Mic */
+.mic-panel{padding:14px;background:var(--surface-2);border-radius:10px;border:1px solid var(--border)}
+.mic-label-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.mic-label{font-size:12px;font-weight:500;color:var(--text-2)}
+.mic-hint{font-size:10px;color:var(--text-3)}
+.mic-bars{display:flex;align-items:flex-end;gap:3px;height:36px}
+.mb{width:5px;border-radius:3px;background:var(--surface-3)}
+.mb.active{background:linear-gradient(180deg,var(--accent),var(--accent-2));animation:mba 0.9s ease-in-out infinite alternate}
+@keyframes mba{0%{height:5px;opacity:.3}100%{height:var(--h,20px);opacity:1}}
+
+/* Meta chips */
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.meta-chip{padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px}
+.meta-key{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.meta-val{font-size:12px;font-weight:600}
+.badge-mode{display:inline-block;padding:2px 8px;background:rgba(124,92,252,.12);border:1px solid rgba(124,92,252,.24);color:#a78bfa;border-radius:5px;font-size:10px;font-weight:600}
+
+/* CV Brief */
+.field{margin-bottom:12px}
+.flabel{font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;display:block}
+.inp{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:8px 12px;font-size:12px;color:var(--text);font-family:inherit;outline:none;transition:all .2s}
+.inp:focus{border-color:rgba(124,92,252,.5);box-shadow:0 0 0 3px rgba(124,92,252,.1)}
+.inp::placeholder{color:var(--text-3)}
+textarea.inp{resize:none;line-height:1.5}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* Difficulty selector */
+.diff-group{display:flex;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:3px;gap:3px}
+.diff-btn{flex:1;padding:6px;border:none;background:none;font-size:12px;font-weight:500;color:var(--text-3);border-radius:6px;cursor:pointer;font-family:inherit;transition:all .2s}
+.diff-btn.on{background:rgba(124,92,252,.14);color:#a78bfa;border:1px solid rgba(124,92,252,.22)}
+
+/* Sample Questions */
+.q-card{display:flex;gap:10px;padding:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;transition:border-color .2s}
+.q-card:last-child{margin-bottom:0}
+.q-card:hover{border-color:var(--border-ho)}
+.q-num{width:20px;height:20px;flex-shrink:0;border-radius:5px;background:rgba(124,92,252,.1);border:1px solid rgba(124,92,252,.2);color:#a78bfa;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.q-text{font-size:12px;color:var(--text-2);line-height:1.6}
+
+/* Right column */
+.right-col{display:flex;flex-direction:column;gap:0}
+
+/* Footer nav */
+.footer{position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(5,6,15,.88);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:13px 2rem;display:flex;align-items:center;justify-content:space-between}
+.footer-info{font-size:11px;color:var(--text-3)}
+.footer-info strong{color:var(--text-2)}
+.footer-btns{display:flex;align-items:center;gap:10px}
+.btn-back{background:none;border:1px solid var(--border);color:var(--text-2);border-radius:9px;padding:8px 18px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;gap:6px}
+.btn-back:hover{border-color:var(--border-ho);color:var(--text);background:var(--surface-2)}
+.btn-fwd{background:linear-gradient(135deg,#7c5cfc,#5b8af7);border:none;color:#fff;border-radius:9px;padding:8px 24px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;gap:7px;box-shadow:0 4px 16px rgba(124,92,252,.38)}
+.btn-fwd:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(124,92,252,.48)}
+.nav-ico{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.07);border-radius:5px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-in">
+    <a class="logo" href="screen1_setup.html">
+      <div class="logo-mark"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01z"/></svg></div>
+      <span class="logo-name">InterviewAI</span>
+      <span class="logo-tag">Beta</span>
+    </a>
+    <button class="btn-ghost">Gizlilik &amp; Onay</button>
+  </div>
+</nav>
+
+<div class="stepper-area">
+  <div class="stepper">
+    <div class="s-item done"><div class="s-line done"></div><div class="s-dot">✓</div><div class="s-lbl">Kurulum</div></div>
+    <div class="s-item active"><div class="s-line pen"></div><div class="s-dot">2</div><div class="s-lbl">Cihaz Testi</div></div>
+    <div class="s-item"><div class="s-line pen"></div><div class="s-dot">3</div><div class="s-lbl">Mülakat</div></div>
+    <div class="s-item"><div class="s-dot">4</div><div class="s-lbl">Rapor</div></div>
+  </div>
+</div>
+
+<div class="page">
+  <!-- LEFT -->
+  <div>
+    <div class="card">
+      <div class="card-hd">
+        <div><div class="card-hd-t">Kamera Önizleme</div><div class="card-hd-s">Işık ve kadrajı kontrol edin</div></div>
+        <button class="btn-sm">Kamerayı Aç</button>
+      </div>
+      <div class="card-bd">
+        <div class="video-box">
+          <div class="cam-ph">
+            <svg viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            <p>Kamera bekleniyor</p>
+          </div>
+        </div>
+        <p class="cam-tip">Yüzünüz net görünmeli, kamera göz hizasında olmalıdır. Önizleme yalnızca kontrol amaçlıdır.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div><div class="card-hd-t">Mikrofon Testi</div><div class="card-hd-s">Ses seviyenizi doğrulayın</div></div>
+        <button class="btn-sm">Mikrofonu Aç</button>
+      </div>
+      <div class="card-bd">
+        <div class="mic-panel">
+          <div class="mic-label-row">
+            <span class="mic-label">Ses Seviyesi</span>
+            <span class="mic-hint">Bir şeyler söyleyin</span>
+          </div>
+          <div class="mic-bars">
+            <div class="mb" style="height:6px"></div>
+            <div class="mb active" style="--h:12px;height:12px"></div>
+            <div class="mb active" style="--h:22px;height:22px;animation-delay:.1s"></div>
+            <div class="mb active" style="--h:32px;height:32px;animation-delay:.2s"></div>
+            <div class="mb active" style="--h:26px;height:26px;animation-delay:.15s"></div>
+            <div class="mb active" style="--h:36px;height:36px;animation-delay:.3s"></div>
+            <div class="mb active" style="--h:20px;height:20px;animation-delay:.05s"></div>
+            <div class="mb" style="height:8px"></div>
+            <div class="mb active" style="--h:28px;height:28px;animation-delay:.25s"></div>
+            <div class="mb" style="height:6px"></div>
+          </div>
+        </div>
+        <p class="cam-tip">Konuştuğunuzda barlar yükselmeli. Çok düşükse sistem ses ayarlarını kontrol edin.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right-col">
+    <div class="card">
+      <div class="card-hd">
+        <div><div class="card-hd-t">Soru Önizleme</div><div class="card-hd-s">Bu konulara benzer sorularla karşılaşabilirsiniz</div></div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-3)">
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;box-shadow:0 0 8px rgba(124,92,252,.5)"></span>
+          3 soru hazır
+        </div>
+      </div>
+      <div class="card-bd">
+        <div class="q-card">
+          <div class="q-num">1</div>
+          <div class="q-text">Bize React'teki Virtual DOM mimarisini ve reconciliation sürecini açıklayabilir misiniz? Performansa katkıları nelerdir?</div>
+        </div>
+        <div class="q-card">
+          <div class="q-num">2</div>
+          <div class="q-text">Large-scale bir React uygulamasında state yönetimi için hangi yaklaşımları tercih edersiniz? Neden?</div>
+        </div>
+        <div class="q-card">
+          <div class="q-num">3</div>
+          <div class="q-text">Karşılaştığınız en zorlu teknik problemi ve çözüm sürecinizi paylaşır mısınız?</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><div class="card-hd-t">Oturum Özeti</div></div>
+      <div class="card-bd">
+        <div class="meta-grid">
+          <div class="meta-chip"><div class="meta-key">Mülakat Tipi</div><div class="meta-val">İnsan Kaynakları (HR)</div></div>
+          <div class="meta-chip"><div class="meta-key">Pozisyon</div><div class="meta-val">Frontend Developer</div></div>
+          <div class="meta-chip"><div class="meta-key">Şirket / Sektör</div><div class="meta-val">Teknoloji</div></div>
+          <div class="meta-chip"><div class="meta-key">Mod</div><div class="meta-val"><span class="badge-mode">Supportive</span></div></div>
+        </div>
+        <!-- Difficulty shown only for Technical -->
+        <div style="margin-top:12px">
+          <div class="flabel">Zorluk Seviyesi <span style="color:var(--text-3)">(Teknik mülakatlar için)</span></div>
+          <div class="diff-group">
+            <button class="diff-btn on">Junior (Başlangıç)</button>
+            <button class="diff-btn">Intermediate (Orta)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div><div class="card-hd-t">CV Özeti</div><div class="card-hd-s">AI tarafından çıkarıldı — gerekirse düzenleyin</div></div>
+      </div>
+      <div class="card-bd">
+        <div class="field">
+          <label class="flabel">Başlık</label>
+          <input class="inp" type="text" value="Junior Frontend Developer | Optimization Engineer" placeholder="Örn: Optimization Engineer / Frontend Developer">
+        </div>
+        <div class="field">
+          <label class="flabel">Genel Özet</label>
+          <textarea class="inp" rows="3" placeholder="CV'nizden çıkan kısa özet burada yer alır.">React ve Node.js ekosisteminde uzmanlaşmış, modern web teknolojileri konusunda 2 yıl deneyimli geliştirici. Performans optimizasyonu ve kullanıcı deneyimi odaklı çalışıyor.</textarea>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label class="flabel">Eğitim Öne Çıkanlar</label>
+            <textarea class="inp" rows="3" placeholder="Her satıra bir madde">Bilgisayar Mühendisliği, YTÜ
+2020 – 2024</textarea>
+          </div>
+          <div class="field">
+            <label class="flabel">Yetkinlikler</label>
+            <textarea class="inp" rows="3" placeholder="Her satıra bir yetkinlik">React, TypeScript
+Node.js, Python, Git</textarea>
+          </div>
+          <div class="field">
+            <label class="flabel">Deneyim Öne Çıkanlar</label>
+            <textarea class="inp" rows="3" placeholder="Her satıra bir deneyim özeti">Frontend Developer
+Starttech, 2024 – Halen</textarea>
+          </div>
+          <div class="field">
+            <label class="flabel">Proje Öne Çıkanlar</label>
+            <textarea class="inp" rows="3" placeholder="Her satıra bir proje özeti">E-ticaret Dashboard
+%40 performans artışı</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <div class="footer-info">Adım <strong>2 / 4</strong> — Cihaz Testi &amp; Önizleme</div>
+  <div class="footer-btns">
+    <button class="btn-back" onclick="location.href='screen1_setup.html'">
+      <svg class="nav-ico" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      Kuruluma Dön
+    </button>
+    <button class="btn-fwd" onclick="location.href='screen3_interview.html'">
+      Mülakata Başla
+      <svg class="nav-ico" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+</div>
+
+</body>
+</html>

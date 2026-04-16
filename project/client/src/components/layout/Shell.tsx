@@ -1,21 +1,25 @@
 import React from "react";
 import { TopBar } from "./TopBar";
 
-export function Shell({ children }: { children: React.ReactNode }) {
+export function Shell({ 
+  children,
+  onNavigateHistory,
+  onNewInterview
+}: { 
+  children: React.ReactNode;
+  onNavigateHistory?: () => void;
+  onNewInterview?: () => void;
+}) {
   return (
-    <div className="min-h-screen w-screen bg-background text-foreground">
-      <TopBar />
+    <div className="min-h-screen w-full relative overflow-x-hidden">
+      <TopBar 
+        onNavigateHistory={onNavigateHistory} 
+        onNewInterview={onNewInterview}
+      />
 
-
-      <main className="w-full px-4 md:px-6 py-6">
+      <main className="w-full relative z-10">
         {children}
       </main>
-
-      <footer className="mt-10 pb-6 text-sm text-muted-foreground">
-        <div className="px-4 md:px-6">
-          © 2026 • AI Mock Interview • Supportive / Neutral
-        </div>
-      </footer>
     </div>
   );
 }

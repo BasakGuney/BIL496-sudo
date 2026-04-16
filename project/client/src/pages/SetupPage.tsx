@@ -1,25 +1,20 @@
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+﻿import { useState } from "react";
 import { SessionSetupForm } from "@/components/setup/SessionSetupForm";
 import { ConsentPanel } from "@/components/setup/ConsentPanel";
-import { ProgressDashboardTab } from "@/components/feedback/ProgressDashboardTab";
-import type { SessionConfig, SessionSummary } from "@/lib/types";
-import { listReports, startSession } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { BarChart3, Calendar, FileText } from "lucide-react";
+import type { SessionConfig } from "@/lib/types";
+import { startSession } from "@/lib/api";
+import { ShieldCheck, Info } from "lucide-react";
 
 export function SetupPage({
   onPrepared,
-  onOpenReport,
+  onOpenReport: _onOpenReport,
 }: {
   onPrepared: (config: SessionConfig, sessionId: string) => void;
   onOpenReport: (sessionId: string) => void;
 }) {
   const [config, setConfig] = useState<SessionConfig>(() => ({
-    firstName: "Ece",
-    lastName: "Subozkurt",
+    firstName: "Basak",
+    lastName: "Guney",
     gender: "Kadın",
     interviewType: "HR",
     role: "Frontend Developer",
@@ -55,131 +50,61 @@ export function SetupPage({
     }
   }
 
-  const [history, setHistory] = useState<SessionSummary[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [historyError, setHistoryError] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    setHistoryLoading(true);
-    listReports(20)
-      .then((items) => {
-        if (cancelled) return;
-        setHistory(items);
-        setHistoryError("");
-      })
-      .catch((error: any) => {
-        if (cancelled) return;
-        setHistory([]);
-        setHistoryError(error?.message || "Geçmiş oturumlar yüklenemedi.");
-      })
-      .finally(() => {
-        if (!cancelled) setHistoryLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_.9fr]">
-      <Card className="rounded-2xl">
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <CardTitle>1) Oturum Kurulumu</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <SessionSetupForm
-            value={config}
-            onChange={setConfig}
-            onStart={handlePrepare}
-            starting={preparing}
-          />
-          {prepareError && <div className="text-sm text-destructive">{prepareError}</div>}
-        </CardContent>
-      </Card>
+    <div className="max-w-[1280px] mx-auto px-8 py-10">
+      <header className="mb-10">
+        <h2 className="text-[28px] font-extrabold tracking-tight text-white mb-2">Mülakat Kurulumu</h2>
+        <p className="text-sm text-enterprise-text-2">Mülakat deneyiminizi kişiselleştirmek için bilgilerinizi girin ve ilgi alanlarınızı belirtin.</p>
+      </header>
+      
+      <div className="grid gap-12 lg:grid-cols-[1fr_400px]">
+        {/* Left: Setup Form */}
+        <div className="space-y-8">
 
-      <div className="space-y-6">
-        <ConsentPanel value={config} onChange={setConfig} />
-
-        <Card className="rounded-2xl">
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
-            <CardTitle>Geçmiş Oturumlar</CardTitle>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="rounded-xl">
-                  <BarChart3 className="mr-2 h-4 w-4" />
-                  Gelişim Paneli
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[88vh] max-w-6xl overflow-y-auto rounded-2xl p-0">
-                <DialogHeader className="px-6 pt-6">
-                  <DialogTitle>Gelişim Paneli</DialogTitle>
-                  <DialogDescription>
-                    Geçmiş oturum transcript analizlerinden oluşturulan soru tipi bazlı gelişim görünümü.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="px-4 pb-4 md:px-6 md:pb-6">
-                  <ProgressDashboardTab limit={12} />
-                </div>
-              </DialogContent>
-            </Dialog>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {historyLoading && (
-              <div className="text-sm text-muted-foreground">Oturumlar yükleniyor...</div>
-            )}
-            {!historyLoading && historyError && (
-              <div className="text-sm text-destructive">{historyError}</div>
-            )}
-            {!historyLoading && !historyError && history.length === 0 && (
-              <div className="text-sm text-muted-foreground">Henüz kayıtlı oturum bulunamadı.</div>
-            )}
-            {!historyLoading && !historyError && history.length > 0 && (
-              <div className="space-y-3">
-                {history.map((item) => {
-                  const createdAt = new Date(item.createdAt);
-                  const dateLabel = Number.isNaN(createdAt.getTime())
-                    ? item.createdAt
-                    : createdAt.toLocaleString("tr-TR");
-                  return (
-                    <div
-                      key={item.sessionId}
-                      className="flex flex-col gap-2 rounded-xl border bg-white/70 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <FileText className="h-4 w-4" />
-                          {item.sessionId}
-                        </div>
-                        <Button size="sm" variant="outline" onClick={() => onOpenReport(item.sessionId)}>
-                          Raporu Aç
-                        </Button>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                          <Calendar className="h-3.5 w-3.5" />
-                          {dateLabel}
-                        </span>
-                        {item.overallScore !== null && (
-                          <Badge variant="outline">Skor: {item.overallScore}</Badge>
-                        )}
-                        {item.hasTranscript && <Badge variant="outline">Transcript</Badge>}
-                        {item.hasAudio && <Badge variant="outline">Ses</Badge>}
-                        {item.hasVision && <Badge variant="outline">Görüntü</Badge>}
-                      </div>
-                      {item.transcriptPreview && (
-                        <div className="text-xs text-muted-foreground">
-                          {item.transcriptPreview}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+          <div className="card-style bg-enterprise-surface/50 p-8">
+            <SessionSetupForm
+              value={config}
+              onChange={setConfig}
+              onStart={handlePrepare}
+              starting={preparing}
+            />
+            {prepareError && (
+              <div className="mt-4 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+                {prepareError}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Right: Consent & Info */}
+        <div className="space-y-6">
+          <div className="card-style bg-enterprise-surface p-6 sticky top-24">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-enterprise-accent/10 border border-enterprise-accent/20 flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5 text-enterprise-accent" />
+              </div>
+              <h3 className="font-bold text-white">Erişim ve Onay</h3>
+            </div>
+
+            <ConsentPanel value={config} onChange={setConfig} />
+
+            <div className="mt-8 pt-6 border-t border-enterprise-border">
+              <div className="flex gap-3 text-xs text-enterprise-text-2 leading-relaxed">
+                <div className="flex-shrink-0 mt-0.5">
+                  <div className="w-4 h-4 rounded-full bg-enterprise-surface-2 flex items-center justify-center border border-enterprise-border">
+                    <Info className="w-2.5 h-2.5 text-enterprise-text-3" />
+                  </div>
+                </div>
+                <p>
+                  Mülakat süresince sesiniz ve görüntünüz analiz edilerek size gerçek zamanlı geri bildirim sağlanacaktır. 
+                  Bu veriler yalnızca sizin gelişiminize katkı sağlamak amacıyla işlenir.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+

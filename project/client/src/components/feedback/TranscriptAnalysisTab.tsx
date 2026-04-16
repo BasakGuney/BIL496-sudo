@@ -1,217 +1,169 @@
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { CheckCircle2, AlertCircle, Target } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function TranscriptAnalysisTab({ report }: { report: any }) {
   const analysis = report?.transcriptAnalysis;
+  const overall = analysis?.overall;
+  const qaEvaluations = Array.isArray(analysis?.qaEvaluations) ? analysis.qaEvaluations : [];
+  const recommendations = analysis?.newRecommendations || {};
 
-  if (!analysis || !analysis.overall) {
+  if (!overall) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground border rounded-2xl bg-white">
-        <h3 className="text-lg font-medium text-slate-900 mb-1">Analiz Bekleniyor</h3>
-        <p className="text-sm">Arka planda yapay zeka analizlerinin tamamlanması bekleniyor...</p>
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-enterprise-surface border border-enterprise-border flex items-center justify-center mb-6 animate-pulse">
+          <Target className="w-8 h-8 text-enterprise-accent opacity-50" />
+        </div>
+        <h3 className="text-xl font-bold text-white mb-2">Yanıt Analizi Bekleniyor</h3>
+        <p className="text-sm text-enterprise-text-2 max-w-xs mx-auto">Soru bazlı değerlendirmeler hazırlanıyor.</p>
       </div>
     );
   }
 
-  const { overallScore, dimensionScores, overallAnalysis, strengths, improvementAreas, focusTopics } = analysis.overall;
-  const { "Bir Sonraki Mülakatta": immediate, "Performans Geliştirme": improvement, "Çalışma Planı": study } = analysis.newRecommendations || {};
-  
-  // Sadece rapora dahil edilmesi gerekenleri filtrele
-  const questions = (analysis.qaEvaluations || []).filter((q: any) => q.visibleInReport !== false);
+  const dimensionScores = overall.dimensionScores || {};
+  const strengths = Array.isArray(overall.strengths) ? overall.strengths : [];
+  const improvementAreas = Array.isArray(overall.improvementAreas) ? overall.improvementAreas : [];
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-[#047857] bg-[#ecfdf5] border-[#a7f3d0]";
-    if (score >= 60) return "text-[#b45309] bg-[#fffbeb] border-[#fde68a]";
-    return "text-[#b91c1c] bg-[#fef2f2] border-[#fecaca]";
-  };
+  const dimensions = [
+    { key: "contentQuality", label: "İçerik Kalitesi", detail: "Sorulara içeriksel uygunluk ve derinlik." },
+    { key: "communicationClarity", label: "İfade ve Netlik", detail: "Anlatımın akışı ve açıklık seviyesi." },
+    { key: "roleReadiness", label: "Role Hazırlık", detail: "Pozisyona hazırlık ve olgunluk." },
+    { key: "technicalUnderstanding", label: "Teknik Yetkinlik", detail: "Teknik doğruluk ve hakimiyet." },
+  ].map((d) => ({
+    ...d,
+    score: Number(dimensionScores[d.key] || 0),
+  }));
 
-  const radarData = [
-    { subject: 'İçerik Kalitesi', score: dimensionScores.contentQuality || 0 },
-    { subject: 'İfade & Netlik', score: dimensionScores.communicationClarity || 0 },
-    { subject: 'Role Hazırlık', score: dimensionScores.roleReadiness || 0 },
-    { subject: 'Teknik Yetkinlik', score: dimensionScores.technicalUnderstanding || 0 },
-    { subject: 'Örnekleme', score: dimensionScores.evidenceSupport || 0 },
+  const recommendationColumns = [
+    { title: "Bir Sonraki Mülakatta", items: recommendations["Bir Sonraki Mülakatta"] || [] },
+    { title: "Performans Geliştirme (Orta / Uzun Vade)", items: recommendations["Performans Geliştirme"] || [] },
+    { title: "Çalışma Planı", items: recommendations["Çalışma Planı"] || [] },
   ];
 
-  return (
-    <div className="space-y-6 bg-[#f4f7fb] text-[#1f2937] p-2 md:p-6 rounded-2xl">
-      <div className="mb-2">
-        <h1 className="text-3xl font-bold mb-2">Yanıt Analizi</h1>
-        <p className="text-[#6b7280] text-[15px] leading-relaxed">
-          Teknik mülakat yanıtlarının soru bazlı puanları, detaylı metrikleri ve genel değerlendirmesi.
-        </p>
-      </div>
+  const getScoreTone = (score: number) => {
+    if (score >= 80) return "bg-emerald-500/10 border-emerald-500/25 text-emerald-400";
+    if (score >= 60) return "bg-amber-500/10 border-amber-500/25 text-amber-400";
+    return "bg-red-500/10 border-red-500/25 text-red-400";
+  };
 
-      <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr] items-start">
-        <div className="flex flex-col gap-5">
-          <div className="bg-white border border-[#e5e7eb] rounded-[18px] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)] flex flex-col md:flex-row items-center justify-between gap-5">
-            <div>
-              <p className="text-[#6b7280] mb-2.5">Genel Puan</p>
-              <p className="text-[64px] leading-none font-extrabold m-0">
-                {overallScore}
-                <span className="text-2xl font-semibold">/100</span>
-              </p>
-              <span className="inline-block px-3 py-2 rounded-full text-[13px] font-bold border border-[#fed7aa] bg-[#fff7ed] text-[#c2410c] mt-2.5">
-                {overallScore >= 80 ? "Başarılı" : overallScore >= 60 ? "Gelişime Açık" : "Yetersiz"}
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 lg:grid-cols-[200px_1fr_1fr]">
+        <div className="card-style bg-enterprise-surface p-6 flex flex-col items-center justify-center">
+          <div className="text-5xl font-black text-white">{Number(overall.overallScore || 0)}</div>
+          <div className="text-xs text-enterprise-text-3 mt-1">/100</div>
+          <Badge className="mt-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] uppercase tracking-wider">
+            Genel Skor
+          </Badge>
+        </div>
+
+        <div className="card-style bg-enterprise-surface p-6">
+          <p className="text-[10px] font-bold text-enterprise-text-3 uppercase tracking-widest mb-3">Genel Değerlendirme</p>
+          <p className="text-sm text-enterprise-text-2 leading-relaxed">{overall.overallAnalysis || "Değerlendirme hazırlanıyor."}</p>
+        </div>
+
+        <div className="card-style bg-enterprise-surface p-6">
+          <p className="text-[10px] font-bold text-enterprise-text-3 uppercase tracking-widest mb-3">Analiz Durumu</p>
+          <div className="space-y-2 text-xs">
+            <div className="flex items-center justify-between bg-enterprise-surface-2 border border-enterprise-border rounded-lg px-3 py-2">
+              <span className="text-enterprise-text-2">Yanıt Analizi</span>
+              <span className="text-emerald-400 font-semibold">Tamamlandı</span>
+            </div>
+            <div className="flex items-center justify-between bg-enterprise-surface-2 border border-enterprise-border rounded-lg px-3 py-2">
+              <span className="text-enterprise-text-2">Ses Analizi</span>
+              <span className={report?.analysisStatus?.audioLlm ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                {report?.analysisStatus?.audioLlm ? "Tamamlandı" : "Ses analizi bekleniyor"}
               </span>
             </div>
-
-            <div className="grid gap-3 w-full md:w-[42%]">
-              <div className="bg-[#f9fafb] border border-[#eef2f7] rounded-[14px] p-3.5">
-                <div className="text-[12px] text-[#6b7280] mb-1.5 uppercase tracking-[0.04em]">En Güçlü Alan</div>
-                <div className="text-[14px] font-semibold leading-relaxed">{strengths?.[0] || "-"}</div>
-              </div>
-              <div className="bg-[#f9fafb] border border-[#eef2f7] rounded-[14px] p-3.5">
-                <div className="text-[12px] text-[#6b7280] mb-1.5 uppercase tracking-[0.04em]">Öncelikli Gelişim</div>
-                <div className="text-[14px] font-semibold leading-relaxed">{improvementAreas?.[0] || "-"}</div>
-              </div>
+            <div className="flex items-center justify-between bg-enterprise-surface-2 border border-enterprise-border rounded-lg px-3 py-2">
+              <span className="text-enterprise-text-2">Görüntü Analizi</span>
+              <span className={report?.analysisStatus?.visionLlm ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                {report?.analysisStatus?.visionLlm ? "Tamamlandı" : "Görüntü analizi bekleniyor"}
+              </span>
             </div>
           </div>
-
-          <div className="bg-white border border-[#e5e7eb] rounded-[18px] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)] flex flex-col justify-center min-h-[260px]">
-            <h3 className="text-[16px] font-bold text-center mb-2">Yetkinlik Dağılım Grafiği</h3>
-            <div className="w-full h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                  <PolarGrid stroke="#e5e7eb" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#6b7280', fontSize: 11, fontWeight: 600 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#9ca3af', fontSize: 10 }} />
-                  <Radar name="Skor" dataKey="score" stroke="#2563eb" fill="#3b82f6" fillOpacity={0.4} />
-                  <RechartsTooltip cursor={{strokeDasharray: '3 3'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#e5e7eb] rounded-[18px] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-          <h2 className="m-0 mb-4 text-[20px] font-bold">Genel Değerlendirme</h2>
-          <p className="text-[#6b7280] leading-[1.7] m-0 text-[15px] whitespace-pre-line">
-            {overallAnalysis}
-          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-        {[
-          { label: "İçerik Kalitesi", score: dimensionScores.contentQuality, desc: "Sorulara teknik/içeriksel uyum ve derinlik." },
-          { label: "İfade ve Netlik", score: dimensionScores.communicationClarity, desc: "Düşünceleri ifade etme açıklığı ve iletişimin akıcılığı." },
-          { label: "Role Hazırlık", score: dimensionScores.roleReadiness, desc: "Genel soru tiplerine karşı verilen cevapların olgunluğu." },
-          { label: "Teknik Yetkinlik", score: dimensionScores.technicalUnderstanding, desc: "Teknik doğruluk ve konuya olan teknik hakimiyet." },
-        ].map((dim, idx) => (
-          <div key={idx} className="bg-white border border-[#e5e7eb] rounded-[18px] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-            <h4 className="m-0 mb-2.5 text-[15px] min-h-[38px]">{dim.label}</h4>
-            <div className="text-[28px] font-extrabold mb-2.5">{dim.score !== null ? dim.score : "-"}</div>
-            <div className="text-[13px] text-[#6b7280] leading-relaxed mb-3 min-h-[40px]">{dim.desc}</div>
-            <div className="w-full h-2.5 bg-[#edf2f7] rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-[#2563eb]" style={{ width: `${dim.score || 0}%` }} />
-            </div>
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        {dimensions.map((dim) => (
+          <div key={dim.key} className="card-style bg-enterprise-surface p-5">
+            <p className="text-[11px] text-enterprise-text-3 mb-2">{dim.label}</p>
+            <div className="text-3xl font-black text-white mb-2">{dim.score}</div>
+            <p className="text-[11px] text-enterprise-text-3 mb-3 min-h-[34px]">{dim.detail}</p>
+            <Progress value={dim.score} className="h-1.5 bg-enterprise-surface-2" />
           </div>
         ))}
       </div>
 
-      <div className="grid md:grid-cols-2 gap-5">
-        <div className="bg-white border border-[#e5e7eb] rounded-[18px] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-          <h2 className="m-0 mb-4 text-[20px] font-bold">Güçlü Yönler</h2>
-          <ul className="m-0 pl-5 text-[15px]">
-            {strengths?.map((item: string, i: number) => (
-              <li key={i} className="mb-2.5 leading-[1.55]">{item}</li>
-            ))}
-          </ul>
-        </div>
-        <div className="bg-white border border-[#e5e7eb] rounded-[18px] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-          <h2 className="m-0 mb-4 text-[20px] font-bold">Gelişim Alanları</h2>
-          <ul className="m-0 pl-5 text-[15px]">
-            {improvementAreas?.map((item: string, i: number) => (
-              <li key={i} className="mb-2.5 leading-[1.55]">{item}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      {focusTopics && focusTopics.length > 0 && (
-        <div className="bg-white border border-[#e5e7eb] rounded-[18px] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-          <h2 className="m-0 mb-4 text-[20px] font-bold">Odak Konuları</h2>
-          <div className="flex flex-wrap gap-2.5">
-            {focusTopics.map((topic: string, i: number) => (
-              <span key={i} className="bg-[#eef4ff] text-[#1d4ed8] border border-[#dbeafe] px-3 py-2.5 rounded-full text-[13px] font-semibold">
-                {topic}
-              </span>
-            ))}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="card-style bg-enterprise-surface p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-sm font-bold text-white">Güçlü Yönler</h3>
           </div>
+          <ul className="space-y-2 text-sm text-enterprise-text-2">
+            {strengths.slice(0, 4).map((item: string, i: number) => (
+              <li key={i}>• {item}</li>
+            ))}
+          </ul>
         </div>
-      )}
 
-      <div className="grid md:grid-cols-3 gap-5">
-        <div className="bg-white border border-[#e5e7eb] rounded-[18px] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-          <h4 className="m-0 mb-3 text-[16px] font-bold">Bir Sonraki Mülakatta</h4>
-          <p className="m-0 leading-[1.65] text-[#374151] whitespace-pre-line text-[15px]">
-             {immediate ? "- " + immediate.join("\n- ") : "-"}
-          </p>
-        </div>
-        <div className="bg-white border border-[#e5e7eb] rounded-[18px] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-          <h4 className="m-0 mb-3 text-[16px] font-bold">Performans Geliştirme</h4>
-          <p className="m-0 leading-[1.65] text-[#374151] whitespace-pre-line text-[15px]">
-             {improvement ? "- " + improvement.join("\n- ") : "-"}
-          </p>
-        </div>
-        <div className="bg-white border border-[#e5e7eb] rounded-[18px] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-          <h4 className="m-0 mb-3 text-[16px] font-bold">Çalışma Planı</h4>
-          <p className="m-0 leading-[1.65] text-[#374151] whitespace-pre-line text-[15px]">
-            {study ? "- " + study.join("\n- ") : "-"}
-          </p>
+        <div className="card-style bg-enterprise-surface p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertCircle className="w-4 h-4 text-amber-400" />
+            <h3 className="text-sm font-bold text-white">Gelişim Alanları</h3>
+          </div>
+          <ul className="space-y-2 text-sm text-enterprise-text-2">
+            {improvementAreas.slice(0, 4).map((item: string, i: number) => (
+              <li key={i}>• {item}</li>
+            ))}
+          </ul>
         </div>
       </div>
 
-      <div className="bg-white border border-[#e5e7eb] rounded-[18px] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-        <h2 className="m-0 mb-4 text-[20px] font-bold">Soru Bazlı Değerlendirme</h2>
-        <div className="grid gap-4">
-          {questions.map((q: any) => (
-            <div key={q.index} className={`border rounded-[16px] p-[18px] bg-white ${q.isWeak ? 'border-[#fecaca]' : 'border-[#e5e7eb]'}`}>
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="flex gap-2.5 flex-wrap items-center">
-                  <span className="font-bold text-[16px]">Soru {q.index}</span>
-                  <span className="text-[12px] font-bold bg-[#f3f4f6] text-[#4b5563] rounded-full px-2.5 py-1.5 uppercase">
-                    {q.questionType?.replace("_", " ")}
-                  </span>
-                </div>
-                <div className={`min-w-[78px] text-center px-3 py-2.5 rounded-xl font-extrabold text-[18px] border ${getScoreColor(q.score)}`}>
-                  {q.score}
-                </div>
-              </div>
-              <p className="m-0 mb-[14px] text-[15px] font-semibold leading-[1.55]">{q.question}</p>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mb-3.5">
-                {[
-                  { label: "Uygunluk", val: q.metrics?.relevance },
-                  { label: "Netlik", val: q.metrics?.clarity },
-                  { label: "Derinlik", val: q.metrics?.depth },
-                  { label: "Örnekleme", val: q.metrics?.evidenceExample },
-                  { label: "Teknik Doğruluk", val: q.metrics?.technicalAccuracy },
-                ].map((m, idx) => (
-                  <div key={idx} className="bg-[#f9fafb] border border-[#eef2f7] rounded-xl p-2.5">
-                    <div className="text-[12px] text-[#6b7280] mb-1.5">{m.label}</div>
-                    {m.val !== null && m.val !== undefined ? (
-                      <div className="text-[18px] font-extrabold">{m.val}</div>
-                    ) : (
-                      <div className="text-[#9ca3af] font-bold text-[14px]">N/A</div>
-                    )}
+      <div className="grid gap-4 md:grid-cols-3">
+        {recommendationColumns.map((col) => (
+          <div key={col.title} className="card-style bg-enterprise-surface p-6">
+            <h3 className="text-sm font-bold text-white mb-3">{col.title}</h3>
+            <ul className="space-y-2 text-sm text-enterprise-text-2">
+              {Array.isArray(col.items) && col.items.length > 0 ? col.items.map((item: string, i: number) => (
+                <li key={i}>• {item}</li>
+              )) : <li>• Öneri hazırlanıyor.</li>}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      <div className="card-style bg-enterprise-surface p-6">
+        <h3 className="text-sm font-bold text-white mb-4">Soru Bazlı Değerlendirme</h3>
+        <div className="space-y-3">
+          {qaEvaluations.map((q: any) => (
+            <div key={q.index} className="rounded-xl border border-enterprise-border bg-enterprise-surface-2 p-4">
+              <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-white">Soru {q.index}</span>
+                    <Badge className="bg-enterprise-accent/10 border border-enterprise-accent/20 text-enterprise-accent-2 text-[10px]">
+                      {q.questionType || "GENEL"}
+                    </Badge>
                   </div>
-                ))}
-              </div>
-              
-              <p className="m-0 text-[#4b5563] leading-[1.6] text-[14px]">{q.summary}</p>
-              {q.isWeak && (
-                <div className="mt-3 text-[12px] rounded-[10px] px-2.5 py-2 inline-block text-[#991b1b] bg-[#fef2f2] border border-[#fecaca]">
-                  Zayıf performans olarak işaretlendi.
+                  <p className="text-sm text-white">{q.question}</p>
+                  <p className="text-xs text-enterprise-text-2">{q.summary}</p>
                 </div>
-              )}
+                <div className={cn("rounded-lg border px-3 py-2 text-lg font-black min-w-[72px] text-center", getScoreTone(Number(q.score || 0)))}>
+                  {q.score ?? "-"}
+                </div>
+              </div>
             </div>
           ))}
-          {questions.length === 0 && (
-             <p className="text-sm text-muted-foreground italic p-4 text-center border rounded-xl">Analiz edilecek soru bulunamadı.</p>
+          {qaEvaluations.length === 0 && (
+            <div className="text-sm text-enterprise-text-3">Soru bazlı detay bulunamadı.</div>
           )}
         </div>
       </div>
     </div>
   );
 }
+

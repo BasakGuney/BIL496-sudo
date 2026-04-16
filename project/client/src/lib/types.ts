@@ -1,4 +1,4 @@
-export type Gender = "Kadın" | "Erkek";
+﻿export type Gender = "Kadın" | "Erkek";
 export type InterviewType = "HR" | "Technical";
 export type Difficulty = "Junior" | "Intermediate";
 export type Mode = "Supportive" | "Neutral";
@@ -220,3 +220,4 @@ export type SessionSummary = {
   hasVision: boolean;
   transcriptPreview: string;
 };
+

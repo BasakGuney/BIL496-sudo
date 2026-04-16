@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InterviewAI — Rapor</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#05060f;--surface:#0d0f1c;--surface-2:#131525;--surface-3:#1a1d30;
+  --border:rgba(255,255,255,0.06);--border-ho:rgba(255,255,255,0.12);
+  --accent:#7c5cfc;--accent-2:#5b8af7;
+  --text:#e8eaf2;--text-2:#8b8fa8;--text-3:#555870;
+  --green:#22c55e;--amber:#f59e0b;--red:#ef4444;
+}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 70% 40% at 50% -5%,rgba(124,92,252,.09) 0%,transparent 55%);
+}
+
+/* Nav */
+.nav{position:sticky;top:0;z-index:100;border-bottom:1px solid var(--border);background:rgba(5,6,15,.88);backdrop-filter:blur(20px)}
+.nav-in{max-width:1280px;margin:0 auto;padding:0 2rem;height:58px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#7c5cfc,#5b8af7);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(124,92,252,.4)}
+.logo-mark svg{width:15px;height:15px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.logo-name{font-size:14px;font-weight:700;letter-spacing:-.3px}
+.logo-tag{font-size:10px;font-weight:600;padding:2px 7px;background:rgba(124,92,252,.15);border:1px solid rgba(124,92,252,.28);color:#a78bfa;border-radius:40px}
+.btn-new{background:linear-gradient(135deg,#7c5cfc,#5b8af7);border:none;color:#fff;border-radius:9px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:7px;box-shadow:0 4px 14px rgba(124,92,252,.35);transition:all .2s}
+.btn-new:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(124,92,252,.45)}
+.btn-new svg{width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* Stepper */
+.stepper-area{max-width:1280px;margin:0 auto;padding:26px 2rem 0;position:relative;z-index:1}
+.stepper{display:flex;align-items:flex-start;width:560px;margin:0 auto 34px}
+.s-item{display:flex;flex-direction:column;align-items:center;position:relative;flex:1}
+.s-line{position:absolute;top:15px;left:calc(50% + 16px);right:calc(-50% + 16px);height:1px;z-index:0}
+.s-line.done{background:rgba(124,92,252,.4)}.s-line.pen{background:var(--border)}
+.s-item:last-child .s-line{display:none}
+.s-dot{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text-3);position:relative;z-index:1}
+.s-item.done .s-dot{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3);color:var(--green)}
+.s-item.active .s-dot{background:linear-gradient(135deg,#7c5cfc,#5b8af7);border:none;color:#fff;box-shadow:0 0 16px rgba(124,92,252,.5)}
+.s-lbl{font-size:10px;font-weight:500;margin-top:7px;color:var(--text-3)}
+.s-item.done .s-lbl{color:var(--green)}.s-item.active .s-lbl{color:var(--text-2)}
+
+/* Container */
+.container{max-width:1280px;margin:0 auto;padding:0 2rem 80px;position:relative;z-index:1}
+
+/* Page header */
+.page-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.page-title{font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px}
+.page-sub{font-size:12px;color:var(--text-3)}
+.sess-pill{display:inline-flex;align-items:center;gap:7px;margin-top:8px;padding:5px 11px;background:var(--surface);border:1px solid var(--border);border-radius:7px}
+.sess-pill-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 7px rgba(34,197,94,.45)}
+.sess-pill-t{font-size:10px;color:var(--text-3);font-weight:500}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,.03),0 8px 32px rgba(0,0,0,.45)}
+.card-hd{padding:15px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-hd-t{font-size:13px;font-weight:600}
+.card-hd-s{font-size:11px;color:var(--text-3);margin-top:2px}
+.card-bd{padding:20px}
+
+/* Hero row */
+.hero-row{display:grid;grid-template-columns:200px 1fr 1fr;gap:14px;margin-bottom:16px;align-items:start}
+@media(max-width:900px){.hero-row{grid-template-columns:1fr}}
+
+/* Score ring card */
+.score-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:22px 20px;box-shadow:0 0 0 1px rgba(255,255,255,.03),0 8px 32px rgba(0,0,0,.45);display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden}
+.score-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(124,92,252,.06),transparent 65%)}
+.score-ring{position:relative;width:120px;height:120px;margin-bottom:14px}
+.score-ring svg{transform:rotate(-90deg)}
+.ring-track{fill:none;stroke:rgba(255,255,255,.05);stroke-width:9}
+.ring-fill{fill:none;stroke-width:9;stroke-linecap:round;stroke-dasharray:320;stroke-dashoffset:42;stroke:url(#rg);filter:drop-shadow(0 0 7px rgba(124,92,252,.55))}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-num{font-size:30px;font-weight:800;line-height:1;background:linear-gradient(135deg,#fff,rgba(255,255,255,.65));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.ring-den{font-size:12px;color:var(--text-3);font-weight:500}
+.score-tag{font-size:10px;font-weight:700;padding:3px 10px;border-radius:999px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.18);color:var(--green);text-transform:uppercase;letter-spacing:.04em}
+.score-sub{font-size:10px;color:var(--text-3);text-align:center;margin-top:10px;line-height:1.6}
+
+/* Eval cards */
+.eval-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:20px;box-shadow:0 0 0 1px rgba(255,255,255,.03),0 8px 32px rgba(0,0,0,.45)}
+.eval-lbl{font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.eval-txt{font-size:13px;color:var(--text-2);line-height:1.7}
+
+/* Analysis status */
+.status-rows{display:flex;flex-direction:column;gap:6px}
+.status-row{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:7px}
+.status-row-lbl{font-size:12px;color:var(--text-2)}
+.st-done{font-size:10px;font-weight:600;color:var(--green)}
+.st-pending{font-size:10px;font-weight:600;color:var(--amber)}
+
+/* Tabs */
+.tab-bar{display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border);padding:3px;border-radius:10px;width:fit-content;margin-bottom:20px}
+.t-btn{padding:6px 16px;border:none;background:none;font-family:inherit;font-size:12px;font-weight:500;color:var(--text-3);border-radius:7px;cursor:pointer;transition:all .2s}
+.t-btn.on{background:rgba(124,92,252,.14);color:#a78bfa;border:1px solid rgba(124,92,252,.2)}
+
+/* Dimension metric cards */
+.dim-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:900px){.dim-grid{grid-template-columns:1fr 1fr}}
+.dim-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 0 0 1px rgba(255,255,255,.03),0 4px 16px rgba(0,0,0,.35);transition:border-color .2s}
+.dim-card:hover{border-color:var(--border-ho)}
+.dim-name{font-size:11px;font-weight:500;color:var(--text-3);margin-bottom:8px}
+.dim-score{font-size:26px;font-weight:800;letter-spacing:-1px;margin-bottom:6px;background:linear-gradient(135deg,var(--accent),var(--accent-2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.dim-desc{font-size:11px;color:var(--text-3);line-height:1.5;margin-bottom:10px;min-height:38px}
+.prog-bar{height:3px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+
+/* Strengths & improvements */
+.insight-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+@media(max-width:700px){.insight-row{grid-template-columns:1fr}}
+.insight-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:0 0 0 1px rgba(255,255,255,.03),0 4px 16px rgba(0,0,0,.35)}
+.insight-title{font-size:12px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;color:var(--text)}
+.insight-icon{width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ii-g{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2)}
+.ii-a{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2)}
+.ii-g svg{width:11px;height:11px;stroke:var(--green);fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.ii-a svg{width:11px;height:11px;stroke:var(--amber);fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.insight-ul{list-style:none;display:flex;flex-direction:column;gap:8px}
+.insight-li{display:flex;gap:9px;font-size:12px;color:var(--text-2);line-height:1.55;align-items:flex-start}
+.li-dot{width:16px;height:16px;border-radius:4px;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center}
+.li-dot-g{background:rgba(34,197,94,.1)}.li-dot-a{background:rgba(245,158,11,.1)}
+.li-dot-g svg,.li-dot-a svg{width:9px;height:9px;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.li-dot-g svg{stroke:var(--green)}.li-dot-a svg{stroke:var(--amber)}
+
+/* Focus topics */
+.focus-row{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
+.focus-chip{padding:4px 11px;border-radius:999px;background:rgba(91,138,247,.08);border:1px solid rgba(91,138,247,.2);color:rgba(147,197,253,.8);font-size:11px;font-weight:500}
+
+/* Recommendations */
+.rec-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
+@media(max-width:900px){.rec-grid{grid-template-columns:1fr}}
+.rec-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px}
+.rec-title{font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text)}
+.rec-list{list-style:none;display:flex;flex-direction:column;gap:6px}
+.rec-list li{font-size:11px;color:var(--text-2);line-height:1.55;padding-left:10px;position:relative}
+.rec-list li::before{content:'–';position:absolute;left:0;color:var(--text-3)}
+
+/* ─── Q&A Evaluations ─── */
+.qa-section{margin-bottom:16px}
+.qa-section-title{font-size:14px;font-weight:700;margin-bottom:14px;color:var(--text)}
+.qa-list{display:flex;flex-direction:column;gap:12px}
+
+.qa-card{border-radius:16px;padding:18px;background:var(--surface);border:1px solid var(--border)}
+.qa-card.weak{border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.02)}
+
+/* Q header row */
+.qa-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.qa-hd-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.qa-index{font-size:14px;font-weight:700;color:var(--text)}
+.qa-type{font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);text-transform:uppercase;letter-spacing:.04em}
+.qa-score{min-width:64px;text-align:center;padding:8px 10px;border-radius:10px;font-size:16px;font-weight:800;border:1px solid}
+.qa-score.hi{background:rgba(34,197,94,.08);color:var(--green);border-color:rgba(34,197,94,.25)}
+.qa-score.mid{background:rgba(245,158,11,.08);color:var(--amber);border-color:rgba(245,158,11,.25)}
+.qa-score.lo{background:rgba(239,68,68,.08);color:var(--red);border-color:rgba(239,68,68,.25)}
+
+/* Question text */
+.qa-qtext{font-size:13px;font-weight:600;color:var(--text);line-height:1.55;margin-bottom:12px}
+
+/* Metrics mini grid */
+.qa-metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+@media(max-width:800px){.qa-metrics{grid-template-columns:repeat(2,1fr)}}
+.metric-mini{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:10px}
+.mm-label{font-size:10px;color:var(--text-3);margin-bottom:6px}
+.mm-val{font-size:16px;font-weight:800;color:var(--text)}
+.mm-na{font-size:12px;font-weight:700;color:var(--text-3)}
+
+/* Q summary */
+.qa-summary{font-size:12px;color:var(--text-2);line-height:1.6}
+
+/* Weak flag */
+.qa-weak-flag{display:inline-block;margin-top:10px;font-size:10px;padding:4px 10px;border-radius:6px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#fca5a5;font-weight:500}
+
+/* Footer */
+.footer{position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(5,6,15,.88);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:13px 2rem;display:flex;align-items:center;justify-content:space-between}
+.btn-ghost{background:none;border:1px solid var(--border);color:var(--text-2);border-radius:9px;padding:8px 18px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;gap:6px}
+.btn-ghost:hover{border-color:var(--border-ho);color:var(--text);background:var(--surface-2)}
+.btn-ghost svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.07);border-radius:5px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-in">
+    <a class="logo" href="#">
+      <div class="logo-mark"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01z"/></svg></div>
+      <span class="logo-name">InterviewAI</span>
+      <span class="logo-tag">Beta</span>
+    </a>
+    <button class="btn-new" onclick="location.href='screen1_setup.html'">
+      <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      Yeni Mülakat
+    </button>
+  </div>
+</nav>
+
+<div class="stepper-area">
+  <div class="stepper">
+    <div class="s-item done"><div class="s-line done"></div><div class="s-dot">✓</div><div class="s-lbl">Kurulum</div></div>
+    <div class="s-item done"><div class="s-line done"></div><div class="s-dot">✓</div><div class="s-lbl">Cihaz Testi</div></div>
+    <div class="s-item done"><div class="s-line done"></div><div class="s-dot">✓</div><div class="s-lbl">Mülakat</div></div>
+    <div class="s-item active"><div class="s-dot">4</div><div class="s-lbl">Rapor</div></div>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="page-hd">
+    <div>
+      <div class="page-title">Mülakat Raporu</div>
+      <div class="page-sub">Frontend Developer · İnsan Kaynakları (HR) · Destekleyici Mod</div>
+      <div class="sess-pill">
+        <div class="sess-pill-dot"></div>
+        <span class="sess-pill-t">Oturum: #8f2a12bc · 15 Nisan 2026, 14:22</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Score + eval + analysis status -->
+  <div class="hero-row">
+    <div class="score-card">
+      <div class="score-ring">
+        <svg viewBox="0 0 110 110" width="120" height="120">
+          <defs>
+            <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#7c5cfc"/><stop offset="100%" stop-color="#5b8af7"/>
+            </linearGradient>
+          </defs>
+          <circle class="ring-track" cx="55" cy="55" r="47"/>
+          <circle class="ring-fill" cx="55" cy="55" r="47"/>
+        </svg>
+        <div class="ring-center">
+          <span class="ring-num">87</span>
+          <span class="ring-den">/100</span>
+        </div>
+      </div>
+      <div class="score-tag">Başarılı</div>
+      <div class="score-sub">Üst %22<br>katılımcılar arasında</div>
+    </div>
+
+    <div class="eval-card">
+      <div class="eval-lbl">Genel Değerlendirme</div>
+      <div class="eval-txt">Aday, React ekosistemindeki teknik bilgi düzeyini başarılı biçimde sergiledi. Virtual DOM mimarisi ve reconciliation sürecindeki derinliği öne çıktı. Somut proje örnekleri kullanması değerlendirme sürecini güçlendirdi. İletişim tarzı özgüvenli ve akıcıydı.</div>
+    </div>
+
+    <div class="eval-card">
+      <div class="eval-lbl">Analiz Durumu</div>
+      <div class="status-rows">
+        <div class="status-row"><span class="status-row-lbl">Yanıt Analizi</span><span class="st-done">Tamamlandı</span></div>
+        <div class="status-row"><span class="status-row-lbl">Ses Analizi</span><span class="st-done">Tamamlandı</span></div>
+        <div class="status-row"><span class="status-row-lbl">Görüntü Analizi</span><span class="st-pending">İşleniyor…</span></div>
+        <div class="status-row"><span class="status-row-lbl">Transcript</span><span class="st-done">Tamamlandı</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <button class="t-btn on">Yanıt Analizi</button>
+    <button class="t-btn">Ses Analizi</button>
+    <button class="t-btn">Görüntü Analizi</button>
+  </div>
+
+  <!-- ── YANIT ANALİZİ ── (matches TranscriptAnalysisTab.tsx exactly) -->
+
+  <!-- Dimension scores: contentQuality, communicationClarity, roleReadiness, technicalUnderstanding -->
+  <div class="dim-grid">
+    <div class="dim-card">
+      <div class="dim-name">İçerik Kalitesi</div>
+      <div class="dim-score">92</div>
+      <div class="dim-desc">Sorulara teknik / içeriksel uyum ve derinlik.</div>
+      <div class="prog-bar"><div class="prog-fill" style="width:92%"></div></div>
+    </div>
+    <div class="dim-card">
+      <div class="dim-name">İfade ve Netlik</div>
+      <div class="dim-score">85</div>
+      <div class="dim-desc">Düşünceleri ifade etme açıklığı ve iletişimin akıcılığı.</div>
+      <div class="prog-bar"><div class="prog-fill" style="width:85%"></div></div>
+    </div>
+    <div class="dim-card">
+      <div class="dim-name">Role Hazırlık</div>
+      <div class="dim-score">80</div>
+      <div class="dim-desc">Genel soru tiplerine karşı verilen yanıtların olgunluğu.</div>
+      <div class="prog-bar"><div class="prog-fill" style="width:80%"></div></div>
+    </div>
+    <div class="dim-card">
+      <div class="dim-name">Teknik Yetkinlik</div>
+      <div class="dim-score">88</div>
+      <div class="dim-desc">Teknik doğruluk ve konuya olan teknik hakimiyet.</div>
+      <div class="prog-bar"><div class="prog-fill" style="width:88%"></div></div>
+    </div>
+  </div>
+
+  <!-- Strengths & Improvement Areas -->
+  <div class="insight-row">
+    <div class="insight-card">
+      <div class="insight-title">
+        <div class="insight-icon ii-g">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        Güçlü Yönler
+      </div>
+      <ul class="insight-ul">
+        <li class="insight-li">
+          <div class="li-dot li-dot-g"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+          Virtual DOM mimarisini ve reconciliation sürecini örnek kodla destekleyerek açıkladı.
+        </li>
+        <li class="insight-li">
+          <div class="li-dot li-dot-g"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+          Performans optimizasyonu konusundaki proje deneyimini somut metrikle pekiştirdi.
+        </li>
+        <li class="insight-li">
+          <div class="li-dot li-dot-g"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+          Stres altında bile sakin ve tutarlı bir iletişim tarzı sergiledi.
+        </li>
+      </ul>
+    </div>
+    <div class="insight-card">
+      <div class="insight-title">
+        <div class="insight-icon ii-a">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        Gelişim Alanları
+      </div>
+      <ul class="insight-ul">
+        <li class="insight-li">
+          <div class="li-dot li-dot-a"><svg viewBox="0 0 24 24"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+          Bazı yanıtlar gereğinden uzun oldu; özetleme ve sonuca odaklanma geliştirilebilir.
+        </li>
+        <li class="insight-li">
+          <div class="li-dot li-dot-a"><svg viewBox="0 0 24 24"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+          State yönetiminde yalnızca Redux'a odaklandı; Zustand gibi alternatifleri de ele alabilir.
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Focus Topics -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-hd"><div class="card-hd-t">Odak Konuları</div></div>
+    <div class="card-bd">
+      <div class="focus-row">
+        <div class="focus-chip">Virtual DOM</div>
+        <div class="focus-chip">State Yönetimi</div>
+        <div class="focus-chip">Performans Optimizasyonu</div>
+        <div class="focus-chip">TypeScript</div>
+        <div class="focus-chip">API Entegrasyonu</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recommendations -->
+  <div class="rec-grid" style="margin-bottom:20px">
+    <div class="rec-card">
+      <div class="rec-title">Bir Sonraki Mülakatta</div>
+      <ul class="rec-list">
+        <li>Yanıtları daha kısa ve öz tutmaya özen gösterin</li>
+        <li>Alternatif çözüm yaklaşımlarından bahsedin</li>
+        <li>Soruyu tam dinledikten sonra yanıt verin</li>
+      </ul>
+    </div>
+    <div class="rec-card">
+      <div class="rec-title">Performans Geliştirme (Orta / Uzun Vade)</div>
+      <ul class="rec-list">
+        <li>Zustand ve Jotai gibi alternatif state kütüphanelerini öğrenin</li>
+        <li>Web performans metriklerine (LCP, FID, CLS) daha hâkim olun</li>
+        <li>System design soruları için pratiğinizi artırın</li>
+      </ul>
+    </div>
+    <div class="rec-card">
+      <div class="rec-title">Çalışma Planı</div>
+      <ul class="rec-list">
+        <li>Haftalık mock mülakat pratiği yapın</li>
+        <li>React docs — advanced patterns bölümünü inceleyin</li>
+        <li>LeetCode medium seviye sorularına düzenli çalışın</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────── -->
+  <!-- Q&A EVALUATIONS — qaEvaluations from analysis   -->
+  <!-- matches TranscriptAnalysisTab.tsx structure exactly -->
+  <!-- ──────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-hd">
+      <div>
+        <div class="card-hd-t">Soru Bazlı Değerlendirme</div>
+        <div class="card-hd-s">Her soru için puan, 5 metrik ve özet</div>
+      </div>
+    </div>
+    <div class="card-bd">
+      <div class="qa-list">
+
+        <!-- Q1: HIGH score -->
+        <div class="qa-card">
+          <div class="qa-hd">
+            <div class="qa-hd-left">
+              <span class="qa-index">Soru 1</span>
+              <span class="qa-type">Behavioral</span>
+            </div>
+            <div class="qa-score hi">92</div>
+          </div>
+          <p class="qa-qtext">Bize kendinizden ve son dönemde üzerinde çalıştığınız projelerden bahsedebilir misiniz?</p>
+          <div class="qa-metrics">
+            <div class="metric-mini"><div class="mm-label">Uygunluk</div><div class="mm-val">95</div></div>
+            <div class="metric-mini"><div class="mm-label">Netlik</div><div class="mm-val">90</div></div>
+            <div class="metric-mini"><div class="mm-label">Derinlik</div><div class="mm-val">88</div></div>
+            <div class="metric-mini"><div class="mm-label">Örnekleme</div><div class="mm-val">95</div></div>
+            <div class="metric-mini"><div class="mm-label">Teknik Doğruluk</div><div class="mm-na">N/A</div></div>
+          </div>
+          <p class="qa-summary">Aday kendini ve projelerini özgüvenli, akıcı ve somut örneklerle tanıttı. Performans iyileştirmesindeki %40 metriği güçlü bir etki bıraktı.</p>
+        </div>
+
+        <!-- Q2: MEDIUM score -->
+        <div class="qa-card">
+          <div class="qa-hd">
+            <div class="qa-hd-left">
+              <span class="qa-index">Soru 2</span>
+              <span class="qa-type">Technical</span>
+            </div>
+            <div class="qa-score mid">74</div>
+          </div>
+          <p class="qa-qtext">Large-scale bir React uygulamasında state yönetimi için hangi yaklaşımları tercih edersiniz?</p>
+          <div class="qa-metrics">
+            <div class="metric-mini"><div class="mm-label">Uygunluk</div><div class="mm-val">85</div></div>
+            <div class="metric-mini"><div class="mm-label">Netlik</div><div class="mm-val">78</div></div>
+            <div class="metric-mini"><div class="mm-label">Derinlik</div><div class="mm-val">70</div></div>
+            <div class="metric-mini"><div class="mm-label">Örnekleme</div><div class="mm-val">65</div></div>
+            <div class="metric-mini"><div class="mm-label">Teknik Doğruluk</div><div class="mm-val">72</div></div>
+          </div>
+          <p class="qa-summary">Redux'u yetkin biçimde açıkladı ancak Zustand, Jotai ve Context API gibi alternatiflere yeterince değinmedi. Yanıt biraz uzun kaldı.</p>
+        </div>
+
+        <!-- Q3: HIGH score -->
+        <div class="qa-card">
+          <div class="qa-hd">
+            <div class="qa-hd-left">
+              <span class="qa-index">Soru 3</span>
+              <span class="qa-type">Problem Solving</span>
+            </div>
+            <div class="qa-score hi">89</div>
+          </div>
+          <p class="qa-qtext">Karşılaştığınız en zorlu teknik problemi ve çözüm sürecinizi paylaşır mısınız?</p>
+          <div class="qa-metrics">
+            <div class="metric-mini"><div class="mm-label">Uygunluk</div><div class="mm-val">92</div></div>
+            <div class="metric-mini"><div class="mm-label">Netlik</div><div class="mm-val">88</div></div>
+            <div class="metric-mini"><div class="mm-label">Derinlik</div><div class="mm-val">90</div></div>
+            <div class="metric-mini"><div class="mm-label">Örnekleme</div><div class="mm-val">95</div></div>
+            <div class="metric-mini"><div class="mm-label">Teknik Doğruluk</div><div class="mm-val">80</div></div>
+          </div>
+          <p class="qa-summary">React Profiler ile hot path tespiti ve memo/useCallback optimizasyonu konusundaki anlatım sistematik ve etkileyiciydi. STAR yapısını başarıyla uyguladı.</p>
+        </div>
+
+        <!-- Q4: WEAK / LOW score -->
+        <div class="qa-card weak">
+          <div class="qa-hd">
+            <div class="qa-hd-left">
+              <span class="qa-index">Soru 4</span>
+              <span class="qa-type">System Design</span>
+            </div>
+            <div class="qa-score lo">58</div>
+          </div>
+          <p class="qa-qtext">Yüksek trafikli bir frontend uygulamasının mimarisini nasıl tasarlarsınız?</p>
+          <div class="qa-metrics">
+            <div class="metric-mini"><div class="mm-label">Uygunluk</div><div class="mm-val">65</div></div>
+            <div class="metric-mini"><div class="mm-label">Netlik</div><div class="mm-val">55</div></div>
+            <div class="metric-mini"><div class="mm-label">Derinlik</div><div class="mm-val">50</div></div>
+            <div class="metric-mini"><div class="mm-label">Örnekleme</div><div class="mm-val">60</div></div>
+            <div class="metric-mini"><div class="mm-label">Teknik Doğruluk</div><div class="mm-val">62</div></div>
+          </div>
+          <p class="qa-summary">Yanıt yüzeysel kaldı. CDN ve CSR/SSR seçimi konularına değindi ancak caching stratejisi, load balancing ve micro-frontend mimarisi gibi kritik noktalara girilmedi.</p>
+          <div class="qa-weak-flag">Zayıf performans olarak işaretlendi</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <button class="btn-ghost" onclick="location.href='screen1_setup.html'">
+    <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+    Geçmiş Oturumlar
+  </button>
+  <button class="btn-new" onclick="location.href='screen1_setup.html'">
+    <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+    Yeni Mülakat Başlat
+  </button>
+</div>
+
+</body>
+</html>
