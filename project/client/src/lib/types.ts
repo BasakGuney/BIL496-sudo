@@ -112,10 +112,12 @@ export type ScoreMeta = {
 };
 
 export type AudioLlmReport = {
+  overallScore?: number;
   overallAnalysis?: string;
   clarityBadge?: string;
   dominantEmotion?: string;
   secondaryEmotion?: string | null;
+  completed?: boolean;
   generatedAt?: string;
   updatedAt?: string;
   status?: string;

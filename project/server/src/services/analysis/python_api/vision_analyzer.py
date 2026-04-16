@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 # ─────────────────────────────────────────────────────────────────────────────
 # vision_analyzer.py
@@ -571,7 +571,15 @@ def _merge_recommendation_lists(*groups, limit: int = 3) -> list:
     return merged
 
 
-def _build_vision_recommendations(raw: dict, scores: dict) -> dict:
+def _vision_score_band(overall_score: int) -> str:
+    if overall_score < 40:
+        return "low"
+    if overall_score < 70:
+        return "mid"
+    return "high"
+
+
+def _build_vision_recommendations(raw: dict, scores: dict, overall_score: int) -> dict:
     overview = raw.get("overview", {}) if isinstance(raw, dict) else {}
     tension = raw.get("tension", {}) if isinstance(raw, dict) else {}
 
@@ -586,6 +594,17 @@ def _build_vision_recommendations(raw: dict, scores: dict) -> dict:
 
     next_interview = []
     performance_development = []
+    band = _vision_score_band(overall_score)
+
+    if band == "low":
+        next_interview.append("Görsel sunum şu an düşük bantta; önce kadraj, yüz görünürlüğü ve duruşu birlikte sabitleyin.")
+        performance_development.append("Kısa kayıtlarla kamera hizası ve oturuş istikrarı üzerine temel tekrarlar yapın.")
+    elif band == "mid":
+        next_interview.append("Görsel sunum orta seviyede; kadrajı daha sabit ve dikkat dağıtmayan bir düzende tutun.")
+        performance_development.append("Kaydınızı izleyip merkezden sapma ve küçük hareketleri düzenli olarak azaltın.")
+    else:
+        next_interview.append("Görsel sunum güçlü seviyede; mevcut kadraj ve stabiliteyi koruyup küçük iyileştirmelerle standardı sürdürün.")
+        performance_development.append("Mevcut alışkanlığı koruyup ışık, mesafe ve bakış istikrarını kısa tekrarlarla pekiştirin.")
 
     if face_presence_score < 85 or face_presence_ratio < 0.9:
         next_interview.append("Mülakat başlamadan önce yüzünüzün kadraj içinde tam göründüğünü kontrol edip oturum boyunca kameradan çıkmamaya çalışın.")
@@ -709,12 +728,11 @@ def build_final_vision_report(raw: dict, scores: dict, gpt_out: dict) -> dict:
         }
 
     def _safe_list(v):
-        return v if isinstance(v, list) else []
+        return [item for item in v if str(item or "").strip()] if isinstance(v, list) else []
 
-    dynamic_recommendations = _build_vision_recommendations(raw, scores)
     recs = {
-        "nextInterview": _merge_recommendation_lists(dynamic_recommendations.get("nextInterview", []), recs.get("nextInterview", [])),
-        "performanceDevelopment": _merge_recommendation_lists(dynamic_recommendations.get("performanceDevelopment", []), recs.get("performanceDevelopment", [])),
+        "nextInterview": _safe_list(recs.get("nextInterview")),
+        "performanceDevelopment": _safe_list(recs.get("performanceDevelopment")),
     }
 
     return {
@@ -737,6 +755,7 @@ def _build_fallback_vision_report(raw: dict, scores: dict, error: str) -> dict:
     ss = scores["steadinessScore"]
     vt = scores["visualTensionScore"]
     overall_score = round(fp * 0.35 + cs * 0.25 + ss * 0.25 + (100 - vt) * 0.15)
+    band = _vision_score_band(overall_score)
 
     def _face_d(v):
         if v >= 80: return "Yüz tüm oturum boyunca kamerada görünür durumdaydı."
@@ -753,13 +772,29 @@ def _build_fallback_vision_report(raw: dict, scores: dict, error: str) -> dict:
     def _tens_d(v):
         if v <= 19: return "Görsel stres düşük; sakin ve kontrollü bir görünüm."
         if v <= 49: return "Orta düzeyde görsel stres saptandı."
-        return "Görsel stres belirgin şekilde yüksek."
+        return "Görsel stres belirgin şekilde yüksekti."
+
+    if band == "low":
+        overall_label = "Görsel analiz düşük bantta tamamlandı."
+        overall_analysis = "Görsel metrikler düşük seviyede kaldı; kamera varlığı, kadraj ve stabilite birlikte iyileştirilmeli."
+        strengths = ["Ölçüm sırasında bazı anlarda yüz varlığı yakalandı."]
+        improvement_areas = ["Kadrajı daha sabit tutma", "Kamera karşısında daha dengeli duruş"]
+    elif band == "mid":
+        overall_label = "Görsel analiz orta bantta tamamlandı."
+        overall_analysis = "Görsel performans orta seviyede; kadraj ve dikkat istikrarı biraz daha güçlendirildiğinde sonuç belirgin şekilde yükselebilir."
+        strengths = ["Yüz varlığı ve kamera takibi oturumun önemli bölümünde sürdü."]
+        improvement_areas = ["Merkezleme tutarlılığı", "Küçük baş hareketlerini azaltma"]
+    else:
+        overall_label = "Görsel analiz güçlü bantta tamamlandı."
+        overall_analysis = "Görsel sunum genel olarak güçlü; küçük kadraj ve dikkat ayarlarıyla sonuç daha da sağlamlaştırılabilir."
+        strengths = ["Kamera varlığı yüksek", "Duruş ve kadraj genel olarak dengeli"]
+        improvement_areas = ["Mikro kadraj ayarları", "Bakış istikrarını koruma"]
 
     return {
         "overallScore":    overall_score,
-        "overallLabel":    "Görsel analiz tamamlandı (GPT yorumu alınamadı).",
-        "overallAnalysis": "Görsel metrikler başarıyla hesaplandı. GPT yorum servisi yanıt vermedi.",
-        "standardStatus":  "Metrikler hesaplandı; metin yorumu üretilemedi.",
+        "overallLabel":    overall_label,
+        "overallAnalysis": overall_analysis + f" GPT yorumu alınamadı: {error}",
+        "standardStatus":  "Deterministik fallback ile hazırlandı.",
         "riskPoint":       f"GPT bağlantı hatası: {error}",
         "scores": [
             {"key": "facePresence",  "label": "Kamera Varlığı",       "score": fp, "detail": _face_d(fp)},
@@ -767,9 +802,9 @@ def _build_fallback_vision_report(raw: dict, scores: dict, error: str) -> dict:
             {"key": "steadiness",    "label": "Stabilite",             "score": ss, "detail": _stab_d(ss)},
             {"key": "visualTension", "label": "Görsel Stres",          "score": vt, "detail": _tens_d(vt)},
         ],
-        "strengths":        [],
-        "improvementAreas": [],
-        "recommendations":  _build_vision_recommendations(raw, scores),
+        "strengths":        strengths,
+        "improvementAreas": improvement_areas,
+        "recommendations":  _build_vision_recommendations(raw, scores, overall_score),
     }
 
 
@@ -831,3 +866,4 @@ if __name__ == "__main__":
             ),
             "traceback": traceback.format_exc(),
         }))
+

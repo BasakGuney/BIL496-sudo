@@ -579,16 +579,12 @@ export class BackendOrchestrator {
         this.pythonAnalysisClient.analyzeAudioFiles({
           sessionId,
           filePaths: [wavPath],
+          writeTextReport: true,
+          finalizeReport: false,
         })
           .then((success) => {
             if (success && !runtime.analyzedAudioRelativePaths.includes(savedAudioFile.relativePath)) {
               runtime.analyzedAudioRelativePaths.push(savedAudioFile.relativePath);
-              if (this.reportArchive?.updateIncrementalAudioReport) {
-                this.reportArchive.updateIncrementalAudioReport({
-                  sessionId,
-                  savedAudioFile,
-                }).catch((err) => console.error("[BackendOrchestrator] Incremental audio report update error:", err));
-              }
             }
           })
           .catch((err) => console.error("[BackendOrchestrator] Incremental audio analysis error:", err));
@@ -665,15 +661,13 @@ export class BackendOrchestrator {
       });
 
       if (this.pythonAnalysisClient && archiveResult) {
-        // Only send any still-unprocessed answer files here. Incremental uploads are already
-        // analyzed one by one during the interview, and the Python layer appends/merges those
-        // item-level results into the session artifacts.
-        this.pythonAnalysisClient.analyzeSessionAndTranscript({
+        // Final pass rewrites the audio report with the full set of answer files so the
+        // session always ends with a complete audio_report.json, even if incremental writes
+        // were skipped or partially unavailable.
+        await this.pythonAnalysisClient.analyzeSessionAndTranscript({
           sessionId,
           baseDir: this.reportArchive.baseDir,
-          candidateAnswerAudioFiles: (archiveResult.savedCandidateAnswerAudioFiles || []).filter(
-            (file) => !runtime.analyzedAudioRelativePaths.includes(file?.relativePath)
-          ),
+          candidateAnswerAudioFiles: archiveResult.savedCandidateAnswerAudioFiles || [],
           transcriptText: archiveResult.transcriptText || transcriptText,
           report: report,
           visionAnalysis: archiveResult.visionArtifacts,

@@ -90,6 +90,7 @@ class AudioAnalysisRequest(BaseModel):
     session_id: str = None
     merge_with_existing: bool = False
     write_text_report: bool = False
+    finalize_report: bool = False
 
 @app.post("/analyze-audio")
 async def analyze_audio_session(request: AudioAnalysisRequest):
@@ -150,7 +151,21 @@ async def analyze_audio_session(request: AudioAnalysisRequest):
                     "recommendations": {"nextInterview": "", "performanceDevelopment": ""}
                 }
 
-            with open(os.path.join(target_dir, "audio_report.json"), "w", encoding="utf-8") as f:
+            existing_report_path = os.path.join(target_dir, "audio_report.json")
+            existing_completed = False
+            if os.path.exists(existing_report_path):
+                try:
+                    with open(existing_report_path, "r", encoding="utf-8") as f:
+                        existing_report = json.load(f)
+                    existing_completed = bool(existing_report.get("completed"))
+                except Exception:
+                    existing_completed = False
+
+            # Once the final report is written, never downgrade it back to an
+            # intermediate "pending" state on later incremental writes.
+            llm_report["completed"] = bool(request.finalize_report or existing_completed)
+
+            with open(existing_report_path, "w", encoding="utf-8") as f:
                 json.dump(llm_report, f, ensure_ascii=False, indent=2)
         
         return {

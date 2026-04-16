@@ -45,6 +45,16 @@ function computeOverallAudioPerformance(scores: Array<{ label: string; score: nu
   return Math.round(validScores.reduce((sum, value) => sum + value, 0) / validScores.length);
 }
 
+function isFinalAudioReport(llm: FeedbackReport["audioLlmReport"]) {
+  if (!llm) return false;
+  if (llm.completed === true) return true;
+  return Number.isFinite(Number(llm.overallScore));
+}
+
+function isAudioAnalysisReady(report: FeedbackReport) {
+  return Boolean(report.analysisStatus?.audioLlm || isFinalAudioReport(report.audioLlmReport));
+}
+
 function normalizeRecommendationItems(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.map((v) => String(v || "").trim()).filter(Boolean);
@@ -83,18 +93,21 @@ function PendingAnalysisState({
 
 function AudioAnalysisTab({ report }: { report: FeedbackReport }) {
   const llm = report.audioLlmReport;
-  if (!llm) {
+  const audioFinalized = isAudioAnalysisReady(report);
+  if (!llm || !audioFinalized) {
     return (
       <PendingAnalysisState
         icon={<Headphones className="w-8 h-8 text-enterprise-accent opacity-50" />}
-        title="Ses Analizi Bekleniyor"
-        description="Ses verileri işlendiğinde bu alanda detaylı değerlendirme görünecek."
+        title="Ses Analizi Hazırlanıyor"
+        description="Ses dosyaları işlendiğinde ve son skor hazır olduğunda analiz burada görünecek."
       />
     );
   }
 
   const scores = llm.scores ?? [];
-  const overallAudioPerformance = computeOverallAudioPerformance(scores);
+  const overallAudioPerformance = Number.isFinite(Number(llm.overallScore))
+    ? Number(llm.overallScore)
+    : computeOverallAudioPerformance(scores);
   const toneDistribution = Array.isArray(llm.tonDistribution) ? llm.tonDistribution : [];
   const speechSummary = Array.isArray(llm.speechSummary) ? llm.speechSummary : [];
   const nextInterviewItems = normalizeRecommendationItems(llm.recommendations?.nextInterview);
@@ -106,6 +119,12 @@ function AudioAnalysisTab({ report }: { report: FeedbackReport }) {
         <ScoreHero score={overallAudioPerformance} />
 
         <div className="card-style bg-enterprise-surface p-6">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-enterprise-text-3 mb-1">Rapor Genel Skor</p>
+              <p className="text-sm font-semibold text-white">{overallAudioPerformance} / 100</p>
+            </div>
+          </div>
           <div className="grid gap-3 md:grid-cols-2 mb-4">
             <div className="rounded-xl border border-enterprise-border bg-enterprise-surface-2 px-3 py-3">
               <p className="text-[10px] uppercase tracking-wider text-enterprise-text-3 mb-1">Baskın Duygusal Eğilim</p>
@@ -266,7 +285,7 @@ export function FeedbackPage({
 
   useEffect(() => {
     setReport(initialReport);
-  }, [initialReport]);
+  }, [sessionId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -281,7 +300,7 @@ export function FeedbackPage({
           setRefreshError("");
         }
         const transcriptArtifactReady = Boolean((latest.transcriptAnalysis as any)?.overall || latest.analysisStatus?.transcript);
-        const audioArtifactReady = Boolean(latest.audioLlmReport || latest.analysisStatus?.audioLlm);
+        const audioArtifactReady = isAudioAnalysisReady(latest);
         const visionArtifactReady = Boolean(latest.visionLlmAnalysis?.report || latest.analysisStatus?.visionLlm);
         const shouldExpectVision = Boolean(
           expectVision ||
@@ -321,7 +340,7 @@ export function FeedbackPage({
   }, [expectVision, initialReport, sessionId]);
 
   const transcriptReady = Boolean(transcriptOverall || report.analysisStatus?.transcript);
-  const audioReady = Boolean(report.audioLlmReport || report.analysisStatus?.audioLlm);
+  const audioReady = isAudioAnalysisReady(report);
   const visionReady = Boolean(report.visionLlmAnalysis?.report || report.analysisStatus?.visionLlm);
 
   return (

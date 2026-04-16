@@ -86,7 +86,7 @@ export class PythonAnalysisClient {
     }
   }
 
-  async analyzeAudioFiles({ sessionId, filePaths = [], writeTextReport = false }) {
+  async analyzeAudioFiles({ sessionId, filePaths = [], writeTextReport = false, finalizeReport = false }) {
     const validPaths = (Array.isArray(filePaths) ? filePaths : []).filter(Boolean);
     if (!sessionId) {
       this.logger.warn("PythonAnalysisClient: Missing sessionId or filePaths, skipping audio analysis.");
@@ -103,6 +103,7 @@ export class PythonAnalysisClient {
           session_id: sessionId,
           merge_with_existing: true,
           write_text_report: writeTextReport,
+          finalize_report: finalizeReport,
         })
       });
 
@@ -248,14 +249,15 @@ export class PythonAnalysisClient {
     // 2. Call /analyze-audio one file at a time so incremental item outputs are
     // appended/merged into the session artifact as each answer arrives.
     if (wavPaths.length > 0) {
-      for (const wavPath of wavPaths) {
-        await this.analyzeAudioFiles({ sessionId, filePaths: [wavPath], writeTextReport: false });
-      }
+      await this.analyzeAudioFiles({
+        sessionId,
+        filePaths: wavPaths,
+        writeTextReport: true,
+        finalizeReport: true,
+      });
     } else {
       this.logger.info("No new WAV files were available for audio analysis.");
     }
-
-    await this.analyzeAudioFiles({ sessionId, filePaths: [], writeTextReport: true });
 
     // 3. Call /analyze-transcript
     const qaEvaluations = report?.qaEvaluations || [];

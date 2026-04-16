@@ -3,6 +3,11 @@ import { EvidenceItemView } from "./EvidenceItemView.js";
 export class ReportView {
   static fromReport(report) {
     const feedbackArtifacts = report?.feedbackArtifacts || {};
+    const audioLlmReport = feedbackArtifacts?.audioLlmReport || null;
+    const audioCompleted = Boolean(
+      audioLlmReport?.completed === true ||
+      Number.isFinite(Number(audioLlmReport?.overallScore))
+    );
 
     return {
       id: report?.id || `R-${report?.sessionId || "unknown"}`,
@@ -23,13 +28,18 @@ export class ReportView {
       audioAnalysis: {
         model: feedbackArtifacts?.audioModel || null,
       },
-      audioLlmReport: feedbackArtifacts?.audioLlmReport || null,
+      audioLlmReport: audioLlmReport
+        ? {
+            ...audioLlmReport,
+            completed: audioCompleted,
+          }
+        : null,
       transcriptAnalysis: feedbackArtifacts?.transcriptAnalysis || null,
       visionLlmAnalysis: feedbackArtifacts?.visionLlmAnalysis || null,
       scoreMeta: feedbackArtifacts?.scoreMeta || null,
       analysisStatus: {
         audio: Boolean(feedbackArtifacts?.audioModel),
-        audioLlm: Boolean(feedbackArtifacts?.audioLlmReport),
+        audioLlm: audioCompleted,
         transcript: Boolean(feedbackArtifacts?.transcriptAnalysis),
         vision: Boolean(feedbackArtifacts?.visionAnalysis),
         visionLlm: Boolean(feedbackArtifacts?.visionLlmAnalysis),

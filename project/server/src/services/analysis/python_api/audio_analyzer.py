@@ -207,7 +207,15 @@ def _compute_fluency_score(pause_ratio: float) -> int:
         return 25
 
 
-def _build_audio_recommendations(gpt_context: dict) -> dict:
+def _audio_score_band(overall_score: int) -> str:
+    if overall_score < 40:
+        return "low"
+    if overall_score < 70:
+        return "mid"
+    return "high"
+
+
+def _build_audio_recommendations(gpt_context: dict, overall_score: int) -> dict:
     clarity_val = float((gpt_context.get("clarity") or {}).get("value", 0) or 0)
     avg_wpm = float((gpt_context.get("avgWPM") or {}).get("value", 0) or 0)
     avg_pause_ratio = float(str((gpt_context.get("pauseRatio") or {}).get("value", 0) or 0).replace("%", "") or 0)
@@ -220,6 +228,18 @@ def _build_audio_recommendations(gpt_context: dict) -> dict:
     def add_sentence(target: list, sentence: str) -> None:
         if sentence and sentence not in target:
             target.append(sentence)
+
+    band = _audio_score_band(overall_score)
+
+    if band == "low":
+        add_sentence(next_interview, "Ses performansı şu an düşük bantta; önce netlik ve tempo düzenini toparlayın.")
+        add_sentence(performance_development, "Kısa ve net cevaplarla günlük ses provası yapın.")
+    elif band == "mid":
+        add_sentence(next_interview, "Ses performansı orta seviyede; akışınızı biraz daha sabit ve kontrollü tutun.")
+        add_sentence(performance_development, "Cevaplarınızı kronometreyle tekrar edip ritmi korumaya çalışın.")
+    else:
+        add_sentence(next_interview, "Ses performansınız iyi seviyede; küçük netlik ve tempo ayarlarıyla standardı koruyun.")
+        add_sentence(performance_development, "Mevcut akıcılığı koruyup yalnızca zorlandığınız anları kısa tekrarlarla iyileştirin.")
 
     if clarity_val < 75:
         add_sentence(next_interview, "Mikrofona sabit mesafede ve daha net telaffuzla konuşun.")
@@ -249,6 +269,59 @@ def _build_audio_recommendations(gpt_context: dict) -> dict:
         "nextInterview": "\n".join(next_interview[:3]),
         "performanceDevelopment": "\n".join(performance_development[:3]),
     }
+
+
+def _build_audio_fallback_report(
+    gpt_context: dict,
+    overall_score: int,
+    dominant_emotion: dict,
+    secondary_emotion: dict | None,
+    python_scores: list[dict],
+    emotion_dist: list[dict],
+    error: str,
+) -> dict:
+    band = _audio_score_band(overall_score)
+    if band == "low":
+        analysis = "Ses performansı düşük bantta değerlendirildi; netlik, tempo ve duraklama düzeni birlikte iyileştirilmeli."
+        badge = "Düşük Netlik"
+    elif band == "mid":
+        analysis = "Ses performansı orta bantta; genel akış var ama tempo ve duraklama kontrolü daha tutarlı hale getirilmeli."
+        badge = "Orta Düzey"
+    else:
+        analysis = "Ses performansı iyi bantta; küçük tempo ve vurgu ayarlarıyla sonuç daha da güçlendirilebilir."
+        badge = "İyi Seviye"
+
+    return {
+        "overallScore": overall_score,
+        "overallAnalysis": f"{analysis} GPT yanıtı alınamadığı için bu sonuç deterministik fallback ile üretildi: {error}",
+        "clarityBadge": badge,
+        "dominantEmotion": dominant_emotion["label"],
+        "secondaryEmotion": secondary_emotion["label"] if secondary_emotion else None,
+        "scores": python_scores,
+        "tonDistribution": emotion_dist,
+        "speechSummary": [],
+        "recommendations": _build_audio_recommendations(gpt_context, overall_score),
+    }
+
+
+def _compute_audio_overall_score(python_scores: list[dict]) -> int:
+    """
+    Ses genel skoru, alt metriklerin ağırlıklı birleşimi olarak hesaplanır.
+    Bu skor GPT tarafından değil, Python tarafında deterministik üretilir.
+    """
+    score_map = {str(item.get("label") or "").strip(): int(round(float(item.get("score", 0) or 0))) for item in python_scores}
+    clarity = score_map.get("Ses Netliği", 0)
+    emotion = score_map.get("Duygu Uygunluğu", 0)
+    speech_rate = score_map.get("Konuşma Hızı", 0)
+    fluency = score_map.get("Akıcılık", 0)
+
+    overall = (
+        clarity * 0.35
+        + emotion * 0.25
+        + speech_rate * 0.20
+        + fluency * 0.20
+    )
+    return int(round(max(0, min(100, overall))))
 
 
 def interpret_report_with_gpt(overall: dict) -> dict:
@@ -313,6 +386,7 @@ def interpret_report_with_gpt(overall: dict) -> dict:
         {"label": "Akıcılık",         "score": _compute_fluency_score(avg_pause_ratio)},
     ]
     s0, s1, s2, s3 = (p["score"] for p in python_scores)
+    overall_score = _compute_audio_overall_score(python_scores)
 
     gpt_context = {
         "clarity": {"value": round(clarity_val, 1), "band": clarity_band},
@@ -397,33 +471,35 @@ SADECE şu JSON yapısını döndür:
                     if s["label"] == ps["label"]:
                         s["score"] = ps["score"]
                         break
-            parsed["recommendations"] = _build_audio_recommendations(gpt_context)
+            recs = parsed.get("recommendations") if isinstance(parsed.get("recommendations"), dict) else {}
+            parsed["recommendations"] = {
+                "nextInterview": recs.get("nextInterview", "") if isinstance(recs, dict) else "",
+                "performanceDevelopment": recs.get("performanceDevelopment", "") if isinstance(recs, dict) else "",
+            }
+            parsed["overallScore"] = overall_score
             return parsed
         except Exception:
             # Fallback if parsing fails but request succeeded
             pass
 
-        return {
-            "overallAnalysis": "GPT yorumu işlenirken bir hata oluştu.",
-            "clarityBadge": "Analiz Edilemedi",
-            "dominantEmotion": dominant_emotion["label"],
-            "secondaryEmotion": secondary_emotion["label"] if secondary_emotion else None,
-            "scores": python_scores,
-            "tonDistribution": emotion_dist,
-            "speechSummary": [],
-            "recommendations": _build_audio_recommendations(gpt_context)
-        }
+        return _build_audio_fallback_report(
+            gpt_context,
+            overall_score,
+            dominant_emotion,
+            secondary_emotion,
+            python_scores,
+            emotion_dist,
+            "GPT yorumu işlenirken bir hata oluştu.",
+        )
 
     except Exception as e:
         print(f"GPT Audio Interpret Error: {e}")
-        # Pure Python fallback — no GPT at all
-        return {
-            "overallAnalysis": f"Oturum ses metrikleri başarıyla çıkarıldı. Ancak GPT üretimi başarısız: {e}",
-            "clarityBadge": "Analiz Edilemedi",
-            "dominantEmotion": dominant_emotion["label"],
-            "secondaryEmotion": secondary_emotion["label"] if secondary_emotion else None,
-            "scores": python_scores,
-            "tonDistribution": emotion_dist,
-            "speechSummary": [],
-            "recommendations": _build_audio_recommendations(gpt_context)
-        }
+        return _build_audio_fallback_report(
+            gpt_context,
+            overall_score,
+            dominant_emotion,
+            secondary_emotion,
+            python_scores,
+            emotion_dist,
+            str(e),
+        )

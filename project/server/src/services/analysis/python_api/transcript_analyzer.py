@@ -1,4 +1,4 @@
-import json
+﻿import json
 import requests
 import os
 import re
@@ -546,28 +546,73 @@ def _sanitize_single_qa_result(question: str, answer: str, parsed: dict | None, 
     return normalized
 
 
-def _build_no_visible_question_analysis(interview_type: str) -> dict:
-    return {
-        "overallAnalysis": (
-            "Transcript kaydı alınmış olsa da değerlendirilebilir soru-cevap bloğu çıkarılamadı. "
-            "Bu durumda genel puan ve gelişim analizi üretmek güvenilir olmayacağı için rapor sınırlı tutuldu."
-        ),
-        "strengths": [],
-        "improvementAreas": [
-            "Soru-cevap eşleşmesi üretilemediği için içerik bazlı değerlendirme yapılamadı."
+def _transcript_score_band(overall_score: int) -> str:
+    if overall_score < 40:
+        return "low"
+    if overall_score < 70:
+        return "mid"
+    return "high"
+
+
+def _build_no_visible_question_analysis(interview_type: str, overall_score: int = 0, dimension_scores: dict | None = None, error: str | None = None) -> dict:
+    band = _transcript_score_band(overall_score)
+    dimension_scores = dimension_scores or {}
+    technical = dimension_scores.get("technicalUnderstanding")
+    communication = dimension_scores.get("communicationClarity")
+    evidence = dimension_scores.get("evidenceSupport")
+    readiness = dimension_scores.get("roleReadiness")
+
+    if interview_type == "HR":
+        if band == "low":
+            overall_analysis = "Transcriptte değerlendirilebilir bloklar sınırlı kaldı; iletişim akışı ve cevap bütünlüğü düşük bantta görünüyor."
+            strengths = ["Bazı yanıtlar kayıt içinde korunmuş görünüyor."]
+            improvements = ["Cevapları tek blok halinde ve daha net tamamlayın.", "Örnekleri daha düzenli aktarın."]
+            focus = ["Cevap Yapısı", "Somut Örnekleme"]
+        elif band == "mid":
+            overall_analysis = "Transcriptte sınırlı ama okunabilir bir akış var; cevap netliği ve örnekleme daha düzenli hale getirilebilir."
+            strengths = ["Yanıt akışının bazı bölümleri anlaşılır kalmış."]
+            improvements = ["Kısa ama tamamlanmış cevaplar kurun.", "Cevap başlangıçlarını daha net yapın."]
+            focus = ["Net Cevap Yapısı", "STAR / CAR Akışı"]
+        else:
+            overall_analysis = "Transcript akışı genel olarak güçlü görünse de daha fazla soru-cevap bloğu ile değerlendirme netleşebilir."
+            strengths = ["İletişim akışı genel olarak istikrarlı."]
+            improvements = ["Örnekleri daha ölçülebilir sonuçlarla destekleyin."]
+            focus = ["Davranışsal Örnekler", "Güçlü İlk İzlenim"]
+    else:
+        if band == "low":
+            overall_analysis = "Transcriptte teknik olarak değerlendirilebilir bloklar sınırlı kaldı; genel tablo düşük bantta."
+            strengths = ["Bazı teknik ifadeler kayıt içinde görünür durumda."]
+            improvements = ["Cevapları daha net yapılandırın.", "Teknik terimleri daha kontrollü kullanın."]
+            focus = ["Temel Teknik Kavramlar", "Cevap Yapısı"]
+        elif band == "mid":
+            overall_analysis = "Transcript akışı orta bantta; teknik açıklık var ancak detay ve doğruluk daha da güçlendirilebilir."
+            strengths = ["Konu başlıkları genel olarak korunmuş."]
+            improvements = ["Teknik örnekleri daha somut anlatın.", "Cevapları adım adım ilerletin."]
+            focus = ["Kavram Derinliği", "Adım Adım Çözüm"]
+        else:
+            overall_analysis = "Transcript yapısı güçlü görünse de daha fazla değerlendirme bloğu ile teknik anlatım daha net ölçülebilir."
+            strengths = ["Teknik akış genel olarak sağlam."]
+            improvements = ["İnce ayrımları ve trade-off'ları daha açık ifade edin."]
+            focus = ["Teknik Doğruluk", "Trade-off Açıklaması"]
+
+    recs = {
+        "Bir Sonraki Mülakatta": [
+            "Soru biter bitmez ana fikri tek cümlede söyleyip ardından kısa gerekçe ekleyin."
         ],
-        "focusTopics": [],
-        "recommendations": {
-            "Bir Sonraki Mülakatta": [
-                "Her sorudan sonra yanıtın tek blok halinde transcript'e geçtiğini doğrulayın."
-            ],
-            "Performans Geliştirme": [
-                "Yanıtlarınızın kesilmeden ve soru sırasını koruyarak kayda alınmasını sağlayın."
-            ],
-            "Çalışma Planı": [
-                "Bu oturum için içerik bazlı çalışma planı üretilemedi; raporu yeniden analyze etmek gerekir."
-            ]
-        }
+        "Performans Geliştirme": [
+            "Cevaplarınızı daha düzenli bloklar halinde kurup gereksiz dallanmayı azaltın."
+        ],
+        "Çalışma Planı": focus[:3] if focus else ["Kayıt akışını ve cevap bütünlüğünü tekrar edin."]
+    }
+    if error:
+        overall_analysis += f" GPT yorumu alınamadı: {error}"
+
+    return {
+        "overallAnalysis": overall_analysis,
+        "strengths": strengths,
+        "improvementAreas": improvements,
+        "focusTopics": focus[:4],
+        "recommendations": recs,
     }
 
 
@@ -854,22 +899,12 @@ SADECE JSON FORMATI:
         result = response.json()
         response_text = result["choices"][0]["message"]["content"]
         analyzed = _sanitize_global_analysis(interview_type, json.loads(response_text), payload.get("dimensionScores", {}))
-        analyzed["focusTopics"] = _derive_focus_topics(payload, analyzed)
         return analyzed
     except Exception as e:
         print(f"GPT Recommendation error: {e}")
-        fallback = {
-            "overallAnalysis": f"Analiz oluşturulurken hata oluştu: {str(e)}",
-            "strengths": [],
-            "improvementAreas": [],
-            "focusTopics": [],
-            "recommendations": {
-                "Bir Sonraki Mülakatta": ["Mülakat analizine göre sorulara daha odaklı, somut örneklerle yanıt vermelisiniz."],
-                "Performans Geliştirme": ["Deneyimlerinizi detaylandırırken durumu açıklama pratiği yapmalısınız."],
-                "Çalışma Planı": ["Eksik kaldığınızı hissettiğiniz kavramsal teorilere ağırlık verebilirsiniz."]
-            }
-        }
-        fallback["focusTopics"] = _derive_focus_topics(payload, fallback)
+        overall_score = int(payload.get("overallScore") or 0)
+        dim_scores = payload.get("dimensionScores") if isinstance(payload.get("dimensionScores"), dict) else {}
+        fallback = _build_no_visible_question_analysis(interview_type, overall_score, dim_scores, str(e))
         return fallback
 
 
@@ -877,6 +912,7 @@ def _build_transcript_recommendations(
     qa_evaluations: list,
     dimension_scores: dict,
     interview_type: str,
+    overall_score: int | None,
     focus_topics: list,
     improvement_areas: list,
     gpt_recommendations: dict | None = None,
@@ -897,6 +933,21 @@ def _build_transcript_recommendations(
     evidence = _score("evidenceSupport")
     readiness = _score("roleReadiness")
     content = _score("contentQuality")
+
+    gpt_recommendations = gpt_recommendations or {}
+    gpt_groups = {
+        "Bir Sonraki Mülakatta": _coerce_recommendation_list(gpt_recommendations.get("Bir Sonraki Mülakatta")),
+        "Performans Geliştirme": _coerce_recommendation_list(gpt_recommendations.get("Performans Geliştirme")),
+        "Çalışma Planı": _coerce_recommendation_list(gpt_recommendations.get("Çalışma Planı")),
+    }
+    if any(gpt_groups.values()):
+        return {
+            "Bir Sonraki Mülakatta": gpt_groups["Bir Sonraki Mülakatta"][:3],
+            "Performans Geliştirme": gpt_groups["Performans Geliştirme"][:3],
+            "Çalışma Planı": gpt_groups["Çalışma Planı"][:3],
+        }
+
+    band = _transcript_score_band(int(overall_score or 0))
 
     short_answers = 0
     uncertain_answers = 0
@@ -933,6 +984,19 @@ def _build_transcript_recommendations(
     next_interview = []
     performance_development = []
     study_plan = []
+
+    if band == "low":
+        _append_unique(next_interview, "Önce tek cümlede ana fikri verip sonra kısa gerekçe ekleyin.")
+        _append_unique(performance_development, "Cevapları daha kısa ve düzenli bloklar halinde kurma pratiği yapın.")
+        _append_unique(study_plan, "Cevap yapısı ve akış düzeni")
+    elif band == "mid":
+        _append_unique(next_interview, "Cevapların girişini netleştirip örnek kısmını daha kontrollü açın.")
+        _append_unique(performance_development, "Her yanıtı tanım, gerekçe ve örnek sırasıyla kurmayı deneyin.")
+        _append_unique(study_plan, "Net cevap yapısı")
+    else:
+        _append_unique(next_interview, "Mevcut akışı koruyup cevapların sonunu daha güçlü bağlayın.")
+        _append_unique(performance_development, "İyi giden akışı küçük tekrarlarla daha tutarlı hale getirin.")
+        _append_unique(study_plan, "Güçlü akışın korunması")
 
     if uncertain_ratio >= 0.15:
         _append_unique(
@@ -1264,12 +1328,13 @@ def analyze_transcript_with_gpt(qa_pairs, transcript_text, interview_type: str =
     if visible_questions:
         global_analysis = generate_overall_analysis_gpt(analysis_payload)
     else:
-        global_analysis = _build_no_visible_question_analysis(interview_type)
+        global_analysis = _build_no_visible_question_analysis(interview_type, overall_score, dim_scores)
 
     dynamic_recommendations = _build_transcript_recommendations(
         sanitized_evaluations,
         dim_scores,
         interview_type,
+        overall_score,
         global_analysis.get("focusTopics", []),
         global_analysis.get("improvementAreas", []),
         global_analysis.get("recommendations", {}),
@@ -1306,3 +1371,4 @@ def analyze_transcript_with_gpt(qa_pairs, transcript_text, interview_type: str =
       ],
       "recommendations": legacy_recs
     }
+
