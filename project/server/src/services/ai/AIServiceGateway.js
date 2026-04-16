@@ -4,10 +4,11 @@ export class AIServiceGateway {
     this.prompts = prompts;
   }
 
-  formatCandidateBrief(cfg = {}) {
+  formatCandidateBrief(cfg = {}, perspective = null) {
     const brief = cfg?.candidateBrief;
     if (!brief || typeof brief !== "object") return "";
-    return this.prompts?.formatCandidateBrief ? this.prompts.formatCandidateBrief(brief) : "";
+    const view = perspective || (cfg?.interviewType === "HR" ? "hr" : "technical");
+    return this.prompts?.formatCandidateBrief ? this.prompts.formatCandidateBrief(brief, view) : "";
   }
 
   async generateFirstQuestion(cfg) {
@@ -28,7 +29,7 @@ export class AIServiceGateway {
     let promptText = "";
     if (cfg.interviewType === "HR") {
       const hrQuestionBank = this.prompts?.hrQuestionBankPromptBlock ? this.prompts.hrQuestionBankPromptBlock() : "";
-      promptText = `Sen bir İnsan Kaynakları mülakatçısısın. Adaya sorulabilecek, STAR (Situation, Task, Action, Result) tekniğine uygun, tamamen Türkçe 3 adet İK / davranışsal soru hazırla. Sorular genel karakter, sorumluluk alma, iletişim, takım çalışması, çatışma yönetimi, önceliklendirme ve öz farkındalık odaklı olmalıdır. Teknik detay sorma; kullanılan araçlar, algoritmalar, model isimleri, kütüphaneler veya implementasyon ayrıntılarına girme. ${hrQuestionBank}${candidateBriefText ? ` Adayın CV özeti: ${candidateBriefText}. Soruların en az 2 tanesi bu özette geçen deneyim, proje veya sorumluluklardan türesin; ancak bu sorular da teknik detay değil, adayın bireysel katkısı, davranışı, kararları ve sonuçları üzerine olsun.` : ""} Son 3 soru kendi içinde tema olarak dengeli olsun; aynı temayı tekrar etme. SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında JSON objesi döndür, markdown veya açıklama ekleme.`;
+      promptText = `Sen bir İnsan Kaynakları mülakatçısısın. Adaya sorulabilecek, STAR (Situation, Task, Action, Result) tekniğine uygun, tamamen Türkçe 3 adet İK / davranışsal soru hazırla. Sorular genel karakter, sorumluluk alma, iletişim, takım çalışması, çatışma yönetimi, önceliklendirme ve öz farkındalık odaklı olmalıdır. Teknik detay sorma; kullanılan araçlar, algoritmalar, model isimleri, kütüphaneler veya implementasyon ayrıntılarına girme. HR özeti teknik bilgi içermez; bu nedenle teknik yorum yapma veya teknik soru üretmeye çalışma. ${hrQuestionBank}${candidateBriefText ? ` Adayın HR özeti: ${candidateBriefText}. Soruların en az 2 tanesi bu özette geçen deneyim, sorumluluk veya davranışsal odaklardan türesin; ancak bu sorular da teknik detay değil, adayın bireysel katkısı, davranışı, kararları ve sonuçları üzerine olsun.` : ""} Son 3 soru kendi içinde tema olarak dengeli olsun; aynı temayı tekrar etme. SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında JSON objesi döndür, markdown veya açıklama ekleme.`;
     } else {
       promptText = `Sen uzman bir teknik mülakatçısın. Adayın Rolü: '${cfg.role || "Yazılım Geliştirici"}', Sektörü: '${cfg.companyOrIndustry || "Teknoloji"}', İLGİ ALANI: '${cfg.domain || "Genel"}' ve ZORLUK SEVİYESİ: '${cfg.difficulty || "Junior"}'. 
 Lütfen SADECE bu ilgi alanına (örneğin React seçilmişse doğrudan React ile ilgili, veritabanı seçilmişse sadece veritabanı ile ilgili) ve zorluk seviyesine (Junior ise temel/kavramsal, Intermediate ise senaryo optimizasyonu) kesin olarak uygun 3 tane yaratıcı ve teknik soru hazırla.${candidateBriefText ? ` Adayın CV özeti: ${candidateBriefText}. Soruların en az 2 tanesi bu özette geçen proje, staj veya teknik yetkinlik iddialarını doğrulayan şekilde olsun.` : ""} 
@@ -82,7 +83,7 @@ SADECE {"questions": ["Soru 1?", "Soru 2?", "Soru 3?"]} formatında geçerli bir
 
     // Fallbacks
     if (cfg.interviewType === "HR") {
-      const experienceSeed = cfg?.candidateBrief?.experienceHighlights?.[0] || cfg?.candidateBrief?.projectHighlights?.[0] || "";
+      const experienceSeed = cfg?.candidateBrief?.hrExperienceHighlights?.[0] || cfg?.candidateBrief?.hrFocusHighlights?.[0] || "";
       return [
         experienceSeed
           ? `CV'nizde geçen "${experienceSeed}" deneyiminde en zor an neydi ve bu durumda sizin bireysel katkınız ne oldu?`
