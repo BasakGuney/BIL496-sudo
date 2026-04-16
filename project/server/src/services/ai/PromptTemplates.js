@@ -46,12 +46,29 @@ export class PromptTemplates {
     ].join(" ");
   }
 
-  formatCandidateBrief(candidateBrief) {
+  formatCandidateBrief(candidateBrief, perspective = "technical") {
     if (!candidateBrief || typeof candidateBrief !== "object") return "";
 
     const lines = [];
+
+    if (perspective === "hr") {
+      if (candidateBrief.hrSummary) lines.push(`HR Özeti: ${candidateBrief.hrSummary}`);
+      if (Array.isArray(candidateBrief.educationHighlights) && candidateBrief.educationHighlights.length > 0) {
+        lines.push(`Eğitim: ${candidateBrief.educationHighlights.join(" | ")}`);
+      }
+      if (Array.isArray(candidateBrief.hrExperienceHighlights) && candidateBrief.hrExperienceHighlights.length > 0) {
+        lines.push(`Deneyim Başlıkları: ${candidateBrief.hrExperienceHighlights.join(" | ")}`);
+      }
+      if (Array.isArray(candidateBrief.hrFocusHighlights) && candidateBrief.hrFocusHighlights.length > 0) {
+        lines.push(`Davranışsal Odaklar: ${candidateBrief.hrFocusHighlights.join(" | ")}`);
+      }
+      return lines.join(" || ");
+    }
+
     if (candidateBrief.headline) lines.push(`Başlık: ${candidateBrief.headline}`);
-    if (candidateBrief.summary) lines.push(`Özet: ${candidateBrief.summary}`);
+    if (candidateBrief.technicalSummary || candidateBrief.summary) {
+      lines.push(`Teknik Özet: ${candidateBrief.technicalSummary || candidateBrief.summary}`);
+    }
     if (Array.isArray(candidateBrief.educationHighlights) && candidateBrief.educationHighlights.length > 0) {
       lines.push(`Eğitim: ${candidateBrief.educationHighlights.join(" | ")}`);
     }
@@ -69,13 +86,13 @@ export class PromptTemplates {
   }
 
   candidateBriefInstructions(cfg) {
-    const formattedBrief = this.formatCandidateBrief(cfg?.candidateBrief);
-    if (!formattedBrief) return "";
-
     if (cfg?.interviewType === "HR") {
+      const formattedBrief = this.formatCandidateBrief(cfg?.candidateBrief, "hr");
+      if (!formattedBrief) return "";
       return [
         `CV ÖZETİ: ${formattedBrief}.`,
         "Bu özeti soru üretiminde kullan ama kesin doğru kabul etme; adayın sözlü anlatımıyla doğrulat.",
+        "HR özetini teknik veri kaynağı gibi kullanma; bu özet teknik stack, araç, algoritma, kütüphane veya implementasyon detayı içermez.",
         "HR modunda CV'deki proje veya deneyimleri teknik detay sorgulamak için değil, davranışsal içgörü almak için kullan.",
         "Aday bir proje veya stajdan bahsederse kullanılan araçlar, algoritmalar veya teknik implementasyon detaylarına girme.",
         "Bunun yerine adayın bireysel katkısını, ekip içi iletişimini, sorumluluk alma biçimini, karar verme yaklaşımını ve ortaya çıkan sonucu sor.",
@@ -83,6 +100,8 @@ export class PromptTemplates {
       ].join(" ");
     }
 
+    const formattedBrief = this.formatCandidateBrief(cfg?.candidateBrief, "technical");
+    if (!formattedBrief) return "";
     return [
       `CV ÖZETİ: ${formattedBrief}.`,
       "Bu özeti soru üretiminde kullan ama kesin doğru kabul etme; adayın sözlü anlatımıyla doğrulat.",
