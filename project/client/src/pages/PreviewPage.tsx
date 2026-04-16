@@ -12,10 +12,14 @@ import { Textarea } from "@/components/ui/textarea";
 const EMPTY_CANDIDATE_BRIEF: CandidateBrief = {
   headline: "",
   summary: "",
+  technicalSummary: "",
+  hrSummary: "",
   educationHighlights: [],
   experienceHighlights: [],
   projectHighlights: [],
   skillHighlights: [],
+  hrExperienceHighlights: [],
+  hrFocusHighlights: [],
 };
 
 const parseLines = (text: string) =>
@@ -130,7 +134,10 @@ export function PreviewPage({
     return () => { stopCamera(); stopMic(); };
   }, []);
 
-  const candidateBrief = config.candidateBrief || EMPTY_CANDIDATE_BRIEF;
+  const candidateBrief = useMemo(
+    () => ({ ...EMPTY_CANDIDATE_BRIEF, ...(config.candidateBrief || {}) }),
+    [config.candidateBrief]
+  );
   const previewQuestionConfig = useMemo(() => ({ ...config, candidateBrief }), [config, candidateBrief]);
 
   useEffect(() => {
@@ -358,23 +365,56 @@ export function PreviewPage({
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Özet</Label>
+                  <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Teknik Özet</Label>
                   <Textarea
                     className="bg-enterprise-surface-2 border-enterprise-border rounded-lg text-xs min-h-[80px] resize-none"
-                    value={candidateBrief.summary}
-                    onChange={(e) => updateBrief({ summary: e.target.value })}
+                    value={candidateBrief.technicalSummary || candidateBrief.summary}
+                    onChange={(e) => updateBrief({ technicalSummary: e.target.value, summary: e.target.value })}
                   />
                 </div>
-                {/* Advanced highlights in grid */}
+                <div className="grid gap-2">
+                  <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">HR Özeti</Label>
+                  <Textarea
+                    className="bg-enterprise-surface-2 border-enterprise-border rounded-lg text-xs min-h-[80px] resize-none"
+                    value={candidateBrief.hrSummary}
+                    onChange={(e) => updateBrief({ hrSummary: e.target.value })}
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Eğitim</Label>
                     <Textarea className="h-24 bg-enterprise-surface-2 border-enterprise-border text-[10px]" value={linesToText(candidateBrief.educationHighlights)} onChange={(e) => updateBrief({ educationHighlights: parseLines(e.target.value) })} />
                   </div>
-                  <div className="grid gap-2">
-                    <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Yetenekler</Label>
-                    <Textarea className="h-24 bg-enterprise-surface-2 border-enterprise-border text-[10px]" value={linesToText(candidateBrief.skillHighlights)} onChange={(e) => updateBrief({ skillHighlights: parseLines(e.target.value) })} />
-                  </div>
+                  {config.interviewType === "Technical" ? (
+                    <div className="grid gap-2">
+                      <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Teknik Yetenekler</Label>
+                      <Textarea className="h-24 bg-enterprise-surface-2 border-enterprise-border text-[10px]" value={linesToText(candidateBrief.skillHighlights)} onChange={(e) => updateBrief({ skillHighlights: parseLines(e.target.value) })} />
+                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">HR Odakları</Label>
+                      <Textarea className="h-24 bg-enterprise-surface-2 border-enterprise-border text-[10px]" value={linesToText(candidateBrief.hrFocusHighlights)} onChange={(e) => updateBrief({ hrFocusHighlights: parseLines(e.target.value) })} />
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {config.interviewType === "Technical" ? (
+                    <>
+                      <div className="grid gap-2">
+                        <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Deneyimler</Label>
+                        <Textarea className="h-24 bg-enterprise-surface-2 border-enterprise-border text-[10px]" value={linesToText(candidateBrief.experienceHighlights)} onChange={(e) => updateBrief({ experienceHighlights: parseLines(e.target.value) })} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Projeler</Label>
+                        <Textarea className="h-24 bg-enterprise-surface-2 border-enterprise-border text-[10px]" value={linesToText(candidateBrief.projectHighlights)} onChange={(e) => updateBrief({ projectHighlights: parseLines(e.target.value) })} />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="grid gap-2 col-span-2">
+                      <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">HR Deneyim Başlıkları</Label>
+                      <Textarea className="h-24 bg-enterprise-surface-2 border-enterprise-border text-[10px]" value={linesToText(candidateBrief.hrExperienceHighlights)} onChange={(e) => updateBrief({ hrExperienceHighlights: parseLines(e.target.value) })} />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -412,4 +452,3 @@ export function PreviewPage({
     </div>
   );
 }
-
