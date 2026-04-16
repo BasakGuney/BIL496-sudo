@@ -12,20 +12,28 @@ const normalizeCandidateBrief = (candidateBrief = null) => {
 
   const normalized = {
     headline: String(candidateBrief.headline || "").trim(),
-    summary: String(candidateBrief.summary || "").trim(),
+    summary: String(candidateBrief.summary || candidateBrief.technicalSummary || "").trim(),
+    technicalSummary: String(candidateBrief.technicalSummary || candidateBrief.summary || "").trim(),
+    hrSummary: String(candidateBrief.hrSummary || "").trim(),
     educationHighlights: normalizeStringArray(candidateBrief.educationHighlights),
     experienceHighlights: normalizeStringArray(candidateBrief.experienceHighlights),
     projectHighlights: normalizeStringArray(candidateBrief.projectHighlights),
     skillHighlights: normalizeStringArray(candidateBrief.skillHighlights),
+    hrExperienceHighlights: normalizeStringArray(candidateBrief.hrExperienceHighlights),
+    hrFocusHighlights: normalizeStringArray(candidateBrief.hrFocusHighlights),
   };
 
   const hasContent =
     normalized.headline
     || normalized.summary
+    || normalized.technicalSummary
+    || normalized.hrSummary
     || normalized.educationHighlights.length > 0
     || normalized.experienceHighlights.length > 0
     || normalized.projectHighlights.length > 0
-    || normalized.skillHighlights.length > 0;
+    || normalized.skillHighlights.length > 0
+    || normalized.hrExperienceHighlights.length > 0
+    || normalized.hrFocusHighlights.length > 0;
 
   return hasContent ? normalized : null;
 };
