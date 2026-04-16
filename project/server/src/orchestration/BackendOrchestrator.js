@@ -555,6 +555,12 @@ export class BackendOrchestrator {
           .then((success) => {
             if (success && !runtime.analyzedAudioRelativePaths.includes(savedAudioFile.relativePath)) {
               runtime.analyzedAudioRelativePaths.push(savedAudioFile.relativePath);
+              if (this.reportArchive?.updateIncrementalAudioReport) {
+                this.reportArchive.updateIncrementalAudioReport({
+                  sessionId,
+                  savedAudioFile,
+                }).catch((err) => console.error("[BackendOrchestrator] Incremental audio report update error:", err));
+              }
             }
           })
           .catch((err) => console.error("[BackendOrchestrator] Incremental audio analysis error:", err));
