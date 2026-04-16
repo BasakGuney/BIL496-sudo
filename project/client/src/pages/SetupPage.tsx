@@ -13,8 +13,8 @@ export function SetupPage({
   onOpenReport: (sessionId: string) => void;
 }) {
   const [config, setConfig] = useState<SessionConfig>(() => ({
-    firstName: "Basak",
-    lastName: "Guney",
+    firstName: "Ecesu",
+    lastName: "Bozkurt",
     gender: "Kadın",
     interviewType: "HR",
     role: "Frontend Developer",

@@ -117,6 +117,7 @@ export async function updateSessionConfig(sessionId: string, config: SessionConf
       domain: config.domainInterest,
       difficulty: config.difficulty,
       mode: config.mode,
+      cvFile: config.cvFile,
       candidateBrief: config.candidateBrief || null,
     }),
   });

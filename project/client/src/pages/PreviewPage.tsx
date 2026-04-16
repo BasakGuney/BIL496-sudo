@@ -269,38 +269,32 @@ export function PreviewPage({
                 </div>
               </div>
             </div>
-          </div>
 
-        </div>
-
-        {/* Right: Summary & Questions */}
-        <div className="space-y-6">
-          {/* Mülakat Özeti */}
-          <div className="card-style bg-enterprise-surface p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <Sparkles className="w-5 h-5 text-enterprise-accent" />
-              <h3 className="font-bold text-white uppercase tracking-wider text-xs">Mülakat Özeti</h3>
-            </div>
-
-            <div className="space-y-4 mb-6">
-              <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
-                <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Rol</span>
-                <span className="text-xs font-bold text-white">{config.role}</span>
+            <div className="card-style bg-enterprise-surface p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <Sparkles className="w-5 h-5 text-enterprise-accent" />
+                <h3 className="font-bold text-white uppercase tracking-wider text-xs">Mülakat Özeti</h3>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
-                <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Şirket</span>
-                <span className="text-xs font-bold text-white">{config.companyOrIndustry}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
-                <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Tip</span>
-                <Badge className="bg-enterprise-accent/15 border-enterprise-accent/20 text-enterprise-accent-2 text-[10px] uppercase">{config.interviewType === "HR" ? "İnsan Kaynakları" : "Teknik"}</Badge>
-              </div>
-            </div>
 
-            {config.interviewType === "Technical" && (
-              <div className="space-y-2 mt-4 p-3 rounded-xl bg-enterprise-surface-2 border border-enterprise-border">
-                 <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Zorluk Seviyesi</Label>
-                 <Select
+              <div className="space-y-4 mb-6">
+                <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
+                  <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Rol</span>
+                  <span className="text-xs font-bold text-white">{config.role}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
+                  <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Şirket</span>
+                  <span className="text-xs font-bold text-white">{config.companyOrIndustry}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
+                  <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Tip</span>
+                  <Badge className="bg-enterprise-accent/15 border-enterprise-accent/20 text-enterprise-accent-2 text-[10px] uppercase">{config.interviewType === "HR" ? "İnsan Kaynakları" : "Teknik"}</Badge>
+                </div>
+              </div>
+
+              {config.interviewType === "Technical" && (
+                <div className="space-y-2 mt-4 p-3 rounded-xl bg-enterprise-surface-2 border border-enterprise-border">
+                  <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Zorluk Seviyesi</Label>
+                  <Select
                     value={config.difficulty}
                     onValueChange={(v) => setConfig({ ...config, difficulty: v as "Junior" | "Intermediate" })}
                   >
@@ -312,10 +306,15 @@ export function PreviewPage({
                       <SelectItem value="Intermediate">Intermediate (Orta)</SelectItem>
                     </SelectContent>
                   </Select>
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
 
+        </div>
+
+        {/* Right: Summary & Questions */}
+        <div className="space-y-6">
           {/* Soru Önizleme */}
           <div className="card-style bg-enterprise-surface p-6 border-enterprise-accent/30 shadow-[0_0_30px_rgba(124,92,252,0.05)]">
             <div className="flex items-center justify-between mb-6">
@@ -364,22 +363,25 @@ export function PreviewPage({
                     onChange={(e) => updateBrief({ headline: e.target.value })}
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Teknik Özet</Label>
-                  <Textarea
-                    className="bg-enterprise-surface-2 border-enterprise-border rounded-lg text-xs min-h-[80px] resize-none"
-                    value={candidateBrief.technicalSummary || candidateBrief.summary}
-                    onChange={(e) => updateBrief({ technicalSummary: e.target.value, summary: e.target.value })}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">HR Özeti</Label>
-                  <Textarea
-                    className="bg-enterprise-surface-2 border-enterprise-border rounded-lg text-xs min-h-[80px] resize-none"
-                    value={candidateBrief.hrSummary}
-                    onChange={(e) => updateBrief({ hrSummary: e.target.value })}
-                  />
-                </div>
+                {config.interviewType === "Technical" ? (
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Teknik Özet</Label>
+                    <Textarea
+                      className="bg-enterprise-surface-2 border-enterprise-border rounded-lg text-xs min-h-[80px] resize-none"
+                      value={candidateBrief.technicalSummary || candidateBrief.summary}
+                      onChange={(e) => updateBrief({ technicalSummary: e.target.value, summary: e.target.value })}
+                    />
+                  </div>
+                ) : (
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">HR Özeti</Label>
+                    <Textarea
+                      className="bg-enterprise-surface-2 border-enterprise-border rounded-lg text-xs min-h-[80px] resize-none"
+                      value={candidateBrief.hrSummary}
+                      onChange={(e) => updateBrief({ hrSummary: e.target.value })}
+                    />
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label className="text-[10px] font-bold text-enterprise-text-3 uppercase">Eğitim</Label>
