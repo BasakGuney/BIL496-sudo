@@ -6,10 +6,14 @@ export type Mode = "Supportive" | "Neutral";
 export type CandidateBrief = {
   headline: string;
   summary: string;
+  technicalSummary: string;
+  hrSummary: string;
   educationHighlights: string[];
   experienceHighlights: string[];
   projectHighlights: string[];
   skillHighlights: string[];
+  hrExperienceHighlights: string[];
+  hrFocusHighlights: string[];
 };
 
 export type SessionConfig = {
@@ -112,9 +116,42 @@ export type AudioLlmReport = {
   clarityBadge?: string;
   dominantEmotion?: string;
   secondaryEmotion?: string | null;
+  generatedAt?: string;
+  updatedAt?: string;
+  status?: string;
   scores?: Array<{ label: string; score: number; detail: string }>;
   tonDistribution?: Array<{ label: string; score: number }>;
   speechSummary?: string[];
+  perQuestionReports?: Array<{
+    questionIndex: number;
+    fileName?: string;
+    relativePath?: string;
+    analyzedAt?: string;
+    summary?: string;
+    metrics?: {
+      durationSec?: number;
+      clarity?: number;
+      avgWpm?: number;
+      pauseRatio?: number;
+      pureSpeechTime?: number;
+    };
+    dominantEmotion?: {
+      key?: string;
+      label?: string;
+      score?: number;
+    } | null;
+    secondaryEmotion?: {
+      key?: string;
+      label?: string;
+      score?: number;
+    } | null;
+    scores?: {
+      clarity?: number;
+      pacing?: number;
+      fluency?: number;
+      emotionalBalance?: number;
+    };
+  }>;
   recommendations?: {
     nextInterview?: string;
     performanceDevelopment?: string;
@@ -220,4 +257,3 @@ export type SessionSummary = {
   hasVision: boolean;
   transcriptPreview: string;
 };
-
