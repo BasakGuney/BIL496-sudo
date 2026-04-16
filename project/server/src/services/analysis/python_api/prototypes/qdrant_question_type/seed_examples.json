@@ -798,5 +798,13 @@
     "interview_type": "Technical",
     "language": "tr",
     "is_meta": false
+  },
+  {
+    "id": 101,
+    "question_text": "Peki tam olarak bu süreçte sizin bireysel katkınız neydi? Yani, o verimlilik karşılaştırmasında hangi adımlarda rol aldınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
   }
 ]

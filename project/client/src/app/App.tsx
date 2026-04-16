@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/layout/Shell";
 import { Stepper } from "@/components/layout/Stepper";
 import { SetupPage } from "@/pages/SetupPage";
@@ -15,6 +15,51 @@ export default function App() {
   const [config, setConfig] = useState<SessionConfig | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [report, setReport] = useState<FeedbackReport | null>(null);
+  type NavigationSnapshot = {
+    route: RouteKey;
+    config: SessionConfig | null;
+    sessionId: string | null;
+    report: FeedbackReport | null;
+  };
+
+  const applyNavigationState = useCallback((nextState: NavigationSnapshot, { push = true, replace = false }: { push?: boolean; replace?: boolean } = {}) => {
+    setRoute(nextState.route);
+    setConfig(nextState.config);
+    setSessionId(nextState.sessionId);
+    setReport(nextState.report);
+
+    if (typeof window === "undefined" || !push) return;
+
+    if (replace) {
+      window.history.replaceState(nextState, "");
+      return;
+    }
+
+    window.history.pushState(nextState, "");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const initialState: NavigationSnapshot = window.history.state && typeof window.history.state === "object"
+      ? window.history.state
+      : { route: "setup", config: null, sessionId: null, report: null };
+
+    applyNavigationState(initialState, { push: false });
+    window.history.replaceState(initialState, "");
+
+    const handlePopState = (event: PopStateEvent) => {
+      const snapshot: NavigationSnapshot = event.state && typeof event.state === "object"
+        ? event.state
+        : { route: "setup", config: null, sessionId: null, report: null };
+      applyNavigationState(snapshot, { push: false });
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [applyNavigationState]);
 
   const stepIndex = useMemo(() => {
     switch (route) {
@@ -29,15 +74,17 @@ export default function App() {
   const showStepper = stepIndex !== -1;
 
   const handleReset = () => {
-    setConfig(null);
-    setSessionId(null);
-    setReport(null);
-    setRoute("setup");
+    applyNavigationState({
+      route: "setup",
+      config: null,
+      sessionId: null,
+      report: null,
+    });
   };
 
   return (
     <Shell 
-      onNavigateHistory={() => setRoute("history")}
+      onNavigateHistory={() => applyNavigationState({ route: "history", config, sessionId, report })}
       onNewInterview={handleReset}
     >
       <div className="w-full">
@@ -50,17 +97,22 @@ export default function App() {
         {route === "setup" && (
           <SetupPage
             onPrepared={(cfg, sid) => {
-              setConfig(cfg);
-              setSessionId(sid);
-              setRoute("preview");
+              applyNavigationState({
+                route: "preview",
+                config: cfg,
+                sessionId: sid,
+                report: null,
+              });
             }}
             onOpenReport={async (sid) => {
               try {
                 const rep = await getReport(sid);
-                setConfig(null);
-                setSessionId(sid);
-                setReport(rep);
-                setRoute("feedback");
+                applyNavigationState({
+                  route: "feedback",
+                  config: null,
+                  sessionId: sid,
+                  report: rep,
+                });
               } catch (error) {
                 console.error("Failed to open report", error);
               }
@@ -73,9 +125,14 @@ export default function App() {
             config={config}
             sessionId={sessionId}
             setConfig={setConfig}
-            onBack={() => setRoute("setup")}
+            onBack={() => window.history.back()}
             onStartInterview={() => {
-              setRoute("interview");
+              applyNavigationState({
+                route: "interview",
+                config,
+                sessionId,
+                report,
+              });
             }}
           />
         )}
@@ -85,13 +142,17 @@ export default function App() {
             config={config}
             sessionId={sessionId}
             onFinish={(rep) => {
-              setReport(rep);
-              setRoute("feedback");
+              applyNavigationState({
+                route: "feedback",
+                config,
+                sessionId,
+                report: rep,
+              });
             }}
             onReportUpdate={(rep) => {
               setReport(rep);
             }}
-            onBack={() => setRoute("preview")}
+            onBack={() => window.history.back()}
           />
         )}
 
@@ -109,7 +170,7 @@ export default function App() {
               <button
                 type="button"
                 className="h-10 px-5 rounded-xl bg-enterprise-accent text-white text-xs font-bold"
-                onClick={() => setRoute("history")}
+                onClick={() => applyNavigationState({ route: "history", config, sessionId, report })}
               >
                 Geçmişe Dön
               </button>
@@ -120,14 +181,16 @@ export default function App() {
         {route === "history" && (
           <HistoryPage onOpenReport={async (sid) => {
             try {
-              const rep = await getReport(sid);
-              setConfig(null);
-              setSessionId(sid);
-              setReport(rep);
-              setRoute("feedback");
-            } catch (error) {
-              console.error("Failed to open report", error);
-            }
+                const rep = await getReport(sid);
+                applyNavigationState({
+                  route: "feedback",
+                  config: null,
+                  sessionId: sid,
+                  report: rep,
+                });
+              } catch (error) {
+                console.error("Failed to open report", error);
+              }
           }} />
         )}
       </div>
