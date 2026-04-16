@@ -74,12 +74,16 @@ function AudioAnalysisTab({ report }: { report: FeedbackReport }) {
   }
 
   const scores = llm.scores ?? [];
+  const perQuestionReports = llm.perQuestionReports ?? [];
   const overallAudioPerformance = computeOverallAudioPerformance(scores);
   return (
     <div className="space-y-4">
       <div className="card-style bg-enterprise-surface p-6">
         <p className="text-[10px] uppercase tracking-widest text-enterprise-text-3 mb-2">Genel Ses Performansı</p>
         <p className="text-6xl font-black text-white">{overallAudioPerformance}</p>
+        {llm.overallAnalysis ? (
+          <p className="mt-4 text-sm text-enterprise-text-2 leading-relaxed">{llm.overallAnalysis}</p>
+        ) : null}
       </div>
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         {scores.map((s, i) => (
@@ -90,6 +94,39 @@ function AudioAnalysisTab({ report }: { report: FeedbackReport }) {
           </div>
         ))}
       </div>
+      {perQuestionReports.length > 0 ? (
+        <div className="card-style bg-enterprise-surface p-6">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[10px] uppercase tracking-widest text-enterprise-text-3">Soru Bazlı Ses Analizi</p>
+            <Badge className="bg-enterprise-accent/10 border border-enterprise-accent/20 text-enterprise-accent">
+              {perQuestionReports.length} cevap işlendi
+            </Badge>
+          </div>
+          <div className="space-y-3">
+            {perQuestionReports.map((item) => (
+              <div key={item.questionIndex} className="rounded-2xl border border-enterprise-border bg-enterprise-surface-2 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-white">Soru {item.questionIndex}</div>
+                    <p className="mt-1 text-xs text-enterprise-text-2">{item.summary || "Bu cevap için ses analizi hazır."}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[11px]">
+                    <Badge className="bg-white/5 border border-white/10 text-white">Netlik {Math.round(Number(item.metrics?.clarity || 0))}</Badge>
+                    <Badge className="bg-white/5 border border-white/10 text-white">Hız {Math.round(Number(item.metrics?.avgWpm || 0))} WPM</Badge>
+                    <Badge className="bg-white/5 border border-white/10 text-white">Duraklama %{Math.round(Number(item.metrics?.pauseRatio || 0))}</Badge>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4 text-xs text-enterprise-text-2">
+                  <div>Baskın ton: <span className="text-white">{item.dominantEmotion?.label || "Bilinmiyor"}</span></div>
+                  <div>İkincil ton: <span className="text-white">{item.secondaryEmotion?.label || "-"}</span></div>
+                  <div>Süre: <span className="text-white">{Math.round(Number(item.metrics?.durationSec || 0))} sn</span></div>
+                  <div>Konuşma süresi: <span className="text-white">{Math.round(Number(item.metrics?.pureSpeechTime || 0))} sn</span></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
