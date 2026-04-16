@@ -133,9 +133,16 @@ export class FileReportArchive {
 
     const relativePath = "session_config.json";
     await writeFile(path.join(sessionDir, relativePath), `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+
+    const cvDir = path.join(sessionDir, "cv");
+    await mkdir(cvDir, { recursive: true });
+    const cvRelativePath = path.join("cv", "session_config.json");
+    await writeFile(path.join(sessionDir, cvRelativePath), `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+
     return {
       ...payload,
       relativePath,
+      cvRelativePath,
     };
   }
 
@@ -349,11 +356,50 @@ export class FileReportArchive {
       ...(Array.isArray(structuredCv?.experience?.professional) ? structuredCv.experience.professional : []),
       ...(Array.isArray(structuredCv?.experience?.intern) ? structuredCv.experience.intern : []),
     ];
+    const professionalExperienceItems = Array.isArray(structuredCv?.experience?.professional)
+      ? structuredCv.experience.professional
+      : [];
+    const internExperienceItems = Array.isArray(structuredCv?.experience?.intern)
+      ? structuredCv.experience.intern
+      : [];
     const projects = Array.isArray(structuredCv?.projects) ? structuredCv.projects : [];
+    const activities = Array.isArray(structuredCv?.activities) ? structuredCv.activities : [];
     const skills = structuredCv?.skills || {};
+    const technicalSkills = Array.isArray(skills?.technical) ? skills.technical : [];
+    const toolSkills = Array.isArray(skills?.tools) ? skills.tools : [];
+    const softSkills = Array.isArray(skills?.soft) ? skills.soft : [];
+
+    const uniqueStrings = (items = [], limit = 8) =>
+      [...new Set(
+        (Array.isArray(items) ? items : [])
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+      )].slice(0, limit);
+
+    const compactSentence = (text = "", maxLength = 220) => {
+      const clean = String(text || "").replace(/\s+/g, " ").trim();
+      if (!clean) return "";
+      if (clean.length <= maxLength) return clean;
+
+      const sliced = clean.slice(0, maxLength);
+      const lastBreak = Math.max(sliced.lastIndexOf(". "), sliced.lastIndexOf("; "), sliced.lastIndexOf(", "));
+      if (lastBreak >= 60) return `${sliced.slice(0, lastBreak).trim()}.`;
+      return `${sliced.trim()}...`;
+    };
+
+    const joinListNatural = (items = [], maxItems = 3) => {
+      const picked = uniqueStrings(items, maxItems);
+      if (picked.length === 0) return "";
+      if (picked.length === 1) return picked[0];
+      if (picked.length === 2) return `${picked[0]} ve ${picked[1]}`;
+      return `${picked.slice(0, -1).join(", ")} ve ${picked[picked.length - 1]}`;
+    };
 
     const educationHighlights = education
-      .map((item) => [item?.degree || item?.department || "", item?.school || ""].filter(Boolean).join(" - "))
+      .map((item) => {
+        const program = [item?.department || "", item?.degree || ""].filter(Boolean).join(" ");
+        return [program, item?.school || ""].filter(Boolean).join(" - ");
+      })
       .map((item) => String(item || "").trim())
       .filter(Boolean)
       .slice(0, 3);
@@ -378,29 +424,87 @@ export class FileReportArchive {
       .slice(0, 3);
 
     const skillHighlights = [
-      ...(Array.isArray(skills?.technical) ? skills.technical : []),
-      ...(Array.isArray(skills?.tools) ? skills.tools : []),
+      ...technicalSkills,
+      ...toolSkills,
     ]
       .map((item) => String(item || "").trim())
       .filter(Boolean)
       .slice(0, 10);
 
+    const toExperienceHeading = (item) => {
+      const position = String(item?.position || "").trim();
+      const company = String(item?.company || "").trim();
+      return [position, company].filter(Boolean).join(" @ ");
+    };
+
+    const hrExperienceHighlights = uniqueStrings([
+      ...professionalExperienceItems.map(toExperienceHeading),
+      ...internExperienceItems.map(toExperienceHeading),
+    ], 4);
+
+    const fallbackHrExperienceHighlights = uniqueStrings([
+      ...hrExperienceHighlights,
+      ...activities.map((item) => String(item?.title || "").trim()),
+    ], 4);
+
+    const inferredFocusAreas = [
+      ...softSkills,
+      ...activities.flatMap((item) => [item?.title, ...(Array.isArray(item?.details) ? item.details : [])]),
+      ...experienceItems.flatMap((item) => Array.isArray(item?.responsibilities) ? item.responsibilities.slice(0, 2) : []),
+    ].flatMap((text) => {
+      const clean = String(text || "").trim();
+      if (!clean) return [];
+      const focusMatches = [];
+      if (/analitik|analysis|problem|optimiz/i.test(clean)) focusMatches.push("Analitik dusunme ve problem cozme");
+      if (/takim|ekip|collaboration|team/i.test(clean)) focusMatches.push("Takim calismasi ve is birligi");
+      if (/lider|yonet|koordin|organize|baskan|başkan/i.test(clean)) focusMatches.push("Liderlik ve koordinasyon");
+      if (/iletisim|sunum|anlat|rapor|konusma|konuşma/i.test(clean)) focusMatches.push("Iletisim ve kendini ifade etme");
+      if (/sorumluluk|ownership|inisiyatif|initiative/i.test(clean)) focusMatches.push("Sorumluluk alma ve inisiyatif");
+      if (/ogren|arastir|gelistir|adapt/i.test(clean)) focusMatches.push("Ogrenme istegi ve gelisime aciklik");
+      return focusMatches;
+    });
+
+    const hrFocusHighlights = uniqueStrings(inferredFocusAreas, 5);
+
+    const summary = String(candidate?.summary || "").replace(/\s+/g, " ").trim();
+    const latestTechnicalRole = experienceItems[0]?.position ? String(experienceItems[0].position).trim() : "";
+    const technicalSummary = compactSentence(summary || [
+      latestTechnicalRole ? `${latestTechnicalRole} deneyimi bulunan` : "",
+      technicalSkills.length > 0 ? `${joinListNatural(technicalSkills, 4)} alanlarina odaklanan` : "",
+      projectHighlights[0] ? "proje gelistirme ve teknik problem cozme deneyimi olan" : "",
+      "bir aday profili"
+    ].filter(Boolean).join(" "));
+
+    const hrSummary = [
+      summary,
+      fallbackHrExperienceHighlights.length > 0 ? `Deneyim gecmisinde ${joinListNatural(fallbackHrExperienceHighlights, 3)} bulunuyor.` : "",
+      hrFocusHighlights.length > 0 ? `HR acisindan one cikan yonleri ${joinListNatural(hrFocusHighlights, 3)}.` : "",
+    ].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+
     const candidateBrief = {
       headline: String(candidate?.title || candidate?.fullName || "").trim(),
-      summary: String(candidate?.summary || "").trim(),
-      educationHighlights: [...new Set(educationHighlights)],
-      experienceHighlights: [...new Set(experienceHighlights)],
-      projectHighlights: [...new Set(projectHighlights)],
-      skillHighlights: [...new Set(skillHighlights)],
+      summary: technicalSummary,
+      technicalSummary,
+      hrSummary,
+      educationHighlights: uniqueStrings(educationHighlights, 3),
+      experienceHighlights: uniqueStrings(experienceHighlights, 4),
+      projectHighlights: uniqueStrings(projectHighlights, 3),
+      skillHighlights: uniqueStrings(skillHighlights, 10),
+      hrExperienceHighlights: hrExperienceHighlights.length > 0 ? hrExperienceHighlights : fallbackHrExperienceHighlights,
+      hrFocusHighlights,
     };
 
     const hasContent =
       candidateBrief.headline
       || candidateBrief.summary
+      || candidateBrief.technicalSummary
+      || candidateBrief.hrSummary
       || candidateBrief.educationHighlights.length > 0
       || candidateBrief.experienceHighlights.length > 0
       || candidateBrief.projectHighlights.length > 0
-      || candidateBrief.skillHighlights.length > 0;
+      || candidateBrief.skillHighlights.length > 0
+      || candidateBrief.hrExperienceHighlights.length > 0
+      || candidateBrief.hrFocusHighlights.length > 0;
 
     return hasContent ? candidateBrief : null;
   }
@@ -441,11 +545,18 @@ export class FileReportArchive {
     return this.normalizeHeadingText(text).replace(/\s+/g, "");
   }
 
+  normalizeLooseHeadingCompact(text = "") {
+    return this.normalizeHeadingCompact(text)
+      .replace(/[^a-z0-9]/g, "")
+      .replace(/(^|[a-z])i(?=[a-z])/g, "$1i");
+  }
+
   isLikelyHeading(line = "") {
     const clean = String(line || "").trim();
     if (!clean) return false;
     const normalized = this.normalizeHeadingText(clean);
     const compact = this.normalizeHeadingCompact(clean);
+    const loose = this.normalizeLooseHeadingCompact(clean);
 
     const headings = [
       "iletisim",
@@ -485,32 +596,77 @@ export class FileReportArchive {
     ];
 
     const compactHeadings = headings.map((item) => this.normalizeHeadingCompact(item));
-    return headings.includes(normalized) || compactHeadings.includes(compact);
+    const looseHeadings = headings.map((item) => this.normalizeLooseHeadingCompact(item));
+
+    if (headings.includes(normalized) || compactHeadings.includes(compact) || looseHeadings.includes(loose)) {
+      return true;
+    }
+
+    if (clean.length > 40) return false;
+
+    return (
+      loose.includes("amac")
+      || loose.includes("ozet")
+      || loose.includes("profil")
+      || loose.includes("egitim")
+      || loose.includes("education")
+      || loose.includes("deneyim")
+      || loose.includes("experience")
+      || loose.includes("proj")
+      || loose.includes("yetenek")
+      || loose.includes("beceri")
+      || loose.includes("skills")
+      || loose.includes("sosyalaktiv")
+    );
   }
 
   sectionKeyFromHeading(line = "") {
+    const clean = String(line || "").trim();
     const normalized = this.normalizeHeadingText(line);
     const compact = this.normalizeHeadingCompact(line);
+    const loose = this.normalizeLooseHeadingCompact(line);
+
+    if (clean.length > 40) {
+      if (
+        ["profil", "ozet", "özet", "hakkimda", "hakkımda", "objective", "amac", "egitim", "eğitim", "education", "deneyim", "tecrube", "tecrübe", "experience", "is deneyimi", "iş deneyimi", "projeler", "projects", "beceriler", "yetenekler", "yetkinlikler", "skills", "teknik beceriler", "diller", "languages", "sertifikalar", "certificates", "extra curricular activities", "ekstra kurumsal faaliyetler", "sosyal aktiviteler"].includes(normalized)
+      ) {
+        // allow exact long headings only
+      } else {
+        return null;
+      }
+    }
 
     if (
       ["profil", "ozet", "özet", "hakkimda", "hakkımda", "objective", "amac"].includes(normalized)
       || ["profil", "ozet", "hakkimda", "objective", "amac"].includes(compact)
+      || loose.includes("amac")
+      || loose.includes("ozet")
+      || loose.includes("profil")
     ) return "summary";
     if (
       ["egitim", "eğitim", "education"].includes(normalized)
       || ["egitim", "education"].includes(compact)
+      || loose.includes("egitim")
+      || loose.includes("education")
     ) return "education";
     if (
       ["deneyim", "tecrube", "tecrübe", "experience", "is deneyimi", "iş deneyimi"].includes(normalized)
       || ["deneyim", "tecrube", "experience", "isdeneyimi"].includes(compact)
+      || loose.includes("deneyim")
+      || loose.includes("experience")
     ) return "experience";
     if (
       ["projeler", "projects"].includes(normalized)
       || ["projeler", "projects"].includes(compact)
+      || loose.includes("proje")
+      || loose.includes("project")
     ) return "projects";
     if (
       ["beceriler", "yetenekler", "yetkinlikler", "skills", "teknik beceriler"].includes(normalized)
       || ["beceriler", "yetenekler", "yetkinlikler", "skills", "teknikbeceriler"].includes(compact)
+      || loose.includes("beceri")
+      || loose.includes("yetenek")
+      || loose.includes("skill")
     ) return "skills";
     if (
       ["diller", "languages"].includes(normalized)
@@ -523,6 +679,8 @@ export class FileReportArchive {
     if (
       ["extra curricular activities", "ekstra kurumsal faaliyetler", "sosyal aktiviteler"].includes(normalized)
       || ["extracurricularactivities", "ekstrakurumsalfaaliyetler", "sosyalaktiviteler"].includes(compact)
+      || loose.includes("sosyalaktiv")
+      || loose.includes("extracurricular")
     ) return "activities";
     return null;
   }
@@ -641,6 +799,24 @@ export class FileReportArchive {
     return candidates[0]?.line || "";
   }
 
+  buildSummaryFromSection(lines = []) {
+    const summaryLines = [];
+
+    for (const rawLine of Array.isArray(lines) ? lines : []) {
+      const line = String(rawLine || "").trim();
+      if (!line) continue;
+      if (/^[-•]/.test(line)) break;
+      if (this.parseDateRangeAtEnd(line)) break;
+      if (summaryLines.length > 0 && this.isLikelyExperienceRoleLine(line)) break;
+      summaryLines.push(line);
+    }
+
+    return summaryLines
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   extractHeadlineCandidate(lines = [], fallback = "") {
     const candidates = [];
     for (const rawLine of Array.isArray(lines) ? lines : []) {
@@ -700,7 +876,7 @@ export class FileReportArchive {
 
   parseDateRangeAtEnd(line = "") {
     const match = String(line || "").match(
-      /^(.*?)\s+((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Oca|Şub|Sub|Mar|Nis|May|Haz|Tem|Ağu|Agu|Eyl|Eki|Kas|Ara)\s+\d{4}|(?:19|20)\d{2})\s*[–-]\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Oca|Şub|Sub|Mar|Nis|May|Haz|Tem|Ağu|Agu|Eyl|Eki|Kas|Ara)\s+\d{4}|(?:19|20)\d{2}|PRESENT|CURRENT|GÜNÜMÜZ|DEVAM)$/i
+      /^(.*?)\s+((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Oca|Şub|Sub|Mar|Nis|May|Haz|Tem|Ağu|Agu|Eyl|Eki|Kas|Ara)\s+\d{4}|(?:19|20)\d{2})\s*[–-]\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Oca|Şub|Sub|Mar|Nis|May|Haz|Tem|Ağu|Agu|Eyl|Eki|Kas|Ara)\s+\d{4}|(?:19|20)\d{2}|PRESENT|CURRENT|GÜNÜMÜZ|DEVAM(?:\s+EDIYOR|\s+EDİYOR)?)$/i
     );
     if (!match) return null;
     return {
@@ -712,6 +888,7 @@ export class FileReportArchive {
 
   parseEducation(lines = []) {
     const entries = [];
+    const degreePattern = /(Bachelor[’'`s]* Degree|Master[’'`s]* Degree|Lisans Derecesi|Yuksek Lisans|Yüksek Lisans|On Lisans|Ön Lisans|Double Major|Cift Anadal|Çift Anadal|Doktora|PhD|Lisans)/i;
     let i = 0;
     while (i < lines.length) {
       const current = String(lines[i] || "").trim();
@@ -720,9 +897,18 @@ export class FileReportArchive {
         const parts = inline.prefix.split(",").map((part) => part.trim()).filter(Boolean);
         const firstPart = parts[0] || "";
         const otherParts = parts.slice(1);
-        const degreeMatch = firstPart.match(/(Bachelor[’'`s]* Degree|Master[’'`s]* Degree|Lisans Derecesi|Yuksek Lisans|Yüksek Lisans|Lisans|On Lisans|Ön Lisans|Doktora|PhD|Double Major|Cift Anadal|Çift Anadal)\s+(?:in|of)?\s*(.*)$/i);
-        const degree = degreeMatch ? String(degreeMatch[1] || "").trim() : "";
-        const department = degreeMatch ? String(degreeMatch[2] || "").trim() : firstPart;
+        const leadingDegreeMatch = firstPart.match(new RegExp(`^${degreePattern.source}\\s+(?:in|of)?\\s*(.*)$`, "i"));
+        const trailingDegreeMatch = firstPart.match(new RegExp(`^(.*?)\\s+${degreePattern.source}$`, "i"));
+        const degree = leadingDegreeMatch
+          ? String(leadingDegreeMatch[1] || "").trim()
+          : trailingDegreeMatch
+            ? String(trailingDegreeMatch[2] || "").trim()
+            : "";
+        const department = leadingDegreeMatch
+          ? String(leadingDegreeMatch[2] || "").trim()
+          : trailingDegreeMatch
+            ? String(trailingDegreeMatch[1] || "").trim()
+            : firstPart;
         const school = otherParts[0] || "";
         const details = [];
         let j = i + 1;
@@ -774,6 +960,118 @@ export class FileReportArchive {
     };
   }
 
+  isLikelyEducationEntry(line = "", nextLine = "") {
+    const combined = `${String(line || "")} ${String(nextLine || "")}`.toLowerCase();
+    return (
+      /universite|üniversite|faculty|fakulte|fakülte|gpa|derecesi|lisans|yuksek lisans|yüksek lisans|phd|double major|cift anadal|çift anadal/i.test(combined)
+    );
+  }
+
+  isLikelyExperienceRoleLine(line = "") {
+    const clean = String(line || "").trim();
+    if (!clean) return false;
+    if (this.isLikelyHeading(clean)) return false;
+    if (/^[-•]/.test(clean)) return false;
+    if (this.parseDateRangeAtEnd(clean)) return false;
+    return (
+      /stajyer|intern|muhendis|mühendis|developer|gelistirici|geliştirici|specialist|uzmani|uzmanı|analyst|analist|assistant|asistan|engineer|coordinator|koordinator|koordinatör|manager|yonetici|yönetici/i.test(clean)
+    );
+  }
+
+  dedupeExperienceEntries(items = []) {
+    const mergedByKey = new Map();
+
+    const scoreEntry = (item = {}) => {
+      const responsibilities = Array.isArray(item?.responsibilities) ? item.responsibilities.length : 0;
+      const technologies = Array.isArray(item?.technologies) ? item.technologies.length : 0;
+      return (
+        (String(item?.company || "").trim() ? 2 : 0)
+        + (String(item?.position || "").trim() ? 2 : 0)
+        + responsibilities * 3
+        + technologies
+      );
+    };
+
+    const mergeEntries = (base = {}, incoming = {}) => {
+      const baseResponsibilities = Array.isArray(base?.responsibilities) ? base.responsibilities : [];
+      const incomingResponsibilities = Array.isArray(incoming?.responsibilities) ? incoming.responsibilities : [];
+      const baseTechnologies = Array.isArray(base?.technologies) ? base.technologies : [];
+      const incomingTechnologies = Array.isArray(incoming?.technologies) ? incoming.technologies : [];
+
+      const preferred = scoreEntry(incoming) > scoreEntry(base) ? incoming : base;
+      const secondary = preferred === incoming ? base : incoming;
+
+      return {
+        company: String(preferred?.company || secondary?.company || "").trim(),
+        position: String(preferred?.position || secondary?.position || "").trim(),
+        experienceType: String(preferred?.experienceType || secondary?.experienceType || "professional").trim() || "professional",
+        startDate: String(preferred?.startDate || secondary?.startDate || "").trim(),
+        endDate: String(preferred?.endDate || secondary?.endDate || "").trim(),
+        location: String(preferred?.location || secondary?.location || "").trim(),
+        responsibilities: [...new Set([...baseResponsibilities, ...incomingResponsibilities].map((item) => String(item || "").trim()).filter(Boolean))],
+        technologies: [...new Set([...baseTechnologies, ...incomingTechnologies].map((item) => String(item || "").trim()).filter(Boolean))],
+      };
+    };
+
+    for (const item of Array.isArray(items) ? items : []) {
+      const key = [
+        String(item?.company || "").trim().toLowerCase(),
+        String(item?.position || "").trim().toLowerCase(),
+        String(item?.startDate || "").trim().toLowerCase(),
+        String(item?.endDate || "").trim().toLowerCase(),
+      ].join("|");
+      if (!key.replace(/\|/g, "")) continue;
+      if (!mergedByKey.has(key)) {
+        mergedByKey.set(key, item);
+        continue;
+      }
+      mergedByKey.set(key, mergeEntries(mergedByKey.get(key), item));
+    }
+    return Array.from(mergedByKey.values());
+  }
+
+  parseExperienceFromAllLines(lines = []) {
+    const entries = [];
+    const allLines = Array.isArray(lines) ? lines : [];
+
+    for (let i = 0; i < allLines.length; i += 1) {
+      const current = String(allLines[i] || "").trim();
+      const next = String(allLines[i + 1] || "").trim();
+      const header = this.parseDateRangeAtEnd(current);
+      if (!header) continue;
+      if (this.isLikelyEducationEntry(current, next)) continue;
+      if (!this.isLikelyExperienceRoleLine(next)) continue;
+
+      const responsibilities = [];
+      let j = i + 2;
+      while (j < allLines.length) {
+        const line = String(allLines[j] || "").trim();
+        if (!line) {
+          j += 1;
+          continue;
+        }
+        if (this.parseDateRangeAtEnd(line) || this.isLikelyHeading(line)) break;
+        if (this.isLikelyExperienceRoleLine(line) && responsibilities.length > 0) break;
+        responsibilities.push(line.replace(/^[-•]\s*/, "").trim());
+        j += 1;
+      }
+
+      const joined = [header.prefix, next, ...responsibilities].join(" | ");
+      entries.push({
+        company: header.prefix,
+        position: next,
+        experienceType: this.classifyExperienceType(next, header.prefix),
+        startDate: header.startDate,
+        endDate: header.endDate,
+        location: "",
+        responsibilities: responsibilities.filter(Boolean),
+        technologies: this.extractTechnologies(joined),
+      });
+    }
+
+    return this.dedupeExperienceEntries(entries);
+  }
+
   parseExperience(lines = []) {
     const entries = [];
     let i = 0;
@@ -786,6 +1084,10 @@ export class FileReportArchive {
 
       const company = header.prefix;
       const position = String(lines[i + 1] || "").trim();
+      if (this.isLikelyEducationEntry(lines[i], position) || !this.isLikelyExperienceRoleLine(position)) {
+        i += 1;
+        continue;
+      }
       const responsibilities = [];
       let j = i + 2;
       while (j < lines.length && !this.parseDateRangeAtEnd(lines[j]) && !this.isLikelyHeading(lines[j])) {
@@ -807,7 +1109,7 @@ export class FileReportArchive {
       i = j;
     }
 
-    return entries.filter((item) => item.company || item.position);
+    return this.dedupeExperienceEntries(entries.filter((item) => item.company || item.position));
   }
 
   parseProjects(lines = []) {
@@ -819,13 +1121,31 @@ export class FileReportArchive {
         i += 1;
         continue;
       }
+      if (/^[-•]/.test(name)) {
+        i += 1;
+        continue;
+      }
+      if (this.parseDateRangeAtEnd(name)) {
+        i += 1;
+        continue;
+      }
 
-      const role = String(lines[i + 1] || "").trim();
+      const nextLine = String(lines[i + 1] || "").trim();
+      if (this.parseDateRangeAtEnd(nextLine)) {
+        i += 1;
+        continue;
+      }
+      if (this.isLikelyExperienceRoleLine(name)) {
+        i += 1;
+        continue;
+      }
+      const role = /^[-•]/.test(nextLine) ? "" : nextLine;
       const highlights = [];
       let description = "";
-      let j = i + 2;
+      let j = role ? i + 2 : i + 1;
       while (j < lines.length && !this.isLikelyHeading(lines[j])) {
         const line = String(lines[j] || "").trim();
+        if (this.parseDateRangeAtEnd(line)) break;
         if (/^[-•]/.test(line)) highlights.push(line.replace(/^[-•]\s*/, ""));
         else if (!description) description = line;
         else break;
@@ -873,8 +1193,12 @@ export class FileReportArchive {
         groups.technical.push(cleaned.replace(/^(programming languages|programlama dilleri)\s*/i, "").trim());
         continue;
       }
-      if (/^(soft skills|yumusak beceriler|yumuşak beceriler)/i.test(cleaned)) {
-        groups.soft.push(cleaned.replace(/^(soft skills|yumusak beceriler|yumuşak beceriler)\s*/i, "").trim());
+      if (/^(soft skills|yumusak beceriler|yumuşak beceriler|kisisel yetenekler|kişisel yetenekler)/i.test(cleaned)) {
+        groups.soft.push(cleaned.replace(/^(soft skills|yumusak beceriler|yumuşak beceriler|kisisel yetenekler|kişisel yetenekler)\s*/i, "").trim());
+        continue;
+      }
+      if (/^(teknik yetenekler)/i.test(cleaned)) {
+        groups.technical.push(cleaned.replace(/^(teknik yetenekler)\s*/i, "").trim());
         continue;
       }
       if (normalized) groups.technical.push(cleaned);
@@ -1047,7 +1371,13 @@ export class FileReportArchive {
     const allLines = this.cleanupCvLines(clean);
     const headerLines = sections.header || [];
     const summaryLines = sections.summary || [];
-    const parsedExperience = this.parseExperience(sections.experience || []);
+    const sectionExperience = this.parseExperience(sections.experience || []);
+    const globalExperience = this.parseExperienceFromAllLines(allLines);
+    const parsedExperience = this.dedupeExperienceEntries([
+      ...sectionExperience,
+      ...globalExperience,
+    ]);
+    const summaryFromSection = this.buildSummaryFromSection(summaryLines);
     const summaryFromText = this.extractProfileSummary(allLines);
     const fullName = this.extractLikelyFullName(allLines, sourceFile);
     const titleCandidate = this.extractHeadlineCandidate(headerLines, "");
@@ -1056,7 +1386,7 @@ export class FileReportArchive {
       candidate: {
         fullName,
         title: titleCandidate && !this.isLikelyHeading(titleCandidate) ? titleCandidate : "",
-        summary: summaryFromText || summaryLines.join(" ") || headerLines.slice(2, 5).join(" "),
+        summary: summaryFromSection || summaryFromText || headerLines.slice(2, 5).join(" "),
       },
       education: this.parseEducation(sections.education || []),
       experience: {
@@ -1094,6 +1424,7 @@ export class FileReportArchive {
     if (!result) return { sessionDir: await this.ensureSessionDir(sessionId), savedCv: null };
 
     const { sessionDir, normalized, pdfBuffer, cvText, translatedCvText, structuredCvJson, sourceFile } = result;
+    const candidateBrief = this.buildCandidateBrief(structuredCvJson);
 
     const cvDir = path.join(sessionDir, "cv");
     await mkdir(cvDir, { recursive: true });
@@ -1119,6 +1450,11 @@ export class FileReportArchive {
     await writeFile(cvJsonFullPath, `${JSON.stringify(structuredCvJson, null, 2)}
 `, "utf8");
 
+    const candidateBriefFileName = "candidate_brief.json";
+    const candidateBriefFullPath = path.join(cvDir, candidateBriefFileName);
+    await writeFile(candidateBriefFullPath, `${JSON.stringify(candidateBrief, null, 2)}
+`, "utf8");
+
     return {
       sessionDir,
       savedCv: {
@@ -1131,7 +1467,9 @@ export class FileReportArchive {
         trTextFullPath,
         jsonRelativePath: path.join("cv", cvJsonFileName),
         jsonFullPath: cvJsonFullPath,
-        candidateBrief: this.buildCandidateBrief(structuredCvJson),
+        candidateBriefRelativePath: path.join("cv", candidateBriefFileName),
+        candidateBriefFullPath,
+        candidateBrief,
       },
     };
   }
@@ -1366,13 +1704,14 @@ export class FileReportArchive {
 
   async loadFeedbackArtifacts(sessionId) {
     const sessionDir = await this.ensureSessionDir(sessionId);
-    const [audioModel, transcriptAnalysis, visionAnalysis, visionLlmAnalysis, audioLlmReport, transcriptText] = await Promise.all([
+    const [audioModel, transcriptAnalysis, visionAnalysis, visionLlmAnalysis, audioLlmReport, transcriptText, sessionConfig] = await Promise.all([
       this.readJsonIfExists(path.join(sessionDir, "audio_segments.json")),
       this.readJsonIfExists(path.join(sessionDir, "transcript_report.json")),
       this.readJsonIfExists(path.join(sessionDir, "vision_frames.json")),
       this.readJsonIfExists(path.join(sessionDir, "vision_report.json")),
       this.readJsonIfExists(path.join(sessionDir, "audio_report.json")),
       this.readTextIfExists(path.join(sessionDir, "transcript.txt")),
+      this.readJsonIfExists(path.join(sessionDir, "session_config.json")),
     ]);
 
     return {
@@ -1382,6 +1721,7 @@ export class FileReportArchive {
       transcriptAnalysis,
       visionAnalysis,
       visionLlmAnalysis,
+      sessionConfig: sessionConfig || null,
       scoreMeta: this.buildScoreMeta(),
     };
   }
@@ -1411,6 +1751,8 @@ export class FileReportArchive {
         transcriptAnalysis?.overallScore
         ?? transcriptAnalysis?.overall?.overallScore
         ?? null;
+
+      if (!transcriptAnalysis) continue;
 
       const preview = String(transcriptText || "")
         .split("\n")
@@ -1474,4 +1816,3 @@ export class FileReportArchive {
     };
   }
 }
-
