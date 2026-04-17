@@ -18,7 +18,7 @@ from audio_analyzer import (
     _compute_fluency_score,
     _compute_speech_rate_score,
 )
-from vision_analyzer import interpret_vision_report_with_gpt
+from vision_analyzer import interpret_vision_report_with_gpt, analyze_frame_payload, health_payload
 from transcript_analyzer import analyze_transcript_with_gpt
 
 REPORTS_DIR = os.getenv("REPORTS_DIR") or os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../reports"))
@@ -64,6 +64,10 @@ async def startup_event():
 @app.get("/")
 def read_root():
     return {"status": "Active", "message": "Speech Emotion API is running."}
+
+@app.get("/vision-health")
+def get_vision_health():
+    return health_payload()
 
 @app.post("/analyze")
 async def analyze_audio(file: UploadFile = File(...)):
@@ -264,6 +268,19 @@ async def analyze_audio_session(request: AudioAnalysisRequest):
 class VisionAnalysisRequest(BaseModel):
     visionAnalysis: dict
     session_id: str = None
+
+class FrameAnalysisRequest(BaseModel):
+    imageBase64: str = ""
+
+@app.post("/frame-analyze")
+async def frame_analyze(request: FrameAnalysisRequest):
+    try:
+        return analyze_frame_payload({"imageBase64": request.imageBase64})
+    except Exception as e:
+        import traceback
+        err = traceback.format_exc()
+        print(err)
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {err}")
 
 @app.post("/analyze-vision")
 async def analyze_vision(request: VisionAnalysisRequest):

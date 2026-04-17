@@ -51,6 +51,10 @@ export class AppServer {
       next();
     });
 
+    this.app.get("/health", (_req, res) => {
+      res.status(200).json({ status: "ok" });
+    });
+
     // Backward-compatible client log endpoint.
     // Some clients may still post transient RTC/debug events to /log.
     this.app.post("/log", (req, res) => {
@@ -95,6 +99,7 @@ export class AppServer {
       baseUrl: this.env.pythonApiBaseUrl,
     });
     const visionFrameAnalyzer = new VisionFrameAnalyzer({
+      pythonApiBaseUrl: this.env.pythonApiBaseUrl,
       logger: this.logger,
     });
     const costEstimator = new CostEstimator();
@@ -175,6 +180,7 @@ export class AppServer {
   async logVisionAnalyzerHealth() {
     try {
       const visionAnalyzer = new VisionFrameAnalyzer({
+        pythonApiBaseUrl: this.env.pythonApiBaseUrl,
         logger: this.logger,
       });
       const health = await visionAnalyzer.healthCheck();

@@ -292,11 +292,11 @@ def _detect_faces_with_opencv(gray_frame, fallback_reason: str | None = None):
             "detector": _build_detector_info(used="opencv", status="active", fallback_reason=fallback_reason)}
 
 
-def _run_frame_mode(payload: dict) -> None:
-    """Canlı frame analizi — JSON çıktısını stdout'a yazar."""
+def analyze_frame_payload(payload: dict) -> dict:
+    """Canlı frame analizi sonucunu Python dict olarak döndürür."""
     frame = _decode_image(str(payload.get("imageBase64", "")))
     if frame is None:
-        print(json.dumps({
+        return {
             "status": "invalid",
             "message": "Frame could not be decoded.",
             "source": "unavailable",
@@ -305,8 +305,7 @@ def _run_frame_mode(payload: dict) -> None:
             "bbox": None,
             "faceCropBase64": "",
             "detector": _build_detector_info(used="unavailable", status="invalid", fallback_reason="decode_failed"),
-        }))
-        return
+        }
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     detection = _detect_faces_with_mediapipe(frame)
@@ -318,7 +317,7 @@ def _run_frame_mode(payload: dict) -> None:
             detection = fallback
 
     if detection.get("error"):
-        print(json.dumps({
+        return {
             "status": "unavailable",
             "message": detection["error"],
             "source": detection.get("source", "unavailable"),
@@ -327,8 +326,7 @@ def _run_frame_mode(payload: dict) -> None:
             "bbox": None,
             "faceCropBase64": "",
             "detector": detection.get("detector"),
-        }))
-        return
+        }
 
     bbox = detection.get("bbox")
     eye_count = 0
@@ -340,7 +338,7 @@ def _run_frame_mode(payload: dict) -> None:
         "mediapipe" if (MEDIAPIPE_FACE_DETECTION is not None or MEDIAPIPE_TASKS_FACE_DETECTOR is not None) else "opencv"
     ))
 
-    print(json.dumps({
+    return {
         "status": "ready" if bbox else "no_face",
         "message": "Yüz algılandı." if bbox else "Yüz bulunamadı. Kameraya hizalanın.",
         "source": source,
@@ -351,13 +349,13 @@ def _run_frame_mode(payload: dict) -> None:
         "faceCropBase64": crop_b64,
         "imageWidth": int(frame.shape[1]),
         "imageHeight": int(frame.shape[0]),
-    }))
+    }
 
 
-def _run_health_mode() -> None:
-    """Health-check — JSON çıktısını stdout'a yazar."""
+def health_payload() -> dict:
+    """Health-check sonucunu Python dict olarak döndürür."""
     mp_available = MEDIAPIPE_FACE_DETECTION is not None or MEDIAPIPE_TASKS_FACE_DETECTOR is not None
-    print(json.dumps({
+    return {
         "status": "ready" if mp_available else "limited",
         "source": "mediapipe" if mp_available else "opencv",
         "pythonVersion": platform.python_version(),
@@ -368,7 +366,17 @@ def _run_health_mode() -> None:
             status="active" if mp_available else "fallback",
             fallback_reason=None if mp_available else "mediapipe_unavailable",
         ),
-    }))
+    }
+
+
+def _run_frame_mode(payload: dict) -> None:
+    """Canlı frame analizi — JSON çıktısını stdout'a yazar."""
+    print(json.dumps(analyze_frame_payload(payload)))
+
+
+def _run_health_mode() -> None:
+    """Health-check — JSON çıktısını stdout'a yazar."""
+    print(json.dumps(health_payload()))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
