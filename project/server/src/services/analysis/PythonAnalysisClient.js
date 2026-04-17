@@ -93,7 +93,11 @@ export class PythonAnalysisClient {
       return false;
     }
 
-    this.logger.info(`Sending ${validPaths.length} file${validPaths.length === 1 ? "" : "s"} to Python API for audio analysis...`);
+    if (validPaths.length === 0 && finalizeReport) {
+      this.logger.info("Finalizing audio report from existing incremental artifacts...");
+    } else {
+      this.logger.info(`Sending ${validPaths.length} file${validPaths.length === 1 ? "" : "s"} to Python API for audio analysis...`);
+    }
     try {
       const audioResponse = await this.fetchWithTimeout(`${this.baseUrl}/analyze-audio`, {
         method: "POST",
@@ -125,6 +129,20 @@ export class PythonAnalysisClient {
       }
       return false;
     }
+  }
+
+  async finalizeAudioReportFromExisting({ sessionId }) {
+    if (!sessionId) {
+      this.logger.warn("PythonAnalysisClient: Missing sessionId, skipping audio report finalization.");
+      return false;
+    }
+
+    return await this.analyzeAudioFiles({
+      sessionId,
+      filePaths: [],
+      writeTextReport: true,
+      finalizeReport: true,
+    });
   }
 
   async analyzeTranscript({ sessionId, transcriptText = "", qaEvaluations = [], interviewType = "Technical" }) {
@@ -226,7 +244,7 @@ export class PythonAnalysisClient {
     }
   }
 
-  async analyzeSessionAndTranscript({ sessionId, baseDir, candidateAnswerAudioFiles = [], transcriptText = "", report = null, visionAnalysis = null, interviewType = "Technical" }) {
+  async analyzeSessionAndTranscript({ sessionId, baseDir, candidateAnswerAudioFiles = [], transcriptText = "", report = null, visionAnalysis = null, interviewType = "Technical", finalizeAudioFromExisting = false }) {
     if (!sessionId || !baseDir) {
       this.logger.warn("PythonAnalysisClient: Missing sessionId or baseDir, skipping analysis.");
       return;
@@ -234,32 +252,32 @@ export class PythonAnalysisClient {
 
     const sessionDir = path.join(baseDir, this.buildSessionFolderName(sessionId));
 
-    // 1. Prepare and Convert Audio Files
-    const wavPaths = [];
-    for (const fileObj of candidateAnswerAudioFiles) {
-      if (fileObj.relativePath) {
-        const fullPath = path.join(sessionDir, fileObj.relativePath);
-        const wavPath = await this.convertToWav(fullPath);
-        if (wavPath) {
-          wavPaths.push(wavPath);
+    if (finalizeAudioFromExisting) {
+      await this.finalizeAudioReportFromExisting({ sessionId });
+    } else {
+      const wavPaths = [];
+      for (const fileObj of candidateAnswerAudioFiles) {
+        if (fileObj.relativePath) {
+          const fullPath = path.join(sessionDir, fileObj.relativePath);
+          const wavPath = await this.convertToWav(fullPath);
+          if (wavPath) {
+            wavPaths.push(wavPath);
+          }
         }
+      }
+
+      if (wavPaths.length > 0) {
+        await this.analyzeAudioFiles({
+          sessionId,
+          filePaths: wavPaths,
+          writeTextReport: true,
+          finalizeReport: true,
+        });
+      } else {
+        this.logger.info("No new WAV files were available for audio analysis.");
       }
     }
 
-    // 2. Call /analyze-audio one file at a time so incremental item outputs are
-    // appended/merged into the session artifact as each answer arrives.
-    if (wavPaths.length > 0) {
-      await this.analyzeAudioFiles({
-        sessionId,
-        filePaths: wavPaths,
-        writeTextReport: true,
-        finalizeReport: true,
-      });
-    } else {
-      this.logger.info("No new WAV files were available for audio analysis.");
-    }
-
-    // 3. Call /analyze-transcript
     const qaEvaluations = report?.qaEvaluations || [];
     if (qaEvaluations.length > 0 || transcriptText) {
       const transcriptAnalysisSucceeded = await this.analyzeTranscript({ sessionId, transcriptText, qaEvaluations, interviewType });

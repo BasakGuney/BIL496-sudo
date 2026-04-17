@@ -497,7 +497,6 @@ RİSK TİPİ SKORLAR (visualTensionScore, attentionRiskScore, movementRiskScore)
 Yorum üretirken:
 - \"güçlü yön\" dili yerine \"beklenen standardı karşılıyor\", \"beklenen seviyede\", \"düşük risk\", \"izlenmesi gereken nokta\" gibi ifadeleri kullan.
 - `standardStatus`: adayın görsel sunumunun beklenen koşulları sağlayıp sağlamadığını bir cümleyle özetle (metriklerden en az biri anılsın).
-- `riskPoint`: şu anda kritik olmayan ama dikkat edilmesi gereken tek bir noktayı özetle (metriklerden en az biri anılsın).
 - `overallLabel`: skora göre kısa rozet metni (örn. \"Görsel sunum beklenen standardı karşılıyor\").
 - `overallAnalysis`: 4-5 cümle nesnel genel değerlendirme.
 - `scoreDetails`: her skor için 2-3 cümlelik açıklama. Mutlaka doldur ve metriklerle ilişkilendir.
@@ -520,7 +519,6 @@ SADECE şu JSON yapısını döndür:
   "overallLabel": "",
   "overallAnalysis": "",
   "standardStatus": "",
-  "riskPoint": "",
   "scoreDetails": {{
     "Kamera Varlığı": "",
     "Kadraj ve Merkezleme": "",
@@ -785,7 +783,6 @@ def build_final_vision_report(raw: dict, scores: dict, gpt_out: dict) -> dict:
 
     overall_score = round(fp * 0.35 + cs * 0.25 + ss * 0.25 + (100 - vt) * 0.15)
     strengths, improvement_areas = _build_vision_highlights(raw, scores)
-
     score_details = gpt_out.get("scoreDetails", {}) if isinstance(gpt_out.get("scoreDetails"), dict) else {}
 
     def _face_detail(v):
@@ -871,7 +868,6 @@ def build_final_vision_report(raw: dict, scores: dict, gpt_out: dict) -> dict:
         "overallLabel":    str(gpt_out.get("overallLabel")    or "Görsel sunum değerlendirildi."),
         "overallAnalysis": str(gpt_out.get("overallAnalysis") or ""),
         "standardStatus":  str(gpt_out.get("standardStatus")  or ""),
-        "riskPoint":       str(gpt_out.get("riskPoint")        or ""),
         "scores":          scores_list,
         "strengths":       strengths,
         "improvementAreas": improvement_areas,
@@ -921,7 +917,6 @@ def _build_fallback_vision_report(raw: dict, scores: dict, error: str) -> dict:
         "overallLabel":    overall_label,
         "overallAnalysis": overall_analysis + f" GPT yorumu alınamadı: {error}",
         "standardStatus":  "Deterministik fallback ile hazırlandı.",
-        "riskPoint":       f"GPT bağlantı hatası: {error}",
         "scores": [
             {"key": "facePresence",  "label": "Kamera Varlığı",       "score": fp, "detail": _face_d(fp)},
             {"key": "framing",       "label": "Kadraj ve Merkezleme",  "score": cs, "detail": _frame_d(cs)},

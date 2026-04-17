@@ -1,15 +1,18 @@
 ﻿import { mkdir, readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { PDFParse } from "pdf-parse";
 import { resolvePythonBin } from "../../utils/pythonBin.js";
+
+const STORAGE_ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
 export class FileReportArchive {
   constructor({ baseDir, persistVisionJpegs = false }) {
     this.baseDir = baseDir;
     this.persistVisionJpegs = Boolean(persistVisionJpegs);
     this.pythonBin = resolvePythonBin();
-    this.cvTranslatorScriptPath = path.resolve(process.cwd(), "src/services/analysis/python_api/cv_translator.py");
+    this.cvTranslatorScriptPath = path.resolve(STORAGE_ROOT_DIR, "src/services/analysis/python_api/cv_translator.py");
   }
 
   sanitizeSessionId(sessionId) {

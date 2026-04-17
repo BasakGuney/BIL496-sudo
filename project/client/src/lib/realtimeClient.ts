@@ -254,20 +254,6 @@ export async function connectRealtimeInterview(opts: {
 
   const dc = pc.createDataChannel("oai-events");
   dc.onerror = (e) => console.log("[RTC] datachannel error:", e);
-  let initialResponseRequested = false;
-
-  const requestInitialInterviewerResponse = () => {
-    if (initialResponseRequested || dc.readyState !== "open") return;
-    initialResponseRequested = true;
-    dc.send(
-      JSON.stringify({
-        type: "response.create",
-        response: {
-          modalities: ["audio", "text"],
-        },
-      })
-    );
-  };
 
   const remoteStream = new MediaStream();
   pc.ontrack = (e) => {
@@ -580,10 +566,6 @@ export async function connectRealtimeInterview(opts: {
       return;
     }
 
-    if (msg?.type === "session.created" || msg?.type === "session.updated") {
-      requestInitialInterviewerResponse();
-    }
-
     const isInterviewerDelta =
       msg?.type === "response.output_text.delta" ||
       msg?.type === "response.audio_transcript.delta";
@@ -664,9 +646,6 @@ export async function connectRealtimeInterview(opts: {
 
   dc.onopen = () => {
     sendTranscriptionSessionUpdate(CANDIDATE_TRANSCRIPTION_MODEL);
-    window.setTimeout(() => {
-      requestInitialInterviewerResponse();
-    }, 1200);
   };
 
   const close = () => {

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import cors from "cors";
 import { getEnv } from "./config/env.js";
@@ -32,6 +33,8 @@ import { BackendOrchestrator } from "./orchestration/BackendOrchestrator.js";
 import { PythonAnalysisClient } from "./services/analysis/PythonAnalysisClient.js";
 import { VisionFrameAnalyzer } from "./services/analysis/VisionFrameAnalyzer.js";
 import { CostEstimator } from "./services/CostEstimator.js";
+
+const SERVER_ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export class AppServer {
   constructor({ env = getEnv(), logger = new Logger() } = {}) {
@@ -81,7 +84,7 @@ export class AppServer {
     const guardrails = new GuardrailsEngine({ policy: new InterviewFlowPolicy() });
     const idGenerator = new IdGenerator();
     const reportArchive = new FileReportArchive({
-      baseDir: this.env.reportsDir || path.resolve(process.cwd(), "reports"),
+      baseDir: this.env.reportsDir || path.resolve(SERVER_ROOT_DIR, "reports"),
       persistVisionJpegs: true,
     });
     const candidateAudioTranscriber = new CandidateAudioTranscriber({

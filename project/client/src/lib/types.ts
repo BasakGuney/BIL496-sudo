@@ -185,7 +185,6 @@ export type VisionLlmAnalysisPayload = {
     overallLabel?: string;
     overallAnalysis?: string;
     standardStatus?: string;
-    riskPoint?: string;
     scores?: Array<{ key: string; label: string; score: number; detail: string }>;
     strengths?: string[];
     improvementAreas?: string[];

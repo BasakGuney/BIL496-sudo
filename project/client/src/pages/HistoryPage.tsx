@@ -60,19 +60,37 @@ function sparkline(values: number[]) {
   const width = 100;
   const height = 30;
   const pad = 4;
-  const min = Math.min(...values, 20);
-  const max = Math.max(...values, 90);
+  if (!values.length) return null;
+
+  const localMin = Math.min(...values);
+  const localMax = Math.max(...values);
+  const spread = Math.max(localMax - localMin, 1);
+  const visualPadding = Math.max(2, Math.round(spread * 0.35));
+  const min = Math.max(0, localMin - visualPadding);
+  const max = Math.min(100, localMax + visualPadding);
   const step = values.length > 1 ? (width - pad * 2) / (values.length - 1) : 0;
-  const points = values
-    .map((value, index) => {
-      const x = pad + index * step;
-      const y = height - pad - ((value - min) / (max - min || 1)) * (height - pad * 2);
-      return `${x},${y}`;
-    })
-    .join(" ");
+  const coordinates = values.map((value, index) => {
+    const x = values.length > 1 ? pad + index * step : width / 2;
+    const y = height - pad - ((value - min) / (max - min || 1)) * (height - pad * 2);
+    return { x, y };
+  });
+  const points = coordinates.map(({ x, y }) => `${x},${y}`).join(" ");
+  const isFlatSeries = values.every((value) => value === values[0]);
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="h-8 w-[100px]" aria-hidden="true">
+      {isFlatSeries ? (
+        <line
+          x1={pad}
+          y1={coordinates[0].y}
+          x2={width - pad}
+          y2={coordinates[0].y}
+          stroke="#5b8af7"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          opacity="0.9"
+        />
+      ) : null}
       <polyline
         fill="none"
         stroke="#5b8af7"
@@ -81,11 +99,12 @@ function sparkline(values: number[]) {
         strokeLinejoin="round"
         points={points}
       />
+      {coordinates.map(({ x, y }, index) => (
+        <circle key={`${x}-${y}-${index}`} cx={x} cy={y} r="2.6" fill="#7dd3fc" stroke="#0f1221" strokeWidth="1.4" />
+      ))}
     </svg>
   );
 }
-
-const CHART_COLORS = ["#5B8AF7", "#16C784", "#F59E0B", "#8B5CF6", "#EF4444"];
 
 function ChartTooltip({
   active,
@@ -116,6 +135,35 @@ function ChartTooltip({
   );
 }
 
+function ScoreTrendTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: { fullLabel?: string; score?: number; sessionLabel?: string } }>;
+}) {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+
+  return (
+    <div className="rounded-xl border border-enterprise-border bg-[#0f1221]/95 px-3 py-2 shadow-2xl backdrop-blur">
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-enterprise-text-3">
+        {point.fullLabel || "Oturum"}
+      </p>
+      {point.sessionLabel ? (
+        <p className="mb-2 text-xs text-enterprise-text-3">{point.sessionLabel}</p>
+      ) : null}
+      <div className="flex items-center justify-between gap-4 text-sm">
+        <span className="flex items-center gap-2 text-enterprise-text-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#5B8AF7]" />
+          Skor
+        </span>
+        <span className="font-bold text-white">{Number(point.score || 0)}</span>
+      </div>
+    </div>
+  );
+}
+
 export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => void }) {
   const [items, setItems] = useState<SessionSummary[]>([]);
   const [insights, setInsights] = useState<HistoryInsights | null>(null);
@@ -126,36 +174,63 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
   const [modeFilter, setModeFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date_desc");
 
+  const loadHistoryData = useCallback(async () => {
+    const results = await Promise.allSettled([listReports(), getHistoryInsights(3)]);
+    const reportsResult = results[0];
+    const insightsResult = results[1];
+
+    if (reportsResult.status === "fulfilled") {
+      setItems(reportsResult.value);
+    } else {
+      console.error(reportsResult.reason);
+      setItems([]);
+    }
+
+    if (insightsResult.status === "fulfilled") {
+      setInsights(insightsResult.value);
+    } else {
+      console.error(insightsResult.reason);
+      setInsights(null);
+    }
+
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
-    Promise.allSettled([listReports(), getHistoryInsights(3)]).then((results) => {
-      if (!mounted) return;
-
-      const reportsResult = results[0];
-      const insightsResult = results[1];
-
-      if (reportsResult.status === "fulfilled") {
-        setItems(reportsResult.value);
-      } else {
-        console.error(reportsResult.reason);
+    const safeLoad = async () => {
+      try {
+        await loadHistoryData();
+      } catch (error) {
+        if (!mounted) return;
+        console.error(error);
         setItems([]);
-      }
-
-      if (insightsResult.status === "fulfilled") {
-        setInsights(insightsResult.value);
-      } else {
-        console.error(insightsResult.reason);
         setInsights(null);
+        setLoading(false);
       }
+    };
 
-      setLoading(false);
-    });
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void safeLoad();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      void safeLoad();
+    };
+
+    void safeLoad();
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       mounted = false;
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [loadHistoryData]);
 
   const sortedItems = useMemo(
     () => [...items].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -276,6 +351,14 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
         index: index + 1,
         score: typeof item.overallScore === "number" ? item.overallScore : 0,
         label: new Date(item.createdAt).toLocaleDateString("tr-TR", { day: "2-digit", month: "short" }),
+        fullLabel: new Date(item.createdAt).toLocaleString("tr-TR", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        sessionLabel: `#${item.sessionId.slice(0, 8).toUpperCase()}`,
       }));
 
     const typeCountMap = filteredItems.reduce<Record<string, number>>((acc, item) => {
@@ -286,15 +369,28 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
       return acc;
     }, {});
 
-    const typeDistribution = Object.entries(typeCountMap).map(([name, value], index) => ({
-      name,
-      value,
-      color: CHART_COLORS[index % CHART_COLORS.length],
-    }));
+    const modeCountMap = filteredItems.reduce<Record<string, number>>((acc, item) => {
+      const meta = resolveSessionMeta(item);
+      const mode = normalizeModeValue(meta.mode);
+      const label = mode === "Supportive" ? "Supportive" : mode === "Neutral" ? "Neutral" : "Diger";
+      acc[label] = (acc[label] || 0) + 1;
+      return acc;
+    }, {});
+
+    const interviewTypeDistribution = [
+      { name: "Teknik", value: typeCountMap.Teknik || 0, color: "#5B8AF7" },
+      { name: "IK", value: typeCountMap.IK || 0, color: "#16C784" },
+    ].filter((entry) => entry.value > 0);
+
+    const modeDistribution = [
+      { name: "Supportive", value: modeCountMap.Supportive || 0, color: "#F59E0B" },
+      { name: "Neutral", value: modeCountMap.Neutral || 0, color: "#8B5CF6" },
+    ].filter((entry) => entry.value > 0);
 
     return {
       recentScoreTrend,
-      typeDistribution,
+      interviewTypeDistribution,
+      modeDistribution,
     };
   }, [filteredItems, resolveSessionMeta]);
 
@@ -361,8 +457,11 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
                   {sparkline(metric.scores)}
                   <div className="text-right min-w-[54px]">
                     <p className="text-lg font-black text-white">{metric.latestScore}</p>
-                    <p className={cn("text-xs font-semibold", metric.delta >= 0 ? "text-emerald-400" : "text-amber-400")}>
-                      {metric.delta >= 0 ? `+${metric.delta}` : metric.delta}
+                    <p className={cn(
+                      "text-xs font-semibold",
+                      metric.delta > 0 ? "text-emerald-400" : metric.delta < 0 ? "text-amber-400" : "text-enterprise-text-3"
+                    )}>
+                      {metric.delta > 0 ? `+${metric.delta}` : metric.delta}
                     </p>
                   </div>
                 </div>
@@ -424,7 +523,7 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
+      <section className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
         <div className="card-style bg-enterprise-surface p-6">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
@@ -449,9 +548,9 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
                 <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: "#8A90B9", fontSize: 12 }} axisLine={false} tickLine={false} />
                 <YAxis domain={[0, 100]} tick={{ fill: "#8A90B9", fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip content={<ChartTooltip />} />
+                <Tooltip content={<ScoreTrendTooltip />} />
                 <Line
-                  type="monotone"
+                  type="linear"
                   dataKey="score"
                   name="Skor"
                   stroke="url(#scoreTrendStroke)"
@@ -464,43 +563,85 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
           </div>
         </div>
 
-        <div className="card-style bg-enterprise-surface p-6">
-          <div className="mb-5">
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-enterprise-text-3">Tip Dagilimi</p>
-            <h2 className="text-lg font-black text-white">Mülakat karmasi</h2>
-            <p className="mt-1 text-sm text-enterprise-text-3">IK ve teknik oturumlarin dagilimi.</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="card-style bg-enterprise-surface p-6">
+            <div className="mb-5">
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-enterprise-text-3">Mülakat Tipi</p>
+              <h2 className="text-lg font-black text-white">Teknik / IK dagilimi</h2>
+              <p className="mt-1 text-sm text-enterprise-text-3">Oturumlarin mülakat tipine göre dagilimi.</p>
+            </div>
+
+            <div className="h-40">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Tooltip content={<ChartTooltip />} />
+                  <Pie
+                    data={chartData.interviewTypeDistribution}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={34}
+                    outerRadius={58}
+                    paddingAngle={3}
+                  >
+                    {chartData.interviewTypeDistribution.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {chartData.interviewTypeDistribution.map((entry) => (
+                <div key={entry.name} className="flex items-center justify-between rounded-xl border border-enterprise-border bg-enterprise-bg/25 px-3 py-2 text-sm">
+                  <span className="flex items-center gap-2 text-enterprise-text-2">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
+                    {entry.name}
+                  </span>
+                  <span className="font-bold text-white">{entry.value}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={chartData.typeDistribution}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={52}
-                  outerRadius={82}
-                  paddingAngle={4}
-                >
-                  {chartData.typeDistribution.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip content={<ChartTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          <div className="card-style bg-enterprise-surface p-6">
+            <div className="mb-5">
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-enterprise-text-3">Mülakat Modu</p>
+              <h2 className="text-lg font-black text-white">Supportive / Neutral dagilimi</h2>
+              <p className="mt-1 text-sm text-enterprise-text-3">Oturumlarin kullanılan moda göre dagilimi.</p>
+            </div>
 
-          <div className="mt-3 space-y-2">
-            {chartData.typeDistribution.map((entry) => (
-              <div key={entry.name} className="flex items-center justify-between rounded-xl border border-enterprise-border bg-enterprise-bg/25 px-3 py-2 text-sm">
-                <span className="flex items-center gap-2 text-enterprise-text-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                  {entry.name}
-                </span>
-                <span className="font-bold text-white">{entry.value}</span>
-              </div>
-            ))}
+            <div className="h-40">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Tooltip content={<ChartTooltip />} />
+                  <Pie
+                    data={chartData.modeDistribution}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={34}
+                    outerRadius={58}
+                    paddingAngle={3}
+                  >
+                    {chartData.modeDistribution.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {chartData.modeDistribution.map((entry) => (
+                <div key={entry.name} className="flex items-center justify-between rounded-xl border border-enterprise-border bg-enterprise-bg/25 px-3 py-2 text-sm">
+                  <span className="flex items-center gap-2 text-enterprise-text-2">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
+                    {entry.name}
+                  </span>
+                  <span className="font-bold text-white">{entry.value}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>

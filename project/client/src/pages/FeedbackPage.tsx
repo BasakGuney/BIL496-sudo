@@ -225,10 +225,6 @@ function VisionAnalysisTab({ report }: { report: FeedbackReport }) {
         <div className="card-style bg-enterprise-surface p-6">
           <div className="text-[10px] uppercase tracking-widest text-enterprise-text-3 mb-4">Genel Değerlendirme</div>
           <p className="text-sm text-enterprise-text-2 leading-relaxed">{visionReport.overallAnalysis || "Analiz metni bulunamadı."}</p>
-          <div className="mt-4 rounded-xl border border-enterprise-border bg-enterprise-surface-2 p-3">
-            <p className="text-[10px] uppercase tracking-wider text-enterprise-text-3 mb-1">Risk Değerlendirmesi</p>
-            <p className="text-sm text-white">{visionReport.riskPoint || "Belirgin bir risk notu bulunmuyor."}</p>
-          </div>
         </div>
       </div>
 

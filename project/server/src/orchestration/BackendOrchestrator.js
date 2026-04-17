@@ -725,9 +725,8 @@ export class BackendOrchestrator {
       });
 
       if (this.pythonAnalysisClient && archiveResult) {
-        // Final pass rewrites the audio report with the full set of answer files so the
-        // session always ends with a complete audio_report.json, even if incremental writes
-        // were skipped or partially unavailable.
+        // Final pass only finalizes the audio report from existing incremental artifacts.
+        // Do not resend the full set of answer files through the audio model at session end.
         await this.pythonAnalysisClient.analyzeSessionAndTranscript({
           sessionId,
           baseDir: this.reportArchive.baseDir,
@@ -735,7 +734,8 @@ export class BackendOrchestrator {
           transcriptText: archiveResult.transcriptText || transcriptText,
           report: report,
           visionAnalysis: archiveResult.visionArtifacts,
-          interviewType: session.config?.interviewType || "Technical"
+          interviewType: session.config?.interviewType || "Technical",
+          finalizeAudioFromExisting: true,
         }).catch(err => console.error("[BackendOrchestrator] PythonAnalysisClient Error:", err));
       }
     }
@@ -847,7 +847,9 @@ export class BackendOrchestrator {
       problem_solving: "Problem Cozme",
     };
 
+    const requiredSessionCount = reports.length;
     const trendMetrics = Array.from(tagMap.entries())
+      .filter(([, points]) => points.length === requiredSessionCount && requiredSessionCount > 0)
       .map(([tag, points]) => {
         const ordered = [...points].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
         const scores = ordered.map((point) => point.score);
