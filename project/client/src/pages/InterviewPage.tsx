@@ -26,13 +26,11 @@ export function InterviewPage({
   sessionId,
   onFinish,
   onReportUpdate,
-  onBack: _onBack,
 }: {
   config: SessionConfig;
   sessionId: string;
   onFinish: (report: FeedbackReport) => void;
   onReportUpdate?: (report: FeedbackReport) => void;
-  onBack: () => void;
 }) {
   const [status, setStatus] = useState<"connecting" | "connected" | "error">("connecting");
   const [errorText, setErrorText] = useState("");
@@ -172,9 +170,9 @@ export function InterviewPage({
         };
 
         raf = requestAnimationFrame(tick);
-      } catch (error: any) {
+      } catch (error: unknown) {
         setStatus("error");
-        setErrorText(error?.message || "Bağlantı kurulamadı.");
+        setErrorText(error instanceof Error ? error.message : "Bağlantı kurulamadı.");
       } finally {
         connectingRef.current = false;
       }
@@ -306,7 +304,9 @@ export function InterviewPage({
               pushToast(feedback.type || "info", icon, feedback.title || "Anlık Geri Bildirim", feedback.message);
             }
           }
-        } catch {}
+        } catch (error) {
+          console.debug("Supportive feedback request failed", error);
+        }
       }
       if (last.role === "candidate") setHints([]);
     };
@@ -321,12 +321,17 @@ export function InterviewPage({
         if (res.ok) {
           const data = await res.json();
           if (data.hints?.length) {
-            setHints(data.hints.slice(0,3).map((h:any, i:any) => ({ id: `h-${i}`, text: h, active: true })));
+            const nextHints = data.hints
+              .slice(0, 3)
+              .map((hint: string, index: number) => ({ id: `h-${index}`, text: hint, active: true }));
+            setHints(nextHints);
             if (hintsTimeoutRef.current) window.clearTimeout(hintsTimeoutRef.current);
             hintsTimeoutRef.current = window.setTimeout(() => setHints([]), 12000);
           }
         }
-      } catch {}
+      } catch (error) {
+        console.debug("Supportive hints request failed", error);
+      }
     };
     return () => {
       if (hintsTimeoutRef.current) window.clearTimeout(hintsTimeoutRef.current);
@@ -356,16 +361,32 @@ export function InterviewPage({
     if (!overlay.box || !overlay.imageWidth || !overlay.imageHeight) return null;
     const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
     const margin = 1.5;
-    const x = overlay.box.x + overlay.box.width / 2;
-    const y = overlay.box.y + overlay.box.height / 2;
+    const videoEl = videoRef.current;
+    const containerWidth = Math.max(videoEl?.clientWidth || 0, 1);
+    const containerHeight = Math.max(videoEl?.clientHeight || 0, 1);
+    const sourceWidth = Math.max(overlay.imageWidth, 1);
+    const sourceHeight = Math.max(overlay.imageHeight, 1);
     const paddingX = Math.max(overlay.box.width * 0.14, overlay.imageWidth * 0.018);
     const paddingY = Math.max(overlay.box.height * 0.18, overlay.imageHeight * 0.024);
-    const rawWidth = (overlay.box.width + paddingX * 2) / overlay.imageWidth * 100;
-    const rawHeight = (overlay.box.height + paddingY * 2) / overlay.imageHeight * 100;
+    const sourceLeft = overlay.box.x - paddingX;
+    const sourceTop = overlay.box.y - paddingY;
+    const sourceBoxWidth = overlay.box.width + paddingX * 2;
+    const sourceBoxHeight = overlay.box.height + paddingY * 2;
+
+    const scale = Math.max(containerWidth / sourceWidth, containerHeight / sourceHeight);
+    const renderedWidth = sourceWidth * scale;
+    const renderedHeight = sourceHeight * scale;
+    const cropLeft = (renderedWidth - containerWidth) / 2;
+    const cropTop = (renderedHeight - containerHeight) / 2;
+
+    const projectedLeft = ((sourceLeft * scale) - cropLeft) / containerWidth * 100;
+    const projectedTop = ((sourceTop * scale) - cropTop) / containerHeight * 100;
+    const rawWidth = sourceBoxWidth * scale / containerWidth * 100;
+    const rawHeight = sourceBoxHeight * scale / containerHeight * 100;
     const width = clamp(rawWidth, 14, 72);
     const height = clamp(rawHeight, 18, 82);
-    const left = clamp((x - paddingX) / overlay.imageWidth * 100, margin, 100 - margin - width);
-    const top = clamp((y - paddingY) / overlay.imageHeight * 100, margin, 100 - margin - height);
+    const left = clamp(projectedLeft, margin, 100 - margin - width);
+    const top = clamp(projectedTop, margin, 100 - margin - height);
     return { left, top, width, height };
   })();
 
@@ -586,4 +607,3 @@ export function InterviewPage({
     </div>
   );
 }
-
