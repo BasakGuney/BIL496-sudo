@@ -1,5 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FeedbackPage } from "@/pages/FeedbackPage";
 import type { FeedbackReport } from "@/lib/types";
 
@@ -36,6 +36,10 @@ describe("FeedbackPage smoke", () => {
     vi.mocked(getReport).mockReset();
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   it("polls and updates the visible analysis status when artifacts become ready", async () => {
     vi.mocked(getReport).mockResolvedValue({
       ...pendingReport,
@@ -70,7 +74,15 @@ describe("FeedbackPage smoke", () => {
   });
 
   it("keeps audio analysis pending until the final completed report arrives", async () => {
-    vi.mocked(getReport).mockResolvedValue({
+    let resolveReport: ((value: FeedbackReport) => void) | null = null;
+    vi.mocked(getReport).mockImplementation(
+      () =>
+        new Promise<FeedbackReport>((resolve) => {
+          resolveReport = resolve;
+        })
+    );
+
+    const finalReport: FeedbackReport = {
       ...pendingReport,
       audioLlmReport: {
         overallScore: 79,
@@ -88,7 +100,7 @@ describe("FeedbackPage smoke", () => {
         vision: false,
         visionLlm: false,
       },
-    });
+    };
 
     render(
       <FeedbackPage
@@ -116,11 +128,18 @@ describe("FeedbackPage smoke", () => {
       />
     );
 
-    expect(screen.getByText("Ses Analizi Hazırlanıyor")).toBeInTheDocument();
+    const audioStatusLabel = screen
+      .getAllByText("Ses Analizi")
+      .find((element) => element.tagName === "SPAN");
+    const audioStatusRow = audioStatusLabel?.closest("div");
+    expect(audioStatusRow).not.toBeNull();
+    expect(within(audioStatusRow as HTMLElement).getByText("Ses analizi bekleniyor")).toBeInTheDocument();
     expect(screen.queryByText("Ara öneri")).not.toBeInTheDocument();
 
+    resolveReport?.(finalReport);
+
     await waitFor(() => {
-      expect(screen.getByText("Final öneri")).toBeInTheDocument();
+      expect(within(audioStatusRow as HTMLElement).getByText("Tamamlandı")).toBeInTheDocument();
       expect(screen.queryByText("Ara öneri")).not.toBeInTheDocument();
     });
   });
