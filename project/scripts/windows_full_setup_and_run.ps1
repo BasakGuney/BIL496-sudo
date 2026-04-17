@@ -1,7 +1,7 @@
 # ============================================================
 #  AI Mulakat Simulatoru - Windows Tam Kurulum ve Baslat
 #  Kullanım: projenin kökünden çalıştır
-#    cd C:\Users\basak\BIL496-sudo\project
+#    cd .\project
 #    .\scripts\windows_full_setup_and_run.ps1
 # ============================================================
 
@@ -10,7 +10,8 @@ $ErrorActionPreference = "Stop"
 # Projeyi nerede arıyoruz?
 $ROOT = Split-Path -Parent $PSScriptRoot
 $PYTHON_API_DIR = "$ROOT\server\src\services\analysis\python_api"
-$VENV_PYTHON    = "$PYTHON_API_DIR\.venv\Scripts\python.exe"
+$VENV_DIR       = "$ROOT\server\.venv-analysis"
+$VENV_PYTHON    = "$VENV_DIR\Scripts\python.exe"
 $SERVER_DIR     = "$ROOT\server"
 $CLIENT_DIR     = "$ROOT\client"
 
@@ -63,22 +64,22 @@ if (-not $pythonExe) {
 Write-Host "[3/5] Python sanal ortami (venv) hazirlaniyor..." -ForegroundColor Yellow
 
 if (-not (Test-Path $VENV_PYTHON)) {
-    Write-Host "      .venv olusturuluyor..." -ForegroundColor Gray
-    Set-Location $PYTHON_API_DIR
+    Write-Host "      .venv-analysis olusturuluyor..." -ForegroundColor Gray
+    Set-Location $SERVER_DIR
     if ($pythonExe -eq "py -3.12") {
-        py -3.12 -m venv .venv
+        py -3.12 -m venv .venv-analysis
     } else {
-        & $pythonExe -m venv .venv
+        & $pythonExe -m venv .venv-analysis
     }
-    Write-Host "      .venv olusturuldu." -ForegroundColor Green
+    Write-Host "      .venv-analysis olusturuldu." -ForegroundColor Green
 } else {
-    Write-Host "      .venv zaten mevcut, atlanıyor." -ForegroundColor Green
+    Write-Host "      .venv-analysis zaten mevcut, atlanıyor." -ForegroundColor Green
 }
 
 Write-Host "      requirements.txt kuruluyor..." -ForegroundColor Gray
 Set-Location $PYTHON_API_DIR
-& "$PYTHON_API_DIR\.venv\Scripts\pip.exe" install --upgrade pip --quiet
-& "$PYTHON_API_DIR\.venv\Scripts\pip.exe" install -r requirements.txt --quiet
+& "$VENV_DIR\Scripts\pip.exe" install --upgrade pip --quiet
+& "$VENV_DIR\Scripts\pip.exe" install -r requirements.txt --quiet
 Write-Host "      Python paketleri hazir." -ForegroundColor Green
 
 # ── 4. npm install ───────────────────────────────────────────

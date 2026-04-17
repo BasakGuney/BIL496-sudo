@@ -1,21 +1,22 @@
 TERMINAL 1
 
-cd C:\Users\basak\BIL496-sudo\project\server\src\services\analysis\python_api
-python -m venv .venv
+cd .\project\server
+python -m venv .venv-analysis
+cd .\src\services\analysis\python_api
 
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+..\..\..\..\.venv-analysis\Scripts\python.exe -m pip install --upgrade pip
+..\..\..\..\.venv-analysis\Scripts\pip.exe install -r requirements.txt
 
-'{"mode":"health"}' | python .\vision_analyzer.py
+echo {"mode":"health"} | ..\..\..\..\.venv-analysis\Scripts\python.exe .\vision_analyzer.py
 
-python .\api.py
+..\..\..\..\.venv-analysis\Scripts\python.exe .\api.py
 
 
 
 TERMINAL 2
 
-cd C:\Users\basak\BIL496-sudo\project\server
-$env:PYTHON_BIN="C:\Users\basak\BIL496-sudo\project\server\src\services\analysis\python_api\.venv\Scripts\python.exe"
+cd .\project\server
+$env:PYTHON_BIN=(Resolve-Path ".\.venv-analysis\Scripts\python.exe").Path
 npm install
 npm run dev
 
@@ -23,6 +24,20 @@ npm run dev
 
 TERMINAL 3
 
-cd C:\Users\basak\BIL496-sudo\project\client
+cd .\project\client
 npm install
 npm run dev
+
+
+TEST COMMANDS
+
+cd .\project\server
+npm run test:smoke
+
+cd .\project\client
+npm run test:smoke
+
+MANUAL TEST EVIDENCE
+
+Checklist: project\docs\testing\MANUAL_SMOKE_CHECKLIST.md
+Matrix: project\docs\testing\REQUIREMENT_TEST_MATRIX.md

@@ -2,11 +2,7 @@
 
 Bu dosya, projeyi **Windows üzerinde sıfırdan** kurup çalıştırmak için gereken her şeyi anlatır.
 
-> Bu rehberdeki örnek path şu klasörü baz alır:
->
-> `C:\Users\basak\BIL496-sudo`
->
-> Projeyi başka bir yere indirdiysen, komutlardaki path'i kendi klasörüne göre değiştir.
+> Bu rehberdeki komutlar repo kökünden (`BIL496-sudo\`) veya `project\` klasöründen çalışacak şekilde relatif verilmiştir.
 
 ---
 
@@ -99,20 +95,20 @@ project/
 ### TERMINAL 1 — Python API
 
 ```powershell
-cd C:\Users\basak\BIL496-sudo\project\server\src\services\analysis\python_api
+cd .\project\server
 
 # Sanal ortam oluştur (ilk seferinde)
-python -m venv .venv
+python -m venv .venv-analysis
 
-# Sanal ortamı aktif et
-.\.venv\Scripts\Activate.ps1
+# Python API klasörüne geç
+cd .\src\services\analysis\python_api
 
 # Paketleri güncelle ve kur (ilk seferinde)
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+..\..\..\..\.venv-analysis\Scripts\python.exe -m pip install --upgrade pip
+..\..\..\..\.venv-analysis\Scripts\pip.exe install -r requirements.txt
 
 # API sunucusunu başlat
-python api.py
+..\..\..\..\.venv-analysis\Scripts\python.exe api.py
 ```
 
 > `http://localhost:8000` adresinde çalışmaya başlar.
@@ -120,10 +116,10 @@ python api.py
 ### TERMINAL 2 — Node.js Sunucusu
 
 ```powershell
-cd C:\Users\basak\BIL496-sudo\project\server
+cd .\project\server
 
 # Python sanal ortamının yolunu bildir
-$env:PYTHON_BIN="C:\Users\basak\BIL496-sudo\project\server\src\services\analysis\python_api\.venv\Scripts\python.exe"
+$env:PYTHON_BIN=(Resolve-Path ".\.venv-analysis\Scripts\python.exe").Path
 
 # Paketleri kur (ilk seferinde)
 npm install
@@ -137,7 +133,7 @@ npm run dev
 ### TERMINAL 3 — React İstemcisi
 
 ```powershell
-cd C:\Users\basak\BIL496-sudo\project\client
+cd .\project\client
 
 # Paketleri kur (ilk seferinde)
 npm install
@@ -165,7 +161,7 @@ npm run dev
 Tüm adımları otomatik yapmak için tek komut:
 
 ```powershell
-cd C:\Users\basak\BIL496-sudo\project
+cd .\project
 .\scripts\windows_full_setup_and_run.ps1
 ```
 

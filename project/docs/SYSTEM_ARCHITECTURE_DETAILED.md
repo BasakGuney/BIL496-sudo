@@ -545,16 +545,17 @@ Tüm alanlar `true` olana kadar belirli aralıklarla `GET /session/:id/report` �
 **Terminal 1 — Python API:**
 ```powershell
 cd server/src/services/analysis/python_api
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python api.py
+cd server
+python -m venv .venv-analysis
+cd src\services\analysis\python_api
+..\..\..\..\server\.venv-analysis\Scripts\pip.exe install -r requirements.txt
+..\..\..\..\server\.venv-analysis\Scripts\python.exe api.py
 ```
 
 **Terminal 2 — Node.js Sunucusu:**
 ```powershell
 cd server
-$env:PYTHON_BIN="...\.venv\Scripts\python.exe"
+$env:PYTHON_BIN="...\server\.venv-analysis\Scripts\python.exe"
 npm install
 npm run dev
 ```
