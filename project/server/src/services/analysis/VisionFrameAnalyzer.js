@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
+import { resolvePythonBin } from "../../utils/pythonBin.js";
 
 export class VisionFrameAnalyzer {
-  constructor({ pythonBin = process.env.PYTHON_BIN || "python3", logger = console } = {}) {
+  constructor({ pythonBin = resolvePythonBin(), logger = console } = {}) {
     this.pythonBin = pythonBin;
     this.logger = logger;
     this.scriptPath = path.resolve(process.cwd(), "src/services/analysis/python_api/vision_analyzer.py");

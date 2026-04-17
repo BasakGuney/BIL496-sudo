@@ -2,12 +2,13 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { PDFParse } from "pdf-parse";
+import { resolvePythonBin } from "../../utils/pythonBin.js";
 
 export class FileReportArchive {
   constructor({ baseDir, persistVisionJpegs = false }) {
     this.baseDir = baseDir;
     this.persistVisionJpegs = Boolean(persistVisionJpegs);
-    this.pythonBin = process.env.PYTHON_BIN || "python3";
+    this.pythonBin = resolvePythonBin();
     this.cvTranslatorScriptPath = path.resolve(process.cwd(), "src/services/analysis/python_api/cv_translator.py");
   }
 

@@ -7,7 +7,17 @@ import json
 from typing import List, Optional
 from pydantic import BaseModel
 
-from audio_analyzer import AudioAnalyzer, compute_overall, interpret_report_with_gpt
+from audio_analyzer import (
+    AudioAnalyzer,
+    compute_overall,
+    interpret_report_with_gpt,
+    _build_audio_provisional_report,
+    _build_audio_fallback_report,
+    _compute_audio_overall_score,
+    _compute_emotion_suitability_score,
+    _compute_fluency_score,
+    _compute_speech_rate_score,
+)
 from vision_analyzer import interpret_vision_report_with_gpt
 from transcript_analyzer import analyze_transcript_with_gpt
 
@@ -137,20 +147,6 @@ async def analyze_audio_session(request: AudioAnalysisRequest):
         # 2) Save audio_report.json
         llm_report = None
         if request.write_text_report:
-            try:
-                llm_report = interpret_report_with_gpt(overall_data)
-            except Exception as e:
-                llm_report = {
-                    "overallAnalysis": f"Ses LLM analiz hatası: {str(e)}",
-                    "clarityBadge": "Analiz Edilemedi",
-                    "dominantEmotion": "Bilinmiyor",
-                    "secondaryEmotion": None,
-                    "scores": [],
-                    "tonDistribution": [],
-                    "speechSummary": [],
-                    "recommendations": {"nextInterview": "", "performanceDevelopment": ""}
-                }
-
             existing_report_path = os.path.join(target_dir, "audio_report.json")
             existing_completed = False
             if os.path.exists(existing_report_path):
@@ -161,12 +157,97 @@ async def analyze_audio_session(request: AudioAnalysisRequest):
                 except Exception:
                     existing_completed = False
 
-            # Once the final report is written, never downgrade it back to an
-            # intermediate "pending" state on later incremental writes.
-            llm_report["completed"] = bool(request.finalize_report or existing_completed)
+            raw_emotions = overall_data.get("emotions", {})
+            emotion_map = {
+                "neu": "Nötr ve dengeli ton",
+                "hap": "Olumlu / canlı ifade",
+                "ang": "Gergin / sert ton",
+                "sad": "Düşük enerjili / içe kapanık ton",
+            }
+            emotion_dist = [
+                {"label": emotion_map.get(key, key), "score": value}
+                for key, value in sorted(raw_emotions.items(), key=lambda item: item[1], reverse=True)
+            ]
+            dominant_emotion = emotion_dist[0] if emotion_dist else {"label": "Bilinmiyor", "score": 0}
+            secondary_emotion = emotion_dist[1] if len(emotion_dist) > 1 else None
 
+            clarity_val = overall_data.get("clarity", 0)
+            speech_data = overall_data.get("speech", {})
+            avg_wpm = speech_data.get("avg_wpm", 0)
+            avg_pause_ratio = speech_data.get("avg_pause_ratio", 0)
+            total_speech_sec = speech_data.get("total_speech_time", 0)
+            total_dur_sec = speech_data.get("total_duration", 0)
+
+            def _fmt_duration(sec: float) -> str:
+                sec = int(round(sec))
+                m, s = divmod(sec, 60)
+                return f"{m} dk {s} sn" if m else f"{s} sn"
+
+            clarity_band = "Yüksek" if clarity_val >= 75 else "Orta" if clarity_val >= 50 else "Düşük"
+            wpm_band = "İdeal aralıkta" if 110 <= avg_wpm <= 150 else "Hızlı" if avg_wpm > 150 else "Yavaş" if avg_wpm > 0 else "Ölçülemedi"
+            pause_band = "Az (akıcı)" if avg_pause_ratio <= 15 else "Orta" if avg_pause_ratio <= 25 else "Fazla (sık durak)" if avg_pause_ratio <= 40 else "Çok Fazla"
+
+            emotion_suitability = _compute_emotion_suitability_score(raw_emotions)
+            positive_share = round(float(raw_emotions.get("neu", 0) or 0) + float(raw_emotions.get("hap", 0) or 0), 1)
+            negative_share = round(float(raw_emotions.get("ang", 0) or 0) + float(raw_emotions.get("sad", 0) or 0), 1)
+
+            python_scores = [
+                {"label": "Ses Netliği", "score": int(round(clarity_val))},
+                {"label": "Duygu Uygunluğu", "score": emotion_suitability},
+                {"label": "Konuşma Hızı", "score": _compute_speech_rate_score(avg_wpm)},
+                {"label": "Akıcılık", "score": _compute_fluency_score(avg_pause_ratio)},
+            ]
+            overall_score = _compute_audio_overall_score(python_scores)
+            gpt_context = {
+                "clarity": {"value": round(clarity_val, 1), "band": clarity_band},
+                "avgWPM": {"value": avg_wpm, "band": wpm_band},
+                "pauseRatio": {"value": f"%{round(avg_pause_ratio, 1)}", "band": pause_band},
+                "totalSpeechTime": _fmt_duration(total_speech_sec),
+                "totalDuration": _fmt_duration(total_dur_sec),
+                "dominantEmotion": dominant_emotion,
+                "secondaryEmotion": secondary_emotion,
+                "emotionDistribution": emotion_dist,
+                "emotionSuitability": {
+                    "score": emotion_suitability,
+                    "positiveShare": positive_share,
+                    "negativeShare": negative_share,
+                },
+            }
+
+            provisional_report = _build_audio_provisional_report(
+                gpt_context,
+                overall_score,
+                dominant_emotion,
+                secondary_emotion,
+                python_scores,
+                emotion_dist,
+            )
+            provisional_report["completed"] = bool(existing_completed)
+
+            # Incremental writes should update the visible audio panel immediately
+            # without waiting for an OpenAI round-trip.
             with open(existing_report_path, "w", encoding="utf-8") as f:
-                json.dump(llm_report, f, ensure_ascii=False, indent=2)
+                json.dump(provisional_report, f, ensure_ascii=False, indent=2)
+
+            if request.finalize_report:
+                try:
+                    llm_report = interpret_report_with_gpt(overall_data)
+                except Exception as e:
+                    llm_report = _build_audio_fallback_report(
+                        gpt_context,
+                        overall_score,
+                        dominant_emotion,
+                        secondary_emotion,
+                        python_scores,
+                        emotion_dist,
+                        str(e),
+                    )
+
+                llm_report["completed"] = True
+                with open(existing_report_path, "w", encoding="utf-8") as f:
+                    json.dump(llm_report, f, ensure_ascii=False, indent=2)
+            else:
+                llm_report = provisional_report
         
         return {
             "items": merged_results,

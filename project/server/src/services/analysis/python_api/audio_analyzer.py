@@ -304,6 +304,65 @@ def _build_audio_fallback_report(
     }
 
 
+def _build_audio_provisional_report(
+    gpt_context: dict,
+    overall_score: int,
+    dominant_emotion: dict,
+    secondary_emotion: dict | None,
+    python_scores: list[dict],
+    emotion_dist: list[dict],
+) -> dict:
+    clarity_band = str((gpt_context.get("clarity") or {}).get("band") or "Orta")
+    wpm_band = str((gpt_context.get("avgWPM") or {}).get("band") or "Ölçülemedi")
+    pause_band = str((gpt_context.get("pauseRatio") or {}).get("band") or "Orta")
+    total_speech_time = str(gpt_context.get("totalSpeechTime") or "0 sn")
+    total_duration = str(gpt_context.get("totalDuration") or "0 sn")
+
+    if overall_score < 40:
+        overall_analysis = (
+            f"Ses analizi ilk hesaplamada düşük bantta görünüyor. "
+            f"Netlik durumu {clarity_band.lower()}, konuşma hızı {wpm_band.lower()} ve duraklama düzeni {pause_band.lower()} seviyede. "
+            f"Toplam konuşma süresi {total_speech_time}, toplam kayıt süresi {total_duration} olarak işlendi. "
+            "Bu ara rapor anında gösterim için deterministik metriklerle üretildi ve yeni cevaplar geldikçe güncellenecek."
+        )
+        badge = "İlk Ses Özeti"
+    elif overall_score < 70:
+        overall_analysis = (
+            f"Ses analizi ilk hesaplamada orta bantta görünüyor. "
+            f"Netlik {clarity_band.lower()}, konuşma hızı {wpm_band.lower()} ve duraklama düzeni {pause_band.lower()} olarak ölçüldü. "
+            f"Toplam konuşma süresi {total_speech_time}, toplam kayıt süresi {total_duration}. "
+            "Bu ara rapor hızlı geri bildirim için deterministik metriklerle üretildi; final rapor daha ayrıntılı metinlerle güncellenecek."
+        )
+        badge = "Ara Ses Özeti"
+    else:
+        overall_analysis = (
+            f"Ses analizi ilk hesaplamada iyi bantta görünüyor. "
+            f"Netlik {clarity_band.lower()}, konuşma hızı {wpm_band.lower()} ve duraklama düzeni {pause_band.lower()} olarak işlendi. "
+            f"Toplam konuşma süresi {total_speech_time}, toplam kayıt süresi {total_duration}. "
+            "Bu ara rapor hızlı geri bildirim için deterministik metriklerle üretildi; final rapor daha ayrıntılı metinlerle güncellenecek."
+        )
+        badge = "Hızlı Ses Özeti"
+
+    speech_summary = [
+        f"Netlik bandı: {clarity_band}",
+        f"Konuşma hızı: {wpm_band}",
+        f"Duraklama düzeni: {pause_band}",
+        f"Konuşma süresi: {total_speech_time} / kayıt süresi: {total_duration}",
+    ]
+
+    return {
+        "overallScore": overall_score,
+        "overallAnalysis": overall_analysis,
+        "clarityBadge": badge,
+        "dominantEmotion": dominant_emotion["label"],
+        "secondaryEmotion": secondary_emotion["label"] if secondary_emotion else None,
+        "scores": python_scores,
+        "tonDistribution": emotion_dist,
+        "speechSummary": speech_summary,
+        "recommendations": _build_audio_recommendations(gpt_context, overall_score),
+    }
+
+
 def _compute_audio_overall_score(python_scores: list[dict]) -> int:
     """
     Ses genel skoru, alt metriklerin ağırlıklı birleşimi olarak hesaplanır.

@@ -20,6 +20,38 @@ export class BackendOrchestrator {
     this.costEstimator = costEstimator;
   }
 
+  createDefaultVisionRuntimeState() {
+    return {
+      sampledFrames: 0,
+      faceDetectedFrames: 0,
+      totalFaceAreaRatio: 0,
+      totalCenterOffset: 0,
+      movementAccumulator: 0,
+      lastCenter: null,
+      samples: [],
+      lastResult: null,
+      lastSavedAttentionLevel: null,
+      lastSavedSampleMeta: null,
+      warnFrames: 0,
+      dangerFrames: 0,
+      lowEyeFrames: 0,
+      supportiveOverlayUsed: false,
+      source: this.visionFrameAnalyzer ? "server-python-mediapipe" : "unavailable",
+      status: this.visionFrameAnalyzer ? "ready" : "unavailable",
+      lastAttentionLevel: "ok",
+      notes: [],
+    };
+  }
+
+  createDefaultRuntimeState() {
+    return {
+      incrementalCandidateAnswerAudios: [],
+      incrementalSavedAudioFiles: [],
+      analyzedAudioRelativePaths: [],
+      vision: this.createDefaultVisionRuntimeState(),
+    };
+  }
+
   async createSession(cfgInput, offerSdp = "", sessionId = null) {
     const id = sessionId || this.idGenerator.newId();
     const existingSession = await this.sessions.findById(id);
@@ -202,33 +234,33 @@ export class BackendOrchestrator {
   }
 
   getRuntimeState(session) {
-    if (!session.runtimeState) {
-      session.runtimeState = {
-        incrementalCandidateAnswerAudios: [],
-        incrementalSavedAudioFiles: [],
-        analyzedAudioRelativePaths: [],
-        vision: {
-          sampledFrames: 0,
-          faceDetectedFrames: 0,
-          totalFaceAreaRatio: 0,
-          totalCenterOffset: 0,
-          movementAccumulator: 0,
-          lastCenter: null,
-          samples: [],
-          lastResult: null,
-          lastSavedAttentionLevel: null,
-          lastSavedSampleMeta: null,
-          warnFrames: 0,
-          dangerFrames: 0,
-          lowEyeFrames: 0,
-          supportiveOverlayUsed: false,
-          source: this.visionFrameAnalyzer ? "server-python-mediapipe" : "unavailable",
-          status: this.visionFrameAnalyzer ? "ready" : "unavailable",
-          lastAttentionLevel: "ok",
-          notes: [],
-        },
-      };
-    }
+    const defaults = this.createDefaultRuntimeState();
+    const current = session.runtimeState && typeof session.runtimeState === "object"
+      ? session.runtimeState
+      : {};
+    const currentVision = current.vision && typeof current.vision === "object"
+      ? current.vision
+      : {};
+
+    session.runtimeState = {
+      ...defaults,
+      ...current,
+      incrementalCandidateAnswerAudios: Array.isArray(current.incrementalCandidateAnswerAudios)
+        ? current.incrementalCandidateAnswerAudios
+        : [],
+      incrementalSavedAudioFiles: Array.isArray(current.incrementalSavedAudioFiles)
+        ? current.incrementalSavedAudioFiles
+        : [],
+      analyzedAudioRelativePaths: Array.isArray(current.analyzedAudioRelativePaths)
+        ? current.analyzedAudioRelativePaths
+        : [],
+      vision: {
+        ...defaults.vision,
+        ...currentVision,
+        samples: Array.isArray(currentVision.samples) ? currentVision.samples : [],
+        notes: Array.isArray(currentVision.notes) ? currentVision.notes : [],
+      },
+    };
 
     return session.runtimeState;
   }
@@ -267,6 +299,17 @@ export class BackendOrchestrator {
     }
 
     return out.sort((a, b) => Number(a?.ts || 0) - Number(b?.ts || 0));
+  }
+
+  async buildFallbackTranscriptEntries(candidateAnswerAudios = []) {
+    if (!this.candidateAudioTranscriber) return [];
+
+    try {
+      return await this.candidateAudioTranscriber.transcribeCandidateAnswerAudios(candidateAnswerAudios);
+    } catch (error) {
+      this.logger?.warn?.("Candidate audio transcription fallback failed", error);
+      return [];
+    }
   }
 
   mergeUniqueSavedAudioFiles(...groups) {
@@ -632,7 +675,12 @@ export class BackendOrchestrator {
       runtime.incrementalCandidateAnswerAudios,
       candidateAnswerAudios
     );
-    const transcriptEntries = this.mergeUniqueTranscriptEntries(transcript);
+    const hasCandidateTranscript = Array.isArray(transcript)
+      && transcript.some((item) => item?.role === "candidate" && String(item?.text || "").trim());
+    const fallbackTranscriptEntries = hasCandidateTranscript
+      ? []
+      : await this.buildFallbackTranscriptEntries(mergedCandidateAnswerAudios);
+    const transcriptEntries = this.mergeUniqueTranscriptEntries(transcript, fallbackTranscriptEntries);
     const effectiveVisionAnalysis = visionAnalysis || this.buildVisionAnalysisFromRuntime(runtime);
     const report = await this.analyzer.generateReport(session, transcriptEntries, effectiveVisionAnalysis);
     const transcriptText = transcriptEntries
