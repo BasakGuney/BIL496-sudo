@@ -1,4 +1,5 @@
 import { SessionConfig } from "../../domain/value-objects/SessionConfig.js";
+import { AppError } from "../../domain/errors/AppError.js";
 import { CreateSessionRequest } from "../../dto/requests/CreateSessionRequest.js";
 import { StartSessionRequest } from "../../dto/requests/StartSessionRequest.js";
 import { SessionView } from "../../dto/responses/views/SessionView.js";
@@ -14,6 +15,17 @@ export class SessionController {
     this.generateLiveHints = this.generateLiveHints.bind(this);
     this.generateLiveFeedback = this.generateLiveFeedback.bind(this);
     this.recordUsage = this.recordUsage.bind(this);
+  }
+
+  assertValidConfig(config) {
+    const details = config.getValidationErrors();
+    if (details.length === 0) return;
+
+    throw new AppError("Invalid session configuration", {
+      code: "INVALID_SESSION_CONFIG",
+      statusCode: 400,
+      details,
+    });
   }
 
   async generatePreviewQuestions(req, res, next) {
@@ -80,6 +92,7 @@ export class SessionController {
         cvFile: request.cvFile,
         candidateBrief: request.candidateBrief,
       });
+      this.assertValidConfig(cfg);
 
       const session = await this.backendOrchestrator.createSession(cfg, request.offerSdp, request.sessionId);
 
@@ -119,6 +132,7 @@ export class SessionController {
         cvFile: request.cvFile,
         candidateBrief: request.candidateBrief,
       });
+      this.assertValidConfig(cfg);
 
       const session = await this.backendOrchestrator.updateSessionConfig(req.params.sessionId, cfg);
       return res.json(SessionView.fromSession(session));

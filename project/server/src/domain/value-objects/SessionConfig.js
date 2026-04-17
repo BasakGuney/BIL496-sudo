@@ -38,6 +38,12 @@ const normalizeCandidateBrief = (candidateBrief = null) => {
   return hasContent ? normalized : null;
 };
 
+const ALLOWED_DIFFICULTIES = new Set(["Junior", "Intermediate", "Senior"]);
+
+const pushValidationError = (errors, field, message) => {
+  errors.push({ field, message });
+};
+
 export class SessionConfig {
   constructor({
     firstName = "",
@@ -69,5 +75,28 @@ export class SessionConfig {
         }
       : null;
     this.candidateBrief = normalizeCandidateBrief(candidateBrief);
+  }
+
+  getValidationErrors() {
+    const errors = [];
+
+    if (!this.firstName.trim()) pushValidationError(errors, "firstName", "First name is required.");
+    if (!this.lastName.trim()) pushValidationError(errors, "lastName", "Last name is required.");
+    if (!this.role.trim()) pushValidationError(errors, "role", "Role is required.");
+    if (!this.domain.trim()) pushValidationError(errors, "domain", "Domain is required.");
+    if (!this.companyOrIndustry.trim()) {
+      pushValidationError(errors, "companyOrIndustry", "Company or industry is required.");
+    }
+    if (![InterviewType.HR, InterviewType.TECHNICAL].includes(this.interviewType)) {
+      pushValidationError(errors, "interviewType", "Interview type must be HR or Technical.");
+    }
+    if (![SessionMode.SUPPORTIVE, SessionMode.NEUTRAL].includes(this.mode)) {
+      pushValidationError(errors, "mode", "Mode must be Supportive or Neutral.");
+    }
+    if (!ALLOWED_DIFFICULTIES.has(this.difficulty)) {
+      pushValidationError(errors, "difficulty", "Difficulty must be Junior, Intermediate, or Senior.");
+    }
+
+    return errors;
   }
 }

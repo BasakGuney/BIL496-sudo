@@ -9,7 +9,11 @@ export class ErrorHandlerMiddleware {
   handle(error, _req, res, _next) {
     if (error instanceof AppError) {
       this.logger.error(error.message, error.details || error.code);
-      res.status(error.statusCode).json({ error: error.message, code: error.code });
+      res.status(error.statusCode).json({
+        error: error.message,
+        code: error.code,
+        ...(error.details ? { details: error.details } : {}),
+      });
       return;
     }
 
