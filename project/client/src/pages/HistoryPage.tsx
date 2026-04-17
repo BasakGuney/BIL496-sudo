@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { getHistoryInsights, getReport, listReports } from "@/lib/api";
 import type { HistoryInsights, SessionSummary } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -165,12 +165,7 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
   useEffect(() => {
     let mounted = true;
 
-    if (sortedItems.length === 0) {
-      setReportMeta({});
-      return () => {
-        mounted = false;
-      };
-    }
+    if (sortedItems.length === 0) return () => { mounted = false; };
 
     Promise.allSettled(sortedItems.map((item) => getReport(item.sessionId))).then((results) => {
       if (!mounted) return;
@@ -178,7 +173,10 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
       const nextMeta: Record<string, { role?: string; mode?: string; interviewType?: string }> = {};
       results.forEach((result, index) => {
         if (result.status !== "fulfilled") return;
-        const report: any = result.value;
+        const report = result.value as {
+          sessionConfig?: { role?: string; mode?: string; interviewType?: string };
+          config?: { role?: string; mode?: string; interviewType?: string };
+        };
         nextMeta[sortedItems[index].sessionId] = {
           role: String(report?.sessionConfig?.role || report?.config?.role || "").trim(),
           mode: String(report?.sessionConfig?.mode || report?.config?.mode || "").trim(),
@@ -217,7 +215,7 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
     };
   }, [insights, sortedItems]);
 
-  const resolveSessionMeta = (item: SessionSummary) => {
+  const resolveSessionMeta = useCallback((item: SessionSummary) => {
     const meta = reportMeta[item.sessionId] || {};
     const summaryMeta = item.sessionConfig || {};
     const role = meta.role || summaryMeta.role || "Mülakat Oturumu";
@@ -226,7 +224,7 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
     const interviewType = interviewTypeValue === "HR" ? "İK" : interviewTypeValue === "Technical" ? "Teknik" : "Mülakat";
     const mode = modeValue === "Supportive" ? "Destekleyici Mod (Supportive)" : modeValue === "Neutral" ? "Nötr Mod (Neutral)" : "Mod";
     return { role, interviewType, mode };
-  };
+  }, [reportMeta]);
 
   const filteredItems = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLocaleLowerCase("tr-TR");
@@ -268,7 +266,7 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
     });
 
     return filtered;
-  }, [sortedItems, searchTerm, typeFilter, modeFilter, sortBy, reportMeta]);
+  }, [resolveSessionMeta, sortedItems, searchTerm, typeFilter, modeFilter, sortBy]);
 
   const chartData = useMemo(() => {
     const recentScoreTrend = [...filteredItems]
@@ -298,7 +296,7 @@ export function HistoryPage({ onOpenReport }: { onOpenReport: (sid: string) => v
       recentScoreTrend,
       typeDistribution,
     };
-  }, [filteredItems, reportMeta]);
+  }, [filteredItems, resolveSessionMeta]);
 
   if (loading) {
     return (

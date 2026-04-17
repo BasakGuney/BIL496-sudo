@@ -9,6 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
+type AudioContextWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
 const EMPTY_CANDIDATE_BRIEF: CandidateBrief = {
   headline: "",
   summary: "",
@@ -92,7 +96,8 @@ export function PreviewPage({
       micStreamRef.current = stream;
       setMicOn(true);
 
-      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextCtor = window.AudioContext || (window as AudioContextWindow).webkitAudioContext;
+      if (!AudioContextCtor) throw new Error("AudioContext is not supported.");
       const ctx = new AudioContextCtor();
       audioCtxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
@@ -124,7 +129,11 @@ export function PreviewPage({
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     setLevel(0);
     if (audioCtxRef.current) {
-      try { await audioCtxRef.current.close(); } catch {}
+      try {
+        await audioCtxRef.current.close();
+      } catch {
+        // Audio context may already be closed.
+      }
       audioCtxRef.current = null;
     }
     setMicOn(false);

@@ -4,10 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ModeBadge } from "./ModeBadge";
-import type { SessionConfig } from "@/lib/types";
+import type { Gender, InterviewType, Mode, SessionConfig } from "@/lib/types";
 import { ChevronRight, FileText, Upload, User, Briefcase, Target, Zap } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-function RequiredLabel({ children, icon: Icon }: { children: React.ReactNode, icon?: any }) {
+function RequiredLabel({ children, icon: Icon }: { children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <Label className="flex items-center gap-2 text-enterprise-text-2 mb-2">
       {Icon && <Icon className="w-3.5 h-3.5" />}
@@ -123,7 +124,7 @@ export function SessionSetupForm({
         <div className="grid gap-6 md:grid-cols-2">
           <div className="grid gap-2">
             <RequiredLabel icon={Zap}>Cinsiyet</RequiredLabel>
-            <Select value={value.gender} onValueChange={(v) => onChange({ ...value, gender: v as any })}>
+            <Select value={value.gender} onValueChange={(v) => onChange({ ...value, gender: v as Gender })}>
               <SelectTrigger className="bg-enterprise-surface-2 border-enterprise-border rounded-xl h-11 text-xs">
                 <SelectValue placeholder="Seçim yapın" />
               </SelectTrigger>
@@ -137,7 +138,7 @@ export function SessionSetupForm({
             <RequiredLabel icon={Briefcase}>Mülakat Tipi</RequiredLabel>
             <Select
               value={value.interviewType}
-              onValueChange={(v) => onChange({ ...value, interviewType: v as any })}
+              onValueChange={(v) => onChange({ ...value, interviewType: v as InterviewType })}
             >
               <SelectTrigger className="bg-enterprise-surface-2 border-enterprise-border rounded-xl h-11 text-xs">
                 <SelectValue placeholder="Tip Seçin" />
@@ -215,7 +216,7 @@ export function SessionSetupForm({
 
       <div className="grid gap-2">
         <RequiredLabel icon={Zap}>Mod Seçimi</RequiredLabel>
-        <Select value={value.mode} onValueChange={(v) => onChange({ ...value, mode: v as any })}>
+        <Select value={value.mode} onValueChange={(v) => onChange({ ...value, mode: v as Mode })}>
           <SelectTrigger className="bg-enterprise-surface-2 border-enterprise-border rounded-xl h-11 text-xs">
             <SelectValue placeholder="Mod" />
           </SelectTrigger>

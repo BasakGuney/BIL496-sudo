@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 type Props = {
   speaking: boolean;
@@ -8,8 +8,7 @@ type Props = {
 
 export function VoiceWaveCanvas({ speaking, level }: Props) {
   const ref = useRef<HTMLCanvasElement | null>(null);
-
-  const seed = useMemo(() => Math.random() * 1000, []);
+  const seed = 314.1592653589793;
 
   useEffect(() => {
     const canvas = ref.current;

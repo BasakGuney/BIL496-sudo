@@ -7,10 +7,8 @@ import { ShieldCheck, Info } from "lucide-react";
 
 export function SetupPage({
   onPrepared,
-  onOpenReport: _onOpenReport,
 }: {
   onPrepared: (config: SessionConfig, sessionId: string) => void;
-  onOpenReport: (sessionId: string) => void;
 }) {
   const [config, setConfig] = useState<SessionConfig>(() => ({
     firstName: "Ecesu",
@@ -44,8 +42,8 @@ export function SetupPage({
         ...nextConfig,
         candidateBrief: session.candidateBrief || nextConfig.candidateBrief || null,
       }, session.sessionId);
-    } catch (error: any) {
-      setPrepareError(error?.message || "Kurulum tamamlanamadı.");
+    } catch (error: unknown) {
+      setPrepareError(error instanceof Error ? error.message : "Kurulum tamamlanamadı.");
       setPreparing(false);
     }
   }
@@ -107,4 +105,3 @@ export function SetupPage({
     </div>
   );
 }
-

@@ -35,8 +35,18 @@ type RealtimeEvent = {
   delta?: string;
   response_id?: string;
   item_id?: string;
-  item?: any;
-  response?: any;
+  item?: {
+    id?: string;
+    content?: Array<{ transcript?: string }>;
+    formatted?: { transcript?: string };
+  } | null;
+  response?: {
+    output?: Array<{
+      content?: Array<{ transcript?: string; text?: string }>;
+    }>;
+    usage?: Record<string, unknown>;
+    id?: string;
+  } | null;
 };
 
 export type RealtimeConnection = {
@@ -111,7 +121,7 @@ function extractStableTranscriptMessage(
 ): { role: "interviewer" | "candidate"; text: string; source: TranscriptSource; model: string } | null {
   const candidateContentText = Array.isArray(msg?.item?.content)
     ? msg.item.content
-      .map((content: any) => content?.transcript || "")
+      .map((content) => content?.transcript || "")
       .filter(Boolean)
       .join(" ")
     : "";
@@ -364,7 +374,8 @@ export async function connectRealtimeInterview(opts: {
     mediaRecorder = buildMediaRecorder(activeQuestionIndex, activeSegmentStartedAt);
     try {
       mediaRecorder.start(250);
-    } catch (_error) {
+    } catch (error) {
+      void error;
       isCandidateSegmentActive = false;
     }
   };
@@ -387,7 +398,8 @@ export async function connectRealtimeInterview(opts: {
       try {
         recorder.requestData();
         recorder.stop();
-      } catch (_error) {
+      } catch (error) {
+        void error;
         if (resolveActiveSegmentStopPromise) {
           resolveActiveSegmentStopPromise();
           resolveActiveSegmentStopPromise = null;
@@ -543,7 +555,7 @@ export async function connectRealtimeInterview(opts: {
     );
   };
 
-  const postUsage = async (usage: any, responseId?: string) => {
+  const postUsage = async (usage: Record<string, unknown>, responseId?: string) => {
     if (!usage) return;
     if (responseId) {
       if (usageResponseIds.has(responseId)) return;

@@ -1,6 +1,7 @@
 import type { CandidateAnswerAudio, CandidateBrief, FeedbackReport, HistoryInsights, SessionConfig, SessionSummary } from "./types";
 import { BACKEND_URL } from "./config";
 
+type JsonMap = Record<string, unknown>;
 
 async function parseJsonSafe(response: Response) {
   const text = await response.text();
@@ -46,6 +47,10 @@ function isReportReady(report: FeedbackReport | null | undefined) {
   );
 }
 
+function asObject(value: unknown): JsonMap {
+  return value && typeof value === "object" ? value as JsonMap : {};
+}
+
 export async function waitForReadyReport(sessionId: string, { maxAttempts = 24, delayMs = 2500 } = {}) {
   let latest: FeedbackReport | null = null;
 
@@ -64,7 +69,7 @@ export async function waitForReadyReport(sessionId: string, { maxAttempts = 24, 
 }
 
 export async function startSession(config: SessionConfig) {
-  const payload = await request("/session", {
+  const payload = asObject(await request("/session", {
     method: "POST",
     body: JSON.stringify({
       firstName: config.firstName,
@@ -79,17 +84,18 @@ export async function startSession(config: SessionConfig) {
       cvFile: config.cvFile,
       candidateBrief: config.candidateBrief || null,
     }),
-  });
+  }));
+  const payloadConfig = asObject(payload.config);
 
   return {
-    sessionId: String((payload as any)?.sessionId || ""),
-    previewQuestions: Array.isArray((payload as any)?.previewQuestions) ? (payload as any).previewQuestions : [],
-    candidateBrief: (((payload as any)?.config?.candidateBrief || null) as CandidateBrief | null),
+    sessionId: String(payload.sessionId || ""),
+    previewQuestions: Array.isArray(payload.previewQuestions) ? payload.previewQuestions : [],
+    candidateBrief: (payloadConfig.candidateBrief || null) as CandidateBrief | null,
   };
 }
 
 export async function generatePreviewQuestions(config: SessionConfig) {
-  const payload = await request("/preview-questions", {
+  const payload = asObject(await request("/preview-questions", {
     method: "POST",
     body: JSON.stringify({
       interviewType: config.interviewType,
@@ -99,13 +105,13 @@ export async function generatePreviewQuestions(config: SessionConfig) {
       difficulty: config.difficulty,
       candidateBrief: config.candidateBrief || null,
     }),
-  });
+  }));
 
-  return Array.isArray((payload as any)?.questions) ? (payload as any).questions : [];
+  return Array.isArray(payload.questions) ? payload.questions : [];
 }
 
 export async function updateSessionConfig(sessionId: string, config: SessionConfig) {
-  const payload = await request(`/session/${encodeURIComponent(sessionId)}/config`, {
+  const payload = asObject(await request(`/session/${encodeURIComponent(sessionId)}/config`, {
     method: "PATCH",
     body: JSON.stringify({
       firstName: config.firstName,
@@ -120,9 +126,10 @@ export async function updateSessionConfig(sessionId: string, config: SessionConf
       cvFile: config.cvFile,
       candidateBrief: config.candidateBrief || null,
     }),
-  });
+  }));
+  const payloadConfig = asObject(payload.config);
 
-  return (((payload as any)?.config?.candidateBrief || null) as CandidateBrief | null);
+  return (payloadConfig.candidateBrief || null) as CandidateBrief | null;
 }
 
 export async function uploadCandidateAnswerIncremental(sessionId: string, candidateAnswerAudio: CandidateAnswerAudio) {
@@ -150,10 +157,10 @@ export async function getReport(sessionId: string) {
 }
 
 export async function listReports(limit = 50) {
-  const payload = await request(`/reports?limit=${encodeURIComponent(String(limit))}`, {
+  const payload = asObject(await request(`/reports?limit=${encodeURIComponent(String(limit))}`, {
     method: "GET",
-  });
-  return Array.isArray((payload as any)?.items) ? (payload as any).items as SessionSummary[] : [];
+  }));
+  return Array.isArray(payload.items) ? payload.items as SessionSummary[] : [];
 }
 
 export async function getHistoryInsights(limit = 3) {

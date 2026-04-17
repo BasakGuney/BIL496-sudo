@@ -10,23 +10,31 @@ import type { FeedbackReport, SessionConfig } from "@/lib/types";
 import { getReport } from "@/lib/api";
 import type { RouteKey } from "./routes";
 
+type NavigationSnapshot = {
+  route: RouteKey;
+  config: SessionConfig | null;
+  sessionId: string | null;
+  report: FeedbackReport | null;
+};
+
+function readNavigationState(): NavigationSnapshot {
+  if (typeof window === "undefined") {
+    return { route: "setup", config: null, sessionId: null, report: null };
+  }
+
+  if (window.history.state && typeof window.history.state === "object") {
+    return window.history.state as NavigationSnapshot;
+  }
+
+  return { route: "setup", config: null, sessionId: null, report: null };
+}
+
 export default function App() {
-  const [route, setRoute] = useState<RouteKey>("setup");
-  const [config, setConfig] = useState<SessionConfig | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [report, setReport] = useState<FeedbackReport | null>(null);
-  type NavigationSnapshot = {
-    route: RouteKey;
-    config: SessionConfig | null;
-    sessionId: string | null;
-    report: FeedbackReport | null;
-  };
+  const [navigation, setNavigation] = useState<NavigationSnapshot>(() => readNavigationState());
+  const { route, config, sessionId, report } = navigation;
 
   const applyNavigationState = useCallback((nextState: NavigationSnapshot, { push = true, replace = false }: { push?: boolean; replace?: boolean } = {}) => {
-    setRoute(nextState.route);
-    setConfig(nextState.config);
-    setSessionId(nextState.sessionId);
-    setReport(nextState.report);
+    setNavigation(nextState);
 
     if (typeof window === "undefined" || !push) return;
 
@@ -40,13 +48,7 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
-    const initialState: NavigationSnapshot = window.history.state && typeof window.history.state === "object"
-      ? window.history.state
-      : { route: "setup", config: null, sessionId: null, report: null };
-
-    applyNavigationState(initialState, { push: false });
-    window.history.replaceState(initialState, "");
+    window.history.replaceState(readNavigationState(), "");
 
     const handlePopState = (event: PopStateEvent) => {
       const snapshot: NavigationSnapshot = event.state && typeof event.state === "object"
@@ -104,19 +106,6 @@ export default function App() {
                 report: null,
               });
             }}
-            onOpenReport={async (sid) => {
-              try {
-                const rep = await getReport(sid);
-                applyNavigationState({
-                  route: "feedback",
-                  config: null,
-                  sessionId: sid,
-                  report: rep,
-                });
-              } catch (error) {
-                console.error("Failed to open report", error);
-              }
-            }}
           />
         )}
 
@@ -124,7 +113,7 @@ export default function App() {
           <PreviewPage
             config={config}
             sessionId={sessionId}
-            setConfig={setConfig}
+            setConfig={(nextConfig) => setNavigation((prev) => ({ ...prev, config: nextConfig }))}
             onBack={() => window.history.back()}
             onStartInterview={() => {
               applyNavigationState({
@@ -150,14 +139,14 @@ export default function App() {
               });
             }}
             onReportUpdate={(rep) => {
-              setReport(rep);
+              setNavigation((prev) => ({ ...prev, report: rep }));
             }}
-            onBack={() => window.history.back()}
           />
         )}
 
         {route === "feedback" && report && sessionId && (
           <FeedbackPage
+            key={sessionId}
             initialReport={report}
             sessionId={sessionId}
             expectVision={Boolean(config?.consent?.camera)}
