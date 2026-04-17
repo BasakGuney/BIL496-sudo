@@ -806,5 +806,61 @@
     "interview_type": "Technical",
     "language": "tr",
     "is_meta": false
+  },
+  {
+    "id": 102,
+    "question_text": "Peki, bu geri bildirimlerden aldığınız en önemli ders neydi?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 103,
+    "question_text": "Şimdi biraz farklı bir konuya geçelim: Sizi en çok motive eden şey nedir bu pozisyonda?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 104,
+    "question_text": "Sizi bu pozisyonda en çok motive eden uzun vadeli kariyer hedefleriniz neler?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 105,
+    "question_text": "Kullanıcı deneyimi ve performans odaklı geliştirdiğiniz bir yaklaşımı örnekleriyle anlatır mısınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 106,
+    "question_text": "Bu alanda karşılaştığınız teknik zorluklar nelerdi ve nasıl çözdünüz?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 107,
+    "question_text": "Performans iyileştirmesi yaptığınız bir süreçte sizin bireysel katkınız tam olarak neydi?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 108,
+    "question_text": "Test ve optimizasyon süreçlerinde hangi adımları yönettiniz ve hangi teknik sorunlarla karşılaştınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
   }
 ]

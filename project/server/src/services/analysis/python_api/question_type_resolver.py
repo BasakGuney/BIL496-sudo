@@ -205,9 +205,13 @@ def detect_setup_or_meta(question: str) -> bool:
         r"\btesekkur ederim\b",
         r"\bgorusmek uzere\b",
         r"\bbaska sorunuz var mi\b",
+        r"\bbaska bir sorunuz var mi\b",
         r"\bherhangi bir sorunuz var mi\b",
         r"\bsormak istediginiz bir sey var mi\b",
         r"\bsormak istediginiz bir soru var mi\b",
+        r"\bbaska eklemek istediginiz bir sey var mi\b",
+        r"\beklemek istediginiz bir sey var mi\b",
+        r"\bbu soru ve yanitlarimizla ilgili baska eklemek istediginiz\b",
         r"\bakliniza takilan herhangi bir sey var mi\b",
         r"\bakliniza takilan bir sey var mi\b",
         r"\bakliniza takilan herhangi bir soru var mi\b",
@@ -218,50 +222,8 @@ def detect_setup_or_meta(question: str) -> bool:
 
 
 def direct_rule_match(question: str, interview_type: str = "Technical"):
-    text = _normalize_text(question)
-
-    if re.search(
-        r"bahsettiginiz o staj|bahsettiginiz staj|bir tanesi uzerinde biraz daha dur|"
-        r"bir tanesi üzerinde biraz daha dur|o deneyimlerden birini anlat|"
-        r"en cok neyi faydali buldunuz|en çok neyi faydalı buldunuz|"
-        r"hangi stajinizdan bahsetmek istersiniz|hangi stajınızdan bahsetmek istersiniz",
-        text,
-    ):
-        return "experience"
-    if re.search(r"kendinizden bahsed|kendinizi tanit|sizi biraz tanimak istiyorum", text):
-        return "self_presentation"
-    if re.search(r"neden bu pozisyon|neden bu rol|neden bizim sirket|neden basvurd|motivasyon", text):
-        return "motivation"
-    if interview_type == "HR" and re.search(
-        r"ornek verebilir misiniz|nasil davrand|nasil yonettiniz|nasil yönettiniz|"
-        r"hangi adimlari attiniz|hangi adımları attınız|bireysel katkiniz neydi|bireysel katkınız neydi|"
-        r"catisma|çatışma|baski altinda|baskı altında|zor durum|zorlandiginiz|zorlandığınız|"
-        r"sonuc ne oldu|ölculebilir bir etki|ölçülebilir bir etki|iletisim kurdunuz|iletişim kurdunuz|"
-        r"araci oldunuz|aracı oldunuz|ne farklilasti|ne farklılaştı",
-        text
-    ):
-        return "behavioral"
-    if re.search(
-        r"hangi araclari kullandiniz|hangi teknolojileri kullandiniz|hangi metri|dogruluk orani|olculebilir etki|"
-        r"pipeline|performansini olcmek|performansini ölçmek|verimliligi nasil etkilendi|verimliliği nasıl etkilendi|"
-        r"nasil bir donusum saglandi|nasil bir dönüşüm sağlandi|hangi adimlari izlediniz ve sonuc|"
-        r"hangi adimlari izlediniz ve nasil bir cozum|hangi adımları izlediniz ve nasıl bir çözüm|"
-        r"ne tur bir donusum saglandi|ne tür bir dönüşüm sağlandı|zaman tasarrufu|hangi sonucu elde edildi|"
-        r"hangi sonucu elde ettiniz|dogruluk gibi bir sonuc|doğruluk gibi bir sonuç",
-        text
-    ):
-        return "technical_experience"
-    if re.search(r"bir durum anlat|ornek verebilir misiniz|nasil davrand|en buyuk zorluk|nasil astiniz", text):
-        return "behavioral"
-    if re.search(r"kullandiginiz bir proje|hangi problemleri cozdunuz|hangi teknolojileri kullandiniz|nlp modelini sectiniz", text):
-        return "technical_experience"
-    if re.search(r"nasil tasarlar|nasil cozerdiniz|nasil analiz eder|nasil saglarsiniz|yaklasirdiniz", text):
-        return "problem_solving"
-    if re.search(r"\bnedir\b|\bnasil calisir\b|arasindaki fark nedir", text):
-        return "technical_knowledge"
-    if re.search(r"daha once .* proje|hangi projelerde|hangi sorumluluk|hangi rolde|hangi gorevleri", text):
-        return "experience"
-
+    _ = question
+    _ = interview_type
     return None
 
 
@@ -339,6 +301,26 @@ def infer_question_type(question: str, interview_type: str = "Technical", limit:
 
     if not results:
         return _build_fallback_result(question, interview_type)
+
+    normalized_question = _normalize_text(question)
+    top_point = results[0]
+    top_question = str(top_point.payload.get("question_text", "") or "")
+    if _normalize_text(top_question) == normalized_question:
+        result = {
+            "questionType": top_point.payload.get("question_type", "unknown"),
+            "method": "qdrant_exact",
+            "confidence": 1.0,
+            "matches": [
+                {
+                    "score": round(float(point.score or 0.0), 4),
+                    "questionType": point.payload.get("question_type", "unknown"),
+                    "question": point.payload.get("question_text", ""),
+                }
+                for point in results
+            ],
+        }
+        _log_question_type_decision(question, result)
+        return result
 
     weighted = {}
     matches = []
