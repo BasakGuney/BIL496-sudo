@@ -68,4 +68,60 @@ describe("FeedbackPage smoke", () => {
       expect(screen.getAllByText("Tamamlandı").length).toBeGreaterThanOrEqual(2);
     });
   });
+
+  it("keeps audio analysis pending until the final completed report arrives", async () => {
+    vi.mocked(getReport).mockResolvedValue({
+      ...pendingReport,
+      audioLlmReport: {
+        overallScore: 79,
+        completed: true,
+        overallAnalysis: "Final ses raporu",
+        recommendations: {
+          nextInterview: "Final öneri",
+          performanceDevelopment: "Final gelişim önerisi",
+        },
+      },
+      analysisStatus: {
+        audio: true,
+        audioLlm: true,
+        transcript: false,
+        vision: false,
+        visionLlm: false,
+      },
+    });
+
+    render(
+      <FeedbackPage
+        initialReport={{
+          ...pendingReport,
+          audioLlmReport: {
+            overallScore: 65,
+            completed: false,
+            overallAnalysis: "Ara ses raporu",
+            recommendations: {
+              nextInterview: "Ara öneri",
+              performanceDevelopment: "Ara gelişim önerisi",
+            },
+          },
+          analysisStatus: {
+            audio: true,
+            audioLlm: false,
+            transcript: false,
+            vision: false,
+            visionLlm: false,
+          },
+        }}
+        sessionId="S-100"
+        expectVision={false}
+      />
+    );
+
+    expect(screen.getByText("Ses Analizi Hazırlanıyor")).toBeInTheDocument();
+    expect(screen.queryByText("Ara öneri")).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText("Final öneri")).toBeInTheDocument();
+      expect(screen.queryByText("Ara öneri")).not.toBeInTheDocument();
+    });
+  });
 });

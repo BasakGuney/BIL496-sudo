@@ -4,10 +4,7 @@ export class ReportView {
   static fromReport(report) {
     const feedbackArtifacts = report?.feedbackArtifacts || {};
     const audioLlmReport = feedbackArtifacts?.audioLlmReport || null;
-    const audioCompleted = Boolean(
-      audioLlmReport?.completed === true ||
-      Number.isFinite(Number(audioLlmReport?.overallScore))
-    );
+    const audioCompleted = Boolean(audioLlmReport?.completed === true);
 
     return {
       id: report?.id || `R-${report?.sessionId || "unknown"}`,

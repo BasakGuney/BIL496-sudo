@@ -53,8 +53,7 @@ function computeOverallAudioPerformance(scores: Array<{ label: string; score: nu
 
 function isFinalAudioReport(llm: FeedbackReport["audioLlmReport"]) {
   if (!llm) return false;
-  if (llm.completed === true) return true;
-  return Number.isFinite(Number(llm.overallScore));
+  return llm.completed === true;
 }
 
 function isAudioAnalysisReady(report: FeedbackReport) {
