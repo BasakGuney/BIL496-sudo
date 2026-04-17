@@ -355,15 +355,15 @@ export function InterviewPage({
   const frameBox = (() => {
     if (!overlay.box || !overlay.imageWidth || !overlay.imageHeight) return null;
     const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-    const margin = 1.25;
+    const margin = 1.5;
     const x = overlay.box.x + overlay.box.width / 2;
     const y = overlay.box.y + overlay.box.height / 2;
-    const paddingX = overlay.box.width * 0.42;
-    const paddingY = overlay.box.height * 0.55;
+    const paddingX = Math.max(overlay.box.width * 0.14, overlay.imageWidth * 0.018);
+    const paddingY = Math.max(overlay.box.height * 0.18, overlay.imageHeight * 0.024);
     const rawWidth = (overlay.box.width + paddingX * 2) / overlay.imageWidth * 100;
     const rawHeight = (overlay.box.height + paddingY * 2) / overlay.imageHeight * 100;
-    const width = clamp(rawWidth, 18, 100 - margin * 2);
-    const height = clamp(rawHeight, 22, 100 - margin * 2);
+    const width = clamp(rawWidth, 14, 72);
+    const height = clamp(rawHeight, 18, 82);
     const left = clamp((x - paddingX) / overlay.imageWidth * 100, margin, 100 - margin - width);
     const top = clamp((y - paddingY) / overlay.imageHeight * 100, margin, 100 - margin - height);
     return { left, top, width, height };
@@ -545,7 +545,7 @@ export function InterviewPage({
               />
             )}
             {supportiveMode && !frameBox && (
-              <div className={cn("absolute left-1/2 top-1/2 w-[52%] h-[68%] -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 transition-colors duration-300", framingGuideClass)} />
+              <div className={cn("absolute left-1/2 top-1/2 w-[42%] h-[58%] -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 transition-colors duration-300", framingGuideClass)} />
             )}
             <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
               <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur text-[8px] font-medium text-white/70">
@@ -586,5 +586,4 @@ export function InterviewPage({
     </div>
   );
 }
-
 
