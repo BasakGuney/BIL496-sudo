@@ -11,6 +11,12 @@ const POLL_INTERVAL_MS = 2500;
 const MISSING_REPORT_POLL_INTERVAL_MS = 1500;
 const MAX_ANALYSIS_WAIT_MS = 300_000; // Increased to 5 minutes to ensure long vision analysis completes
 
+type TranscriptAnalysisView = {
+  overall?: {
+    overallScore?: number;
+  };
+};
+
 function normalizeMetricLabel(label: string) {
   return String(label || "")
     .toLowerCase()
@@ -281,11 +287,7 @@ export function FeedbackPage({
 }) {
   const [report, setReport] = useState<FeedbackReport>(initialReport);
   const [refreshError, setRefreshError] = useState("");
-  const transcriptOverall = (report.transcriptAnalysis as any)?.overall;
-
-  useEffect(() => {
-    setReport(initialReport);
-  }, [sessionId]);
+  const transcriptOverall = (report.transcriptAnalysis as TranscriptAnalysisView | null | undefined)?.overall;
 
   useEffect(() => {
     let cancelled = false;
@@ -299,7 +301,10 @@ export function FeedbackPage({
           setReport(latest);
           setRefreshError("");
         }
-        const transcriptArtifactReady = Boolean((latest.transcriptAnalysis as any)?.overall || latest.analysisStatus?.transcript);
+        const transcriptArtifactReady = Boolean(
+          (latest.transcriptAnalysis as TranscriptAnalysisView | null | undefined)?.overall
+          || latest.analysisStatus?.transcript
+        );
         const audioArtifactReady = isAudioAnalysisReady(latest);
         const visionArtifactReady = Boolean(latest.visionLlmAnalysis?.report || latest.analysisStatus?.visionLlm);
         const shouldExpectVision = Boolean(
@@ -322,13 +327,15 @@ export function FeedbackPage({
         if (!cancelled && !done && attempts < Math.ceil(MAX_ANALYSIS_WAIT_MS / POLL_INTERVAL_MS)) {
           retryTimer = window.setTimeout(refresh, POLL_INTERVAL_MS);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         attempts += 1;
         if (!cancelled && attempts < Math.ceil(MAX_ANALYSIS_WAIT_MS / MISSING_REPORT_POLL_INTERVAL_MS)) {
           retryTimer = window.setTimeout(refresh, MISSING_REPORT_POLL_INTERVAL_MS);
           return;
         }
-        if (!cancelled) setRefreshError(error?.message || "Rapor alınırken bir hata oluştu.");
+        if (!cancelled) {
+          setRefreshError(error instanceof Error ? error.message : "Rapor alınırken bir hata oluştu.");
+        }
       }
     };
 

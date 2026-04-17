@@ -4,6 +4,30 @@ import { AlertCircle, CheckCircle2, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScoreHero } from "./ScoreHero";
 
+type TranscriptQuestion = {
+  index: number;
+  score?: number;
+  question?: string;
+  questionType?: string;
+  summary?: string;
+  visibleInReport?: boolean;
+  excludedFromOverall?: boolean;
+  applicableMetrics?: string[];
+  metrics?: Record<string, unknown>;
+};
+
+type TranscriptAnalysisView = {
+  overall?: {
+    overallScore?: number;
+    overallAnalysis?: string;
+    strengths?: string[];
+    improvementAreas?: string[];
+    dimensionScores?: Record<string, number>;
+  };
+  qaEvaluations?: TranscriptQuestion[];
+  newRecommendations?: Record<string, string[]>;
+};
+
 function scoreTone(score: number) {
   if (score >= 80) {
     return {
@@ -77,10 +101,10 @@ function MetricCell({
   );
 }
 
-export function TranscriptAnalysisTab({ report }: { report: any }) {
-  const analysis = report?.transcriptAnalysis;
+export function TranscriptAnalysisTab({ report }: { report: { transcriptAnalysis?: unknown } }) {
+  const analysis = report?.transcriptAnalysis as TranscriptAnalysisView | null | undefined;
   const overall = analysis?.overall;
-  const qaEvaluations = (Array.isArray(analysis?.qaEvaluations) ? analysis.qaEvaluations : []).filter((question: any) => {
+  const qaEvaluations = (Array.isArray(analysis?.qaEvaluations) ? analysis.qaEvaluations : []).filter((question) => {
     const questionType = String(question?.questionType || "").trim().toLowerCase();
     return questionType !== "meta" && question?.visibleInReport !== false && question?.excludedFromOverall !== true;
   });
@@ -209,7 +233,7 @@ export function TranscriptAnalysisTab({ report }: { report: any }) {
       <div className="card-style bg-enterprise-surface p-6">
         <h3 className="text-sm font-bold text-white mb-4">Soru Bazlı Değerlendirme</h3>
         <div className="space-y-3">
-          {qaEvaluations.map((question: any) => {
+          {qaEvaluations.map((question) => {
             const tone = scoreTone(Number(question.score || 0));
             const metrics = question.metrics || {};
             const applicableMetrics = Array.isArray(question.applicableMetrics) ? question.applicableMetrics : [];
