@@ -11,6 +11,7 @@ server/*.so
 server/.Python
 server/.pytest_cache/
 server/.env/
+server/.venv-analysis/
 **/.model-cache/
 
 # Python packaging
