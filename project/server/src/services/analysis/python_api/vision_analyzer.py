@@ -501,8 +501,8 @@ Yorum üretirken:
 - `overallLabel`: skora göre kısa rozet metni (örn. \"Görsel sunum beklenen standardı karşılıyor\").
 - `overallAnalysis`: 4-5 cümle nesnel genel değerlendirme.
 - `scoreDetails`: her skor için 2-3 cümlelik açıklama. Mutlaka doldur ve metriklerle ilişkilendir.
-- `strengths`: Puanlardan yola çıkarak beklenen düzeyin **üzerinde** olan 3 görsel sunum noktasını string listesi olarak yaz. Mutlaka doldur; boş bırakma.
-- `improvementAreas`: Puanlardan yola çıkarak geliştirilmesi veya izlenmesi gereken 3 noktayı string listesi olarak yaz. Mutlaka doldur; boş bırakma.
+- `strengths`: Sadece gerçekten beklenen düzeyin **üzerinde** olan 0-3 görsel sunum noktasını string listesi olarak yaz. Belirgin güçlü yön yoksa boş liste döndür.
+- `improvementAreas`: Puanlardan yola çıkarak geliştirilmesi veya izlenmesi gereken öncelikli 1-3 noktayı string listesi olarak yaz.
 - `recommendations.nextInterview`: Bir sonraki mülakatta hemen uygulanabilecek 2-3 somut kamera/sunum ipucu. Mutlaka doldur.
 - `recommendations.performanceDevelopment`: Orta vadede kamera görünümünü iyileştirmek için 2-3 pratik öneri. Mutlaka doldur.
 
@@ -633,6 +633,136 @@ def _build_vision_recommendations(raw: dict, scores: dict, overall_score: int) -
     }
 
 
+def _dedupe_text_list(items, limit: int = 3) -> list:
+    out = []
+    for item in items if isinstance(items, list) else []:
+        text = str(item or "").strip()
+        if not text or text in out:
+            continue
+        out.append(text)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _build_vision_highlights(raw: dict, scores: dict) -> tuple[list, list]:
+    overview = raw.get("overview", {}) if isinstance(raw, dict) else {}
+    tension = raw.get("tension", {}) if isinstance(raw, dict) else {}
+
+    face_presence_score = int(scores.get("facePresenceScore", 0) or 0)
+    centering_score = int(scores.get("centeringScore", 0) or 0)
+    steadiness_score = int(scores.get("steadinessScore", 0) or 0)
+    visual_tension_score = int(scores.get("visualTensionScore", 0) or 0)
+
+    face_presence_ratio = float(overview.get("facePresenceRatio", 0) or 0)
+    average_face_area_ratio = float(overview.get("averageFaceAreaRatio", 0) or 0)
+    average_center_offset = float(overview.get("averageCenterOffset", 0) or 0)
+    head_movement_raw = float(overview.get("headMovementRaw", 0) or 0)
+    attention_risk_score = int(tension.get("attentionRiskScore", 0) or 0)
+    attention_drift_ratio = float(tension.get("attentionDriftRatio", 0) or 0)
+    danger_frame_ratio = float(tension.get("dangerFrameRatio", 0) or 0)
+
+    face_presence_pct = int(round(face_presence_ratio * 100))
+    face_area_pct = int(round(average_face_area_ratio * 100))
+    center_offset_pct = int(round(average_center_offset * 100))
+    attention_drift_pct = int(round(attention_drift_ratio * 100))
+    danger_frame_pct = int(round(danger_frame_ratio * 100))
+
+    strengths = []
+    improvement_areas = []
+
+    face_area_balanced = 8 <= face_area_pct <= 30
+
+    if face_presence_score >= 88 and face_presence_ratio >= 0.9:
+        strengths.append(f"Yüz görünürlüğü güçlü; oturumun yaklaşık %{face_presence_pct}'inde yüz kadraj içinde kaldı.")
+
+    if centering_score >= 82 and average_center_offset <= 0.11 and face_area_balanced:
+        strengths.append(
+            f"Kadraj ve merkezleme dengeli; merkez sapması yaklaşık %{center_offset_pct} ve yüz alanı %{face_area_pct} seviyesinde kaldı."
+        )
+
+    if steadiness_score >= 80 and head_movement_raw <= 0.06:
+        strengths.append(f"Stabilite güçlü; baş hareketi indeksi yaklaşık {head_movement_raw:.3f} ile kontrollü kaldı.")
+
+    if visual_tension_score <= 22 and attention_risk_score <= 20 and attention_drift_ratio <= 0.08:
+        strengths.append(f"Görsel stres düşük; dikkat kayması yaklaşık %{attention_drift_pct} ile sınırlı kaldı.")
+
+    if face_presence_score < 80 or face_presence_ratio < 0.9:
+        improvement_areas.append(
+            f"Yüz görünürlüğü artırılmalı; kamera varlığı yaklaşık %{face_presence_pct} seviyesinde kaldı."
+        )
+
+    framing_needs_work = (
+        centering_score < 80
+        or average_center_offset > 0.12
+        or average_face_area_ratio < 0.08
+        or average_face_area_ratio > 0.32
+    )
+    if framing_needs_work:
+        if average_face_area_ratio < 0.08:
+            framing_detail = f"yüz kadrajda küçük kaldı (alan ~%{face_area_pct})"
+        elif average_face_area_ratio > 0.32:
+            framing_detail = f"kamera fazla yakın kaldı ve yüz alanı büyüdü (alan ~%{face_area_pct})"
+        else:
+            framing_detail = f"merkez sapması yaklaşık %{center_offset_pct} seviyesinde kaldı"
+        improvement_areas.append(f"Kadraj daha tutarlı kurulmalı; {framing_detail}.")
+
+    if steadiness_score < 75 or head_movement_raw > 0.06:
+        improvement_areas.append(
+            f"Stabilite geliştirilmeli; hareket indeksi yaklaşık {head_movement_raw:.3f} ile beklenen seviyenin dışında."
+        )
+
+    if visual_tension_score > 30 or attention_risk_score > 30 or attention_drift_ratio > 0.12 or danger_frame_ratio > 0.08:
+        improvement_areas.append(
+            f"Dikkat ve bakış istikrarı izlenmeli; drift yaklaşık %{attention_drift_pct}, riskli kare oranı %{danger_frame_pct}."
+        )
+
+    strengths = _dedupe_text_list(strengths, limit=3)
+    improvement_areas = _dedupe_text_list(improvement_areas, limit=3)
+
+    if not strengths:
+        strongest_metric = max(
+            [
+                ("face", face_presence_score),
+                ("framing", centering_score),
+                ("steadiness", steadiness_score),
+                ("tension", 100 - visual_tension_score),
+            ],
+            key=lambda item: item[1],
+        )
+        metric_key, metric_score = strongest_metric
+        if metric_score >= 75:
+            if metric_key == "face":
+                strengths.append(f"Yüz görünürlüğü en tutarlı alan oldu; görünürlük yaklaşık %{face_presence_pct}.")
+            elif metric_key == "framing":
+                strengths.append(f"Kadraj diğer metriklere göre daha dengeli kaldı; merkez sapması yaklaşık %{center_offset_pct}.")
+            elif metric_key == "steadiness":
+                strengths.append(f"Stabilite diğer alanlara göre daha kontrollü kaldı; hareket indeksi yaklaşık {head_movement_raw:.3f}.")
+            else:
+                strengths.append(f"Görsel stres diğer risklere göre daha sınırlı kaldı; drift yaklaşık %{attention_drift_pct}.")
+
+    if not improvement_areas:
+        weakest_metric = min(
+            [
+                ("face", face_presence_score),
+                ("framing", centering_score),
+                ("steadiness", steadiness_score),
+                ("tension", 100 - visual_tension_score),
+            ],
+            key=lambda item: item[1],
+        )[0]
+        if weakest_metric == "face":
+            improvement_areas.append(f"Yüz görünürlüğünü oturum boyunca %{face_presence_pct} üzeri tutacak sabit bir kamera hizası korunmalı.")
+        elif weakest_metric == "framing":
+            improvement_areas.append(f"Kadrajı korumak için merkez sapmasını %{center_offset_pct} altına çekecek sabit oturuş korunmalı.")
+        elif weakest_metric == "steadiness":
+            improvement_areas.append(f"Stabiliteyi korumak için baş hareketini {head_movement_raw:.3f} seviyesinin altında tutan duruş sürdürülmeli.")
+        else:
+            improvement_areas.append(f"Dikkat kaymasını düşük tutmak için drift oranı %{attention_drift_pct} çevresinde korunmalı.")
+
+    return strengths[:3], improvement_areas[:3]
+
+
 def build_final_vision_report(raw: dict, scores: dict, gpt_out: dict) -> dict:
     """Python skorları + GPT metin çıktısı → final UI JSON'u."""
     fp = scores["facePresenceScore"]
@@ -654,6 +784,7 @@ def build_final_vision_report(raw: dict, scores: dict, gpt_out: dict) -> dict:
     attention_drift_pct = int(round(attention_drift_ratio * 100))
 
     overall_score = round(fp * 0.35 + cs * 0.25 + ss * 0.25 + (100 - vt) * 0.15)
+    strengths, improvement_areas = _build_vision_highlights(raw, scores)
 
     score_details = gpt_out.get("scoreDetails", {}) if isinstance(gpt_out.get("scoreDetails"), dict) else {}
 
@@ -742,8 +873,8 @@ def build_final_vision_report(raw: dict, scores: dict, gpt_out: dict) -> dict:
         "standardStatus":  str(gpt_out.get("standardStatus")  or ""),
         "riskPoint":       str(gpt_out.get("riskPoint")        or ""),
         "scores":          scores_list,
-        "strengths":       _safe_list(gpt_out.get("strengths")),
-        "improvementAreas":_safe_list(gpt_out.get("improvementAreas")),
+        "strengths":       strengths,
+        "improvementAreas": improvement_areas,
         "recommendations": recs,
     }
 
@@ -756,6 +887,7 @@ def _build_fallback_vision_report(raw: dict, scores: dict, error: str) -> dict:
     vt = scores["visualTensionScore"]
     overall_score = round(fp * 0.35 + cs * 0.25 + ss * 0.25 + (100 - vt) * 0.15)
     band = _vision_score_band(overall_score)
+    strengths, improvement_areas = _build_vision_highlights(raw, scores)
 
     def _face_d(v):
         if v >= 80: return "Yüz tüm oturum boyunca kamerada görünür durumdaydı."
@@ -777,18 +909,12 @@ def _build_fallback_vision_report(raw: dict, scores: dict, error: str) -> dict:
     if band == "low":
         overall_label = "Görsel analiz düşük bantta tamamlandı."
         overall_analysis = "Görsel metrikler düşük seviyede kaldı; kamera varlığı, kadraj ve stabilite birlikte iyileştirilmeli."
-        strengths = ["Ölçüm sırasında bazı anlarda yüz varlığı yakalandı."]
-        improvement_areas = ["Kadrajı daha sabit tutma", "Kamera karşısında daha dengeli duruş"]
     elif band == "mid":
         overall_label = "Görsel analiz orta bantta tamamlandı."
         overall_analysis = "Görsel performans orta seviyede; kadraj ve dikkat istikrarı biraz daha güçlendirildiğinde sonuç belirgin şekilde yükselebilir."
-        strengths = ["Yüz varlığı ve kamera takibi oturumun önemli bölümünde sürdü."]
-        improvement_areas = ["Merkezleme tutarlılığı", "Küçük baş hareketlerini azaltma"]
     else:
         overall_label = "Görsel analiz güçlü bantta tamamlandı."
         overall_analysis = "Görsel sunum genel olarak güçlü; küçük kadraj ve dikkat ayarlarıyla sonuç daha da sağlamlaştırılabilir."
-        strengths = ["Kamera varlığı yüksek", "Duruş ve kadraj genel olarak dengeli"]
-        improvement_areas = ["Mikro kadraj ayarları", "Bakış istikrarını koruma"]
 
     return {
         "overallScore":    overall_score,
@@ -866,4 +992,3 @@ if __name__ == "__main__":
             ),
             "traceback": traceback.format_exc(),
         }))
-
