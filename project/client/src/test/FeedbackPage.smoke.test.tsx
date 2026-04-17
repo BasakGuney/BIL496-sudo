@@ -40,7 +40,7 @@ describe("FeedbackPage smoke", () => {
     cleanup();
   });
 
-  it("polls and updates the visible analysis status when artifacts become ready", async () => {
+  it("[FR-11] polls and updates the visible analysis status when artifacts become ready", async () => {
     vi.mocked(getReport).mockResolvedValue({
       ...pendingReport,
       transcriptAnalysis: {
@@ -73,7 +73,7 @@ describe("FeedbackPage smoke", () => {
     });
   });
 
-  it("keeps audio analysis pending until the final completed report arrives", async () => {
+  it("[STC-05] keeps audio analysis pending until the final completed report arrives", async () => {
     let resolveReport: ((value: FeedbackReport) => void) | null = null;
     vi.mocked(getReport).mockImplementation(
       () =>

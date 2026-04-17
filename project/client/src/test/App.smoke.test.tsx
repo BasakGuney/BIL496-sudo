@@ -73,7 +73,7 @@ vi.mock("@/lib/api", () => ({
 }));
 
 describe("App smoke", () => {
-  it("advances through setup, preview, interview, and feedback states", () => {
+  it("[STC-04][UAT-01] advances through setup, preview, interview, and feedback states", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "setup-next" }));

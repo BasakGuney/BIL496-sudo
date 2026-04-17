@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PythonAnalysisClient } from "../src/services/analysis/PythonAnalysisClient.js";
 
 describe("PythonAnalysisClient smoke", () => {
-  it("degrades gracefully when the transcript service is unavailable", async () => {
+  it("[UTC-05][PTC-03] degrades gracefully when the transcript service is unavailable", async () => {
     const logger = { warn: vi.fn(), error: vi.fn(), info: vi.fn() };
     const client = new PythonAnalysisClient({
       fetchImpl: vi.fn(async () => {
@@ -23,7 +23,7 @@ describe("PythonAnalysisClient smoke", () => {
     expect(logger.warn).toHaveBeenCalled();
   });
 
-  it("degrades gracefully when the vision service times out", async () => {
+  it("[PTC-03] degrades gracefully when the vision service times out", async () => {
     const logger = { warn: vi.fn(), error: vi.fn(), info: vi.fn() };
     const client = new PythonAnalysisClient({
       fetchImpl: vi.fn(async () => {

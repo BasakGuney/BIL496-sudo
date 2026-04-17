@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "node index.js",
-    "test:smoke": "vitest run"
+    "test:smoke": "vitest run",
+    "test:smoke:verbose": "vitest run --reporter=verbose"
   },
   "dependencies": {
     "cors": "^2.8.5",

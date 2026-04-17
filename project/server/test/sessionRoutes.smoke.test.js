@@ -91,7 +91,7 @@ describe("session route smoke", () => {
     reportController = new ReportController({ backendOrchestrator: orchestrator });
   });
 
-  it("declares the expected lifecycle and supportive routes", () => {
+  it("[ITC-04] declares the expected lifecycle and supportive routes", () => {
     const router = createSessionRouter({
       sessionController: { createSession: () => {}, startSession: () => {}, updateSessionConfig: () => {}, generatePreviewQuestions: () => {}, generateLiveHints: () => {}, generateLiveFeedback: () => {}, recordUsage: () => {} },
       consentController: { updateConsent: () => {} },
@@ -115,7 +115,7 @@ describe("session route smoke", () => {
     );
   });
 
-  it("returns validation details for invalid session configuration", async () => {
+  it("[UTC-01] returns validation details for invalid session configuration", async () => {
     const req = { body: {}, query: {}, params: {} };
     const res = createResponse();
     const next = vi.fn();
@@ -137,7 +137,7 @@ describe("session route smoke", () => {
     expect(orchestrator.createSession).not.toHaveBeenCalled();
   });
 
-  it("maps create, start, end, and supportive controller outputs", async () => {
+  it("[ITC-01][UTC-04] maps create, start, end, and supportive controller outputs", async () => {
     const createRes = createResponse();
     await sessionController.createSession({ body: validSessionBody, query: {}, params: {} }, createRes, vi.fn());
     expect(createRes.body.sessionId).toBe("S-1");

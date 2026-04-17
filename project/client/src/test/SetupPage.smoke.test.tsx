@@ -13,7 +13,7 @@ describe("SetupPage smoke", () => {
     vi.mocked(startSession).mockReset();
   });
 
-  it("submits setup and forwards the prepared session", async () => {
+  it("[ITC-01] submits setup and forwards the prepared session", async () => {
     vi.mocked(startSession).mockResolvedValue({
       sessionId: "S-123",
       previewQuestions: [],
@@ -32,6 +32,18 @@ describe("SetupPage smoke", () => {
         expect.objectContaining({ role: "Frontend Developer", mode: "Supportive" }),
         "S-123"
       );
+    });
+  });
+
+  it("[NFR-03] shows the backend error when session preparation fails", async () => {
+    vi.mocked(startSession).mockRejectedValue(new Error("Kurulum servisi gecici olarak kullanılamıyor."));
+
+    render(<SetupPage onPrepared={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /mülakatı hazırla/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Kurulum servisi gecici olarak kullanılamıyor.")).toBeInTheDocument();
     });
   });
 });

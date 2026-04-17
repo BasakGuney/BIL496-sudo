@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BACKEND_URL } from "@/lib/config";
-import { startSession, waitForReadyReport } from "@/lib/api";
+import { generatePreviewQuestions, getHistoryInsights, listReports, startSession, updateSessionConfig, waitForReadyReport } from "@/lib/api";
 import type { FeedbackReport, SessionConfig } from "@/lib/types";
 
 const config: SessionConfig = {
@@ -18,7 +18,7 @@ const config: SessionConfig = {
   candidateBrief: null,
 };
 
-describe("client api smoke", () => {
+describe("Client API smoke", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -27,7 +27,7 @@ describe("client api smoke", () => {
     vi.useRealTimers();
   });
 
-  it("routes session creation through the backend API", async () => {
+  it("[UTC-06][ITC-01] routes session creation through the backend API", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ sessionId: "S-77", previewQuestions: [] }), {
         status: 200,
@@ -43,7 +43,7 @@ describe("client api smoke", () => {
     );
   });
 
-  it("polls report status until the backend marks every required analysis as ready", async () => {
+  it("[FR-11] polls report status until the backend marks every required analysis as ready", async () => {
     vi.useFakeTimers();
 
     const pendingReport: FeedbackReport = {
@@ -110,6 +110,73 @@ describe("client api smoke", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       `${BACKEND_URL}/session/S-77/report`,
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("[ITC-02] routes preview-question generation through the backend API", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ questions: ["Q1", "Q2"] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const questions = await generatePreviewQuestions(config);
+
+    expect(questions).toEqual(["Q1", "Q2"]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/preview-questions`,
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("[ITC-02] routes session config updates through the backend API", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ config: { candidateBrief: { headline: "Ada" } } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const candidateBrief = await updateSessionConfig("S-77", config);
+
+    expect(candidateBrief).toEqual({ headline: "Ada" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/session/S-77/config`,
+      expect.objectContaining({ method: "PATCH" })
+    );
+  });
+
+  it("[UAT-01] routes history list and insight requests through the backend API", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ items: [{ sessionId: "S-1" }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ recentReports: [], trendMetrics: [], commentary: {} }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+
+    const reports = await listReports(10);
+    const insights = await getHistoryInsights(3);
+
+    expect(reports).toEqual([{ sessionId: "S-1" }]);
+    expect(insights).toEqual({ recentReports: [], trendMetrics: [], commentary: {} });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `${BACKEND_URL}/reports?limit=10`,
+      expect.objectContaining({ method: "GET" })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `${BACKEND_URL}/reports/history-insights?limit=3`,
       expect.objectContaining({ method: "GET" })
     );
   });

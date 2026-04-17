@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test:smoke": "vitest run",
+    "test:smoke:verbose": "vitest run --reporter=verbose",
     "preview": "vite preview"
   },
   "dependencies": {

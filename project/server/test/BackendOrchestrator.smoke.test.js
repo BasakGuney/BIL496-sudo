@@ -3,6 +3,7 @@ import { BackendOrchestrator } from "../src/orchestration/BackendOrchestrator.js
 import { InterviewSession } from "../src/domain/entities/InterviewSession.js";
 import { SessionConfig } from "../src/domain/value-objects/SessionConfig.js";
 import { SessionState } from "../src/domain/enums/SessionState.js";
+import { CostEstimator } from "../src/services/CostEstimator.js";
 
 function createSession() {
   return new InterviewSession({
@@ -61,7 +62,9 @@ describe("BackendOrchestrator smoke", () => {
     orchestrator = new BackendOrchestrator({
       sessions,
       reports,
-      ai: {},
+      ai: {
+        generateFirstQuestion: vi.fn(async (cfg) => `Ilk soru: ${cfg.role}`),
+      },
       analyzer,
       guardrails: {},
       realtimeManager: {},
@@ -77,7 +80,25 @@ describe("BackendOrchestrator smoke", () => {
     });
   });
 
-  it("falls back to candidate audio transcription when candidate transcript is missing", async () => {
+  it("[ITC-02] starts the session with the first question generated from the stored config", async () => {
+    session.state = SessionState.CONFIGURED;
+    orchestrator.guardrails = {
+      enforceStateForStart: vi.fn(),
+    };
+    orchestrator.reportArchive.saveSessionConfig = vi.fn(async () => undefined);
+
+    const result = await orchestrator.startSession("S-1");
+
+    expect(orchestrator.ai.generateFirstQuestion).toHaveBeenCalledWith(session.config);
+    expect(result).toEqual({
+      turnIndex: 1,
+      questionText: "Ilk soru: Frontend Developer",
+      sessionId: "S-1",
+    });
+    expect(session.state).toBe(SessionState.IN_PROGRESS);
+  });
+
+  it("[UTC-07] falls back to candidate audio transcription when candidate transcript is missing", async () => {
     await orchestrator.endSession(
       "S-1",
       null,
@@ -97,7 +118,7 @@ describe("BackendOrchestrator smoke", () => {
     );
   });
 
-  it("accepts incremental candidate audio once and marks duplicates", async () => {
+  it("[ITC-03] accepts incremental candidate audio once and marks duplicates", async () => {
     orchestrator.reportArchive.saveIncrementalCandidateAnswerAudio = vi.fn(async () => ({
       relativePath: "candidate/q1.webm",
       fullPath: "/tmp/q1.webm",
@@ -122,7 +143,7 @@ describe("BackendOrchestrator smoke", () => {
     expect(second).toEqual({ accepted: true, duplicate: true });
   });
 
-  it("hydrates partial legacy runtimeState before ingesting audio and vision frames", async () => {
+  it("[STC-05] hydrates partial legacy runtimeState before ingesting audio and vision frames", async () => {
     session.runtimeState = { vision: { status: "ready" } };
     orchestrator.visionFrameAnalyzer = {
       analyzeFrame: vi.fn(async () => ({
@@ -156,5 +177,79 @@ describe("BackendOrchestrator smoke", () => {
     expect(visionResult).toEqual(expect.objectContaining({ hasFace: true, faceCount: 1 }));
     expect(session.runtimeState.incrementalCandidateAnswerAudios).toHaveLength(1);
     expect(session.runtimeState.vision.sampledFrames).toBe(1);
+  });
+
+  it("[UTC-05][PTC-03] generates a report even when behavioral signals are partial and vision data is missing", async () => {
+    const partialReport = {
+      sessionId: "S-1",
+      overallScore: 68,
+      recommendations: [{ title: "Devam", text: "Yanıtları daha somutlaştır." }],
+      content: [{ key: "relevance", label: "Relevance", score: 70 }],
+      communication: [{ key: "clarity", label: "Clarity", score: 66 }],
+      behavioral: [],
+      notes: ["Vision unavailable, audio-only evaluation used."],
+      transcript: [],
+    };
+    analyzer.generateReport = vi.fn(async (_session, transcript, visionAnalysis) => ({
+      ...partialReport,
+      transcript,
+      visionAnalysisSeen: visionAnalysis,
+    }));
+
+    const report = await orchestrator.endSession(
+      "S-1",
+      null,
+      [{ role: "candidate", text: "Merhaba, ben Ada.", ts: 1000 }],
+      [{ questionIndex: 1, mimeType: "audio/webm", startedAt: 900, endedAt: 1400, audioBase64: "Zm9v" }],
+      null
+    );
+
+    expect(analyzer.generateReport).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining([expect.objectContaining({ role: "candidate", text: "Merhaba, ben Ada." })]),
+      expect.anything()
+    );
+    expect(report.overallScore).toBe(68);
+    expect(report.behavioral).toEqual([]);
+    expect(report.transcriptText).toContain("[Candidate] Merhaba, ben Ada.");
+    expect(report.visionAnalysis).toBeUndefined();
+    expect(reports.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("[PTC-04] carries token usage and estimated cost into the final report", async () => {
+    session.addTokenUsage("liveFeedback", { prompt_tokens: 1200, completion_tokens: 600 });
+    session.addTokenUsage("realtimeApi", {
+      input_tokens: 2000,
+      output_tokens: 900,
+      input_audio_seconds: 12,
+      output_audio_seconds: 8,
+    });
+    orchestrator.costEstimator = new CostEstimator();
+
+    const report = await orchestrator.endSession(
+      "S-1",
+      null,
+      [{ role: "candidate", text: "Cevabım hazır.", ts: 1000 }],
+      [],
+      null
+    );
+
+    expect(report.tokenUsage).toEqual(expect.objectContaining({
+      liveFeedback: expect.objectContaining({ prompt: 1200, completion: 600 }),
+      realtimeApi: expect.objectContaining({
+        inputTokens: 2000,
+        outputTokens: 900,
+        audioInputSeconds: 12,
+        audioOutputSeconds: 8,
+      }),
+    }));
+    expect(report.estimatedCost).toEqual(expect.objectContaining({
+      currency: "USD",
+      total: expect.any(Number),
+      breakdown: expect.objectContaining({
+        liveFeedback: expect.any(Number),
+        realtimeApi: expect.any(Number),
+      }),
+    }));
   });
 });

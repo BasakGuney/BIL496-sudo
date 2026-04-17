@@ -22,7 +22,7 @@ const baseConfig: SessionConfig = {
 };
 
 describe("SessionSetupForm smoke", () => {
-  it("keeps the start action disabled until required consent is granted", () => {
+  it("[STC-03][HIR-01] keeps the start action disabled until required consent is granted", () => {
     render(
       <SessionSetupForm
         value={baseConfig}
