@@ -20,6 +20,7 @@ from audio_analyzer import (
 )
 from vision_analyzer import interpret_vision_report_with_gpt
 from transcript_analyzer import analyze_transcript_with_gpt
+from answer_state_resolver import infer_answer_state
 
 REPORTS_DIR = os.getenv("REPORTS_DIR") or os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../reports"))
 
@@ -293,6 +294,13 @@ class TranscriptAnalysisRequest(BaseModel):
     session_id: str = None
     interviewType: str = "Technical"
 
+class AnswerStateRequest(BaseModel):
+    question: str
+    answer: str
+    session_id: str = None
+    interviewType: str = "Technical"
+    mode: str = "Neutral"
+
 @app.post("/analyze-transcript")
 async def analyze_transcript(request: TranscriptAnalysisRequest):
     try:
@@ -305,6 +313,21 @@ async def analyze_transcript(request: TranscriptAnalysisRequest):
             json.dump(result, f, ensure_ascii=False, indent=2)
             
         return result
+    except Exception as e:
+        import traceback
+        err = traceback.format_exc()
+        print(err)
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {err}")
+
+@app.post("/resolve-answer-state")
+async def resolve_answer_state(request: AnswerStateRequest):
+    try:
+        return infer_answer_state(
+            request.question,
+            request.answer,
+            request.interviewType,
+            request.mode,
+        )
     except Exception as e:
         import traceback
         err = traceback.format_exc()

@@ -13,6 +13,8 @@ server/.pytest_cache/
 server/.env/
 server/.venv-analysis/
 **/.model-cache/
+server/src/services/analysis/python_api/.qdrant-question-type/
+server/src/services/analysis/python_api/.qdrant-answer-state/
 
 # Python packaging
 build/

@@ -3,6 +3,7 @@ import { SessionState } from "../domain/enums/SessionState.js";
 import { SessionConfig } from "../domain/value-objects/SessionConfig.js";
 import { Consent } from "../domain/value-objects/Consent.js";
 import { AppError } from "../domain/errors/AppError.js";
+import { InterviewPolicyMachine } from "../services/interviewPolicy/InterviewPolicyMachine.js";
 
 export class BackendOrchestrator {
   constructor({ sessions, reports, ai, analyzer, guardrails, realtimeManager, idGenerator, reportArchive, candidateAudioTranscriber = null, pythonAnalysisClient = null, visionFrameAnalyzer = null, costEstimator = null }) {
@@ -18,6 +19,7 @@ export class BackendOrchestrator {
     this.pythonAnalysisClient = pythonAnalysisClient;
     this.visionFrameAnalyzer = visionFrameAnalyzer;
     this.costEstimator = costEstimator;
+    this.interviewPolicy = new InterviewPolicyMachine();
   }
 
   createDefaultVisionRuntimeState() {
@@ -48,6 +50,7 @@ export class BackendOrchestrator {
       incrementalCandidateAnswerAudios: [],
       incrementalSavedAudioFiles: [],
       analyzedAudioRelativePaths: [],
+      interviewPolicy: this.interviewPolicy.createInitialState(),
       vision: this.createDefaultVisionRuntimeState(),
     };
   }
@@ -180,9 +183,23 @@ export class BackendOrchestrator {
     }
 
     session.start();
+    const runtimeState = this.getRuntimeState(session);
+    runtimeState.interviewPolicy = this.interviewPolicy.startSession(runtimeState.interviewPolicy, session.config);
+    runtimeState.interviewPolicy = this.interviewPolicy.prepareFirstQuestion(runtimeState.interviewPolicy, session.config);
     await this.sessions.update(session);
 
     const firstQuestion = await this.ai.generateFirstQuestion(session.config);
+    runtimeState.interviewPolicy = this.interviewPolicy.dispatchQuestion(runtimeState.interviewPolicy, firstQuestion, {
+      turnIndex: 1,
+      intent: runtimeState.interviewPolicy.currentQuestionIntent,
+    });
+    if (this.reportArchive?.saveInterviewPolicyTrace) {
+      await this.reportArchive.saveInterviewPolicyTrace({
+        sessionId,
+        interviewPolicy: runtimeState.interviewPolicy,
+      });
+    }
+    await this.sessions.update(session);
     return { turnIndex: 1, questionText: firstQuestion, sessionId };
   }
 
@@ -233,6 +250,226 @@ export class BackendOrchestrator {
     ].join(":");
   }
 
+  questionExpectsBinaryAnswer(question = "") {
+    const text = String(question || "").trim().toLowerCase();
+    if (!text) return false;
+    const openCues = ["nasıl", "neden", "anlat", "bahset", "örnek", "açıkla", "detay"];
+    if (openCues.some((cue) => text.includes(cue))) return false;
+    const binaryMarkers = [
+      "var mı",
+      "kullandınız mı",
+      "çalıştınız mı",
+      "denediniz mi",
+      "yaptınız mı",
+      "oldu mu",
+      "tecrübeniz var mı",
+      "daha önce",
+    ];
+    if (text.includes("daha önce") && text.endsWith("mı?")) return true;
+    if (text.includes("daha önce") && text.endsWith("mi?")) return true;
+    return binaryMarkers.some((marker) => text.includes(marker));
+  }
+
+  buildHeuristicAnswerResolution({ question = "", answer = "", mode = "Neutral" } = {}) {
+    const normalizedAnswer = String(answer || "").trim().toLowerCase();
+    const wordCount = normalizedAnswer ? normalizedAnswer.split(/\s+/).filter(Boolean).length : 0;
+    const hasUncertainty = /(bilmiyorum|bilemedim|emin değilim|hatırlamıyorum|tam bilmiyorum|aklıma bir şey gelmiyor|aklıma bir şey gelmedi)/i.test(normalizedAnswer);
+    const isYesNoAnswer = ["evet", "hayır", "var", "yok", "kullandım", "kullanmadım"].includes(normalizedAnswer);
+    const expectsBinaryAnswer = this.questionExpectsBinaryAnswer(question);
+
+    if (hasUncertainty) {
+      return {
+        answerState: mode === "Supportive" ? "supportive_repair_candidate" : "followup_candidate",
+        method: "heuristic",
+        confidence: 0.95,
+        reason: "uncertainty_language",
+        signals: { hasUncertainty, isYesNoAnswer, expectsBinaryAnswer, answerWordCount: wordCount },
+      };
+    }
+
+    if (isYesNoAnswer && expectsBinaryAnswer) {
+      return {
+        answerState: "new_topic_candidate",
+        method: "heuristic",
+        confidence: 0.98,
+        reason: "binary_question_yes_no_sufficient",
+        signals: { hasUncertainty, isYesNoAnswer, expectsBinaryAnswer, answerWordCount: wordCount },
+      };
+    }
+
+    if (wordCount <= 2 && !expectsBinaryAnswer) {
+      return {
+        answerState: "followup_candidate",
+        method: "heuristic",
+        confidence: 0.9,
+        reason: "brief_but_insufficient_for_open_question",
+        signals: { hasUncertainty, isYesNoAnswer, expectsBinaryAnswer, answerWordCount: wordCount },
+      };
+    }
+
+    return {
+      answerState: "new_topic_candidate",
+      method: "heuristic",
+      confidence: 0.7,
+      reason: "default_topic_progression",
+      signals: { hasUncertainty, isYesNoAnswer, expectsBinaryAnswer, answerWordCount: wordCount },
+    };
+  }
+
+  decideNextInterviewAction(session, policyState, resolution = {}) {
+    const maxQuestionCount = 6;
+    const questionCountReached = Number(policyState?.questionCount || 0) >= maxQuestionCount;
+
+    if (questionCountReached) {
+      return { nextAction: "closing", reason: "question_count_limit_reached" };
+    }
+
+    if (resolution?.answerState === "supportive_repair_candidate" && session?.config?.mode === "Supportive") {
+      return { nextAction: "supportive_repair", reason: "supportive_answer_state" };
+    }
+
+    if (resolution?.answerState === "followup_candidate") {
+      return { nextAction: "ask_followup", reason: "followup_answer_state" };
+    }
+
+    return { nextAction: "ask_new_topic", reason: "default_topic_progression" };
+  }
+
+  getPolicyEnforcementLevel(nextAction = "") {
+    if (nextAction === "closing" || nextAction === "supportive_repair") {
+      return "hard";
+    }
+    return "soft";
+  }
+
+  buildRealtimePolicyDirective(session, policyState, decision = {}) {
+    const nextAction = String(decision?.nextAction || policyState?.nextAction || "ask_new_topic");
+    const enforcementLevel = this.getPolicyEnforcementLevel(nextAction);
+    const instructionSummaryMap = {
+      ask_followup: "Bir sonraki soruda son cevaba bagli tek bir takip sorusu tercih edildi.",
+      ask_new_topic: "Bir sonraki soruda yeni bir tema veya yetkinlik alani tercih edildi.",
+      supportive_repair: "Bir sonraki hamlede destekleyici yonlendirme zorunlu kilindi.",
+      closing: "Bir sonraki hamlede kapanis zorunlu kilindi.",
+    };
+
+    return {
+      id: `policy-${Date.now()}-${Math.max(1, Number(policyState?.questionCount || 0))}`,
+      nextAction,
+      enforcementLevel,
+      instructionSummary: instructionSummaryMap[nextAction] || "Bir sonraki hamle sinirlandi.",
+      answerState: policyState?.lastAnswerResolution?.answerState || null,
+      lastQuestion: String(policyState?.currentQuestionText || "").trim(),
+      lastAnswer: String(policyState?.lastCandidateAnswerMeta?.answerText || "").trim(),
+      issuedAt: new Date().toISOString(),
+      sessionUpdate: this.realtimeManager?.buildPolicySessionUpdate
+        ? this.realtimeManager.buildPolicySessionUpdate(session?.config || {}, {
+            nextAction,
+            enforcementLevel,
+            lastQuestion: String(policyState?.currentQuestionText || "").trim(),
+            lastAnswer: String(policyState?.lastCandidateAnswerMeta?.answerText || "").trim(),
+          })
+        : null,
+    };
+  }
+
+  classifyObservedQuestionRelation(enforcement = {}, observedQuestionText = "") {
+    const question = String(observedQuestionText || "").trim().toLowerCase();
+    const answer = String(enforcement?.answerText || "").trim().toLowerCase();
+    const nextAction = String(enforcement?.nextAction || "");
+
+    if (!question) {
+      return { observedRelation: "unknown", compliance: "unknown" };
+    }
+
+    const closingLike = /(sormak istediginiz|sormak istediğiniz|iyi gunler|iyi günler|degerlendirme sonuclarini|değerlendirme sonuçlarını|sorularimiz bu kadardi|sorularımız bu kadardı)/i.test(question);
+    const bridgeLike = /(az once|az önce|bahsettiginiz|bahsettiğiniz|bu surecte|bu süreçte|bu rolde|bu deneyimde|de biraz once|az önce anlattiginiz)/i.test(question);
+    const answerTokens = answer.split(/\s+/).filter((token) => token.length >= 5);
+    const overlap = answerTokens.filter((token) => question.includes(token)).length;
+    const followupLike = bridgeLike || overlap >= 2;
+    const newTopicLike = !followupLike;
+
+    if (nextAction === "closing") {
+      return {
+        observedRelation: closingLike ? "closing_like" : "non_closing_like",
+        compliance: closingLike ? "hard_compliant" : "hard_violation",
+      };
+    }
+
+    if (nextAction === "supportive_repair") {
+      const supportiveLike = /(biraz daha|ornek|örnek|ipucu|dusunelim|düşünelim|isterseniz|istersen)/i.test(question) || followupLike;
+      return {
+        observedRelation: supportiveLike ? "supportive_like" : "non_supportive_like",
+        compliance: supportiveLike ? "hard_compliant" : "hard_violation",
+      };
+    }
+
+    if (nextAction === "ask_followup") {
+      return {
+        observedRelation: followupLike ? "followup_like" : "new_topic_like",
+        compliance: followupLike ? "soft_aligned" : "soft_flexible",
+      };
+    }
+
+    return {
+      observedRelation: newTopicLike ? "new_topic_like" : "followup_like",
+      compliance: newTopicLike ? "soft_aligned" : "soft_flexible",
+    };
+  }
+
+  async recordRealtimePolicyEnforcement(sessionId, payload = {}) {
+    const session = await this.sessions.findById(sessionId);
+    if (!session) throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", statusCode: 404 });
+    const runtime = this.getRuntimeState(session);
+    runtime.interviewPolicy = this.interviewPolicy.registerRealtimePolicyEnforcement(runtime.interviewPolicy, {
+      id: payload?.id || payload?.enforcementId,
+      ...payload,
+      deliveredAt: payload?.deliveredAt || new Date().toISOString(),
+      deliveryChannel: payload?.deliveryChannel || "client-session-update",
+    });
+    if (this.reportArchive?.saveInterviewPolicyTrace) {
+      await this.reportArchive.saveInterviewPolicyTrace({
+        sessionId,
+        interviewPolicy: runtime.interviewPolicy,
+      });
+    }
+    await this.sessions.update(session);
+    return runtime.interviewPolicy?.activeRealtimePolicy || null;
+  }
+
+  async observeRealtimePolicyOutcome(sessionId, payload = {}) {
+    const session = await this.sessions.findById(sessionId);
+    if (!session) throw new AppError("Session not found", { code: "SESSION_NOT_FOUND", statusCode: 404 });
+    const runtime = this.getRuntimeState(session);
+    const activePolicy = runtime.interviewPolicy?.activeRealtimePolicy || null;
+    const enforcementId = String(payload?.enforcementId || activePolicy?.id || "").trim();
+    if (!enforcementId) {
+      return null;
+    }
+
+    const targetPolicy = (runtime.interviewPolicy?.policyEnforcements || []).find((item) => String(item?.id || "") === enforcementId)
+      || activePolicy
+      || {};
+    const observedQuestionText = String(payload?.observedQuestionText || "").trim();
+    const classification = this.classifyObservedQuestionRelation(targetPolicy, observedQuestionText);
+
+    runtime.interviewPolicy = this.interviewPolicy.registerRealtimePolicyObservation(runtime.interviewPolicy, {
+      enforcementId,
+      observedQuestionText,
+      observedRelation: classification.observedRelation,
+      compliance: classification.compliance,
+      observedAt: payload?.observedAt || new Date().toISOString(),
+    });
+
+    if (this.reportArchive?.saveInterviewPolicyTrace) {
+      await this.reportArchive.saveInterviewPolicyTrace({
+        sessionId,
+        interviewPolicy: runtime.interviewPolicy,
+      });
+    }
+    await this.sessions.update(session);
+    return classification;
+  }
+
   getRuntimeState(session) {
     const defaults = this.createDefaultRuntimeState();
     const current = session.runtimeState && typeof session.runtimeState === "object"
@@ -254,6 +491,7 @@ export class BackendOrchestrator {
       analyzedAudioRelativePaths: Array.isArray(current.analyzedAudioRelativePaths)
         ? current.analyzedAudioRelativePaths
         : [],
+      interviewPolicy: this.interviewPolicy.hydrate(current.interviewPolicy, session.config),
       vision: {
         ...defaults.vision,
         ...currentVision,
@@ -604,6 +842,11 @@ export class BackendOrchestrator {
       startedAt: Number(candidateAnswerAudio?.startedAt || Date.now()),
       endedAt: Number(candidateAnswerAudio?.endedAt || Date.now()),
       audioBase64: String(candidateAnswerAudio?.audioBase64 || ""),
+      rawAnswerText: String(candidateAnswerAudio?.answerText || "").trim(),
+      verifiedAnswerText: "",
+      answerText: String(candidateAnswerAudio?.answerText || "").trim(),
+      answerTextSource: String(candidateAnswerAudio?.answerText || "").trim() ? "candidate_transcript" : "unknown",
+      questionText: String(candidateAnswerAudio?.questionText || "").trim(),
     };
 
     if (normalizedAnswer.questionIndex <= 0 || !normalizedAnswer.audioBase64) {
@@ -616,7 +859,90 @@ export class BackendOrchestrator {
       return { accepted: true, duplicate: true };
     }
 
+    let verifiedAnswerText = "";
+    if (this.candidateAudioTranscriber?.transcribeCandidateAnswerAudios) {
+      const verifiedEntries = await this.candidateAudioTranscriber
+        .transcribeCandidateAnswerAudios([normalizedAnswer])
+        .catch(() => []);
+      verifiedAnswerText = String(verifiedEntries?.[0]?.text || "").trim();
+    }
+    if (verifiedAnswerText) {
+      normalizedAnswer.verifiedAnswerText = verifiedAnswerText;
+      if (!normalizedAnswer.answerText) {
+        normalizedAnswer.answerText = verifiedAnswerText;
+        normalizedAnswer.answerTextSource = "audio_transcription_fallback";
+      } else {
+        normalizedAnswer.answerTextSource = "candidate_transcript";
+      }
+    }
+
     runtime.incrementalCandidateAnswerAudios.push(normalizedAnswer);
+    const observedQuestionText = normalizedAnswer.questionText;
+    const activePolicyBeforeSync = runtime.interviewPolicy?.activeRealtimePolicy || null;
+    const hasPendingObservation =
+      activePolicyBeforeSync
+      && !String(activePolicyBeforeSync?.observedQuestionText || "").trim()
+      && String(activePolicyBeforeSync?.id || "").trim();
+
+    if (hasPendingObservation && String(observedQuestionText || "").trim()) {
+      const classification = this.classifyObservedQuestionRelation(activePolicyBeforeSync, observedQuestionText);
+      runtime.interviewPolicy = this.interviewPolicy.registerRealtimePolicyObservation(runtime.interviewPolicy, {
+        enforcementId: activePolicyBeforeSync.id,
+        observedQuestionText,
+        observedRelation: classification.observedRelation,
+        compliance: classification.compliance,
+        observedAt: new Date().toISOString(),
+      });
+    }
+
+    if (normalizedAnswer.questionText) {
+      runtime.interviewPolicy = this.interviewPolicy.syncObservedQuestion(
+        runtime.interviewPolicy,
+        normalizedAnswer.questionText,
+        {
+          questionIndex: normalizedAnswer.questionIndex,
+          intent: runtime.interviewPolicy?.currentQuestionIntent || null,
+        }
+      );
+    }
+    runtime.interviewPolicy = this.interviewPolicy.recordCandidateAnswer(
+      runtime.interviewPolicy,
+      normalizedAnswer
+    );
+
+    const activeQuestionText = String(
+      normalizedAnswer.questionText
+      || runtime.interviewPolicy?.currentQuestionText
+      || ""
+    ).trim();
+    let answerResolution = null;
+    if (activeQuestionText && normalizedAnswer.answerText && this.pythonAnalysisClient?.resolveAnswerState) {
+      answerResolution = await this.pythonAnalysisClient.resolveAnswerState({
+        sessionId,
+        question: activeQuestionText,
+        answer: normalizedAnswer.answerText,
+        interviewType: session?.config?.interviewType || "Technical",
+        mode: session?.config?.mode || "Neutral",
+      });
+    }
+    if (!answerResolution) {
+      answerResolution = this.buildHeuristicAnswerResolution({
+        question: activeQuestionText,
+        answer: normalizedAnswer.answerText,
+        mode: session?.config?.mode || "Neutral",
+      });
+    }
+    const nextDecision = this.decideNextInterviewAction(session, runtime.interviewPolicy, answerResolution);
+    runtime.interviewPolicy = this.interviewPolicy.applyAnswerResolution(
+      runtime.interviewPolicy,
+      answerResolution,
+      nextDecision
+    );
+    const realtimePolicyDirective = this.buildRealtimePolicyDirective(session, runtime.interviewPolicy, nextDecision);
+    runtime.interviewPolicy = this.interviewPolicy.registerRealtimePolicyEnforcement(runtime.interviewPolicy, {
+      ...realtimePolicyDirective,
+      deliveryChannel: "backend-issued",
+    });
 
     let savedAudioFile = null;
     if (this.reportArchive?.saveIncrementalCandidateAnswerAudio) {
@@ -650,8 +976,20 @@ export class BackendOrchestrator {
       }
     }
 
+    if (this.reportArchive?.saveInterviewPolicyTrace) {
+      await this.reportArchive.saveInterviewPolicyTrace({
+        sessionId,
+        interviewPolicy: runtime.interviewPolicy,
+      });
+    }
     await this.sessions.update(session);
-    return { accepted: true, duplicate: false };
+    return {
+      accepted: true,
+      duplicate: false,
+      nextAction: runtime.interviewPolicy?.nextAction || null,
+      answerState: runtime.interviewPolicy?.lastAnswerResolution?.answerState || null,
+      realtimePolicy: realtimePolicyDirective,
+    };
   }
 
   async endSession(sessionId, reason = null, transcript = [], candidateAnswerAudios = [], visionAnalysis = null) {

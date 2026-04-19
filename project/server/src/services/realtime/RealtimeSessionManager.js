@@ -8,4 +8,8 @@ export class RealtimeSessionManager {
     const payload = this.builder.buildSessionCreate(cfg);
     return this.openai.createRealtimeCall(offerSdp, payload);
   }
+
+  buildPolicySessionUpdate(cfg, policyDirective = null) {
+    return this.builder.buildSessionUpdate(cfg, { policyDirective });
+  }
 }

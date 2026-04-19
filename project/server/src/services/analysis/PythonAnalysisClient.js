@@ -221,6 +221,43 @@ export class PythonAnalysisClient {
     }
   }
 
+  async resolveAnswerState({ sessionId, question = "", answer = "", interviewType = "Technical", mode = "Neutral" }) {
+    if (!question || !answer) {
+      return null;
+    }
+
+    try {
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/resolve-answer-state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          question,
+          answer,
+          interviewType,
+          mode,
+        }),
+      }, 10000);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        this.logger.error(`Answer-state resolver API failed: ${response.status} - ${errText}`);
+        return null;
+      }
+
+      return await response.json();
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        this.logServiceTimeout("answer-state");
+      } else if (this.isConnectionRefused(error)) {
+        this.logServiceUnavailable("answer-state", error);
+      } else {
+        this.logger.error("Failed to call Python answer-state resolver API:", error);
+      }
+      return null;
+    }
+  }
+
   async writeTranscriptFallbackArtifact({ sessionDir, transcriptText = "", qaEvaluations = [] }) {
     if (!sessionDir) return;
 

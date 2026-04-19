@@ -7,7 +7,12 @@ import { VoiceWaveCanvas } from "@/components/interview/VoiceWaveCanvas";
 import { AvatarVideo } from "@/components/interview/AvatarVideo";
 import { AvaturnAvatar } from "@/components/interview/AvaturnAvatar";
 import { connectRealtimeInterview, type InterviewerAudioClip, type TranscriptEntry } from "@/lib/realtimeClient";
-import { endSession, uploadCandidateAnswerIncremental } from "@/lib/api";
+import {
+  endSession,
+  recordRealtimePolicyEnforcement,
+  recordRealtimePolicyObservation,
+  uploadCandidateAnswerIncremental,
+} from "@/lib/api";
 import { createVisionAnalyzer, type VisionOverlayState } from "@/lib/visionAnalysis";
 import { BACKEND_URL } from "@/lib/config";
 import { cn } from "@/lib/utils";
@@ -52,6 +57,9 @@ export function InterviewPage({
   const connectingRef = useRef(false);
   const finishingRef = useRef(false);
   const uploadedAnswerKeysRef = useRef<Set<string>>(new Set());
+  const appliedPolicyIdsRef = useRef<Set<string>>(new Set());
+  const pendingObservedPolicyRef = useRef<{ enforcementId: string; nextAction?: string; enforcementLevel?: string } | null>(null);
+  const lastObservedQuestionKeyRef = useRef<string>("");
 
   const supportiveMode = useMemo(() => config.mode === "Supportive", [config.mode]);
 
@@ -196,8 +204,43 @@ export function InterviewPage({
     for (const answer of audios) {
       const key = [Number(answer?.questionIndex || 0), Number(answer?.startedAt || 0), Number(answer?.endedAt || 0)].join(":");
       if (uploadedAnswerKeysRef.current.has(key)) continue;
-      await uploadCandidateAnswerIncremental(sessionId, answer);
+      const result = await uploadCandidateAnswerIncremental(sessionId, answer) as {
+        realtimePolicy?: {
+          id?: string;
+          nextAction?: string;
+          enforcementLevel?: string;
+          sessionUpdate?: Record<string, unknown> | null;
+        } | null;
+      };
       uploadedAnswerKeysRef.current.add(key);
+
+      const policy = result?.realtimePolicy;
+      const enforcementId = String(policy?.id || "").trim();
+      const sessionUpdate = policy?.sessionUpdate && typeof policy.sessionUpdate === "object"
+        ? policy.sessionUpdate
+        : null;
+
+      if (
+        enforcementId
+        && sessionUpdate
+        && conn.applySessionUpdate(sessionUpdate)
+        && !appliedPolicyIdsRef.current.has(enforcementId)
+      ) {
+        appliedPolicyIdsRef.current.add(enforcementId);
+        pendingObservedPolicyRef.current = {
+          enforcementId,
+          nextAction: policy?.nextAction,
+          enforcementLevel: policy?.enforcementLevel,
+        };
+        recordRealtimePolicyEnforcement(sessionId, {
+          enforcementId,
+          deliveredAt: new Date().toISOString(),
+          deliveryChannel: "client-session-update",
+          nextAction: policy?.nextAction,
+          enforcementLevel: policy?.enforcementLevel,
+        }).catch((error) => console.debug("Realtime policy enforcement trace upload failed", error));
+
+      }
     }
   }, [sessionId]);
 
@@ -312,6 +355,22 @@ export function InterviewPage({
     };
 
     onInterviewerFinishedRef.current = async (text: string) => {
+      const normalizedText = String(text || "").trim();
+      if (normalizedText) {
+        const pendingPolicy = pendingObservedPolicyRef.current;
+        const observedAt = new Date().toISOString();
+        const dedupeKey = `${pendingPolicy?.enforcementId || "active"}:${normalizedText}`;
+        if (lastObservedQuestionKeyRef.current !== dedupeKey) {
+          lastObservedQuestionKeyRef.current = dedupeKey;
+          pendingObservedPolicyRef.current = null;
+          recordRealtimePolicyObservation(sessionId, {
+            ...(pendingPolicy?.enforcementId ? { enforcementId: pendingPolicy.enforcementId } : {}),
+            observedQuestionText: normalizedText,
+            observedAt,
+          }).catch((error) => console.debug("Realtime policy observation upload failed", error));
+        }
+      }
+
       if (!supportiveMode || !text) return;
       try {
         const res = await fetch(`${BACKEND_URL}/session/${sessionId}/supportive/hints`, {

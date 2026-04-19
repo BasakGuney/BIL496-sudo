@@ -14,14 +14,21 @@ export class SessionUpdateBuilder {
     return `Merhaba ${firstName} ${honorific}. Bugünkü mülakatınızı ben gerçekleştireceğim. Bu mülakat ${interviewLabel} olarak ilerleyecek ve yaklaşık 10-15 dakika sürecek. Başlamadan önce sormak istediğiniz bir şey var mı?`;
   }
 
-  buildSessionCreate(cfg) {
+  buildInstructionText(cfg, { includeOpeningRule = true, policyDirective = null } = {}) {
     const fixedOpening = this.buildFixedOpening(cfg);
     const openingRule = ` ILK ASISTAN MESAJI KURALI: Mulakati su sabit acilis paragrafiyla baslat ve bu paragrafi kelimesi kelimesine kullan: "${fixedOpening}" Bu sabit acilis paragrafini yalnizca bir kez soyle. Aday yanit verdikten sonra yeniden selamlama, yeniden tanitma veya ikinci bir baslangic cumlesi kurma; dogrudan ilk gercek soruya gec.`;
+    const policyRule = policyDirective
+      ? ` ${this.promptTemplates.policyConstraintInstructions(policyDirective)}`
+      : "";
 
+    return `${this.promptTemplates.sessionInstructions(cfg)}${includeOpeningRule ? openingRule : ""}${policyRule}`;
+  }
+
+  buildSessionCreate(cfg) {
     return {
       type: "realtime",
       model: "gpt-realtime-mini",
-      instructions: `${this.promptTemplates.sessionInstructions(cfg)}${openingRule}`,
+      instructions: this.buildInstructionText(cfg, { includeOpeningRule: true }),
       audio: {
         input: {
           transcription: { model: "gpt-4o-mini-transcribe" },
@@ -32,7 +39,21 @@ export class SessionUpdateBuilder {
     };
   }
 
-  buildSessionUpdate(cfg) {
-    return this.buildSessionCreate(cfg);
+  buildSessionUpdate(cfg, { policyDirective = null } = {}) {
+    return {
+      type: "realtime",
+      model: "gpt-realtime-mini",
+      instructions: this.buildInstructionText(cfg, {
+        includeOpeningRule: false,
+        policyDirective,
+      }),
+      audio: {
+        input: {
+          transcription: { model: "gpt-4o-mini-transcribe" },
+          turn_detection: this.turnPolicy.serverVad(),
+        },
+        output: { voice: "marin" },
+      },
+    };
   }
 }

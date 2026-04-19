@@ -226,6 +226,65 @@ export class PromptTemplates {
     ].join(" ");
   }
 
+  policyConstraintInstructions(policy = {}) {
+    const nextAction = String(policy?.nextAction || "ask_new_topic");
+    const enforcementLevel = String(policy?.enforcementLevel || "soft");
+    const lastQuestion = String(policy?.lastQuestion || "").trim();
+    const lastAnswer = String(policy?.lastAnswer || "").trim();
+
+    const contextBlock = [
+      lastQuestion ? `SON SORU: ${lastQuestion}.` : "",
+      lastAnswer ? `SON ADAY CEVABI: ${lastAnswer}.` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const commonRules = [
+      "POLICY KISITI: Bir sonraki hamleni asagidaki sinirlar icinde sec.",
+      "Bu kurali adaya aciklama, politika veya ic talimat oldugunu belli etme.",
+      "Dogal konus ama belirlenen sonraki hareket sinirinin disina cikma.",
+      contextBlock,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    if (nextAction === "closing") {
+      return [
+        commonRules,
+        "SERT KISIT: Artik yeni icerik sorusu sorma.",
+        "Mulakati toparla, adayin sorusu olup olmadigini sor ve kapanisa gec.",
+      ].join(" ");
+    }
+
+    if (nextAction === "supportive_repair") {
+      return [
+        commonRules,
+        "SERT KISIT: Bir sonraki hamlede kisa, destekleyici ve yon gosterici bir mudahale yap.",
+        "Dogrudan yeni ana tema acma. Kisa ipucu, yeniden cerceveleme veya nazik bir netlestirme sorusu kullan.",
+      ].join(" ");
+    }
+
+    if (nextAction === "ask_followup") {
+      return [
+        commonRules,
+        enforcementLevel === "hard"
+          ? "SERT KISIT: Bir sonraki soru mutlaka son adayin cevabina bagli tek bir takip sorusu olsun."
+          : "YUMUSAK KISIT: Tercihen son adayin cevabina bagli tek bir takip sorusu sor.",
+        "Ayni mikro soruyu tekrar etme. Eksik kalan tek boyutu netlestir.",
+        "Gerekirse kisa bir kopru cumlesi kullan ama ayni konu etrafinda kal.",
+      ].join(" ");
+    }
+
+    return [
+      commonRules,
+      enforcementLevel === "hard"
+        ? "SERT KISIT: Yeni bir tema veya yetkinlik alani ac; ayni mikro detay uzerinde bir soru daha sorma."
+        : "YUMUSAK KISIT: Tercihen yeni bir tema veya yetkinlik alanina gec.",
+      "Son cevaptan kisa bir kopru kurabilirsin ama yeni soru ayni detay ekseninde follow-up olmamali.",
+      "Tema genislesin ya da yeni beceri alani acilsin.",
+    ].join(" ");
+  }
+
   transcriptEvaluationSystemPrompt(interviewType = "Technical") {
     const hrMetrics = "Davranışsal ve İK perspektifiyle: İletişim, Empati, Problem Çözme, Özgüven ve Kültürel Uyum metriklerini kullanarak";
     const techMetrics = "Teknik perspektifle: İlgililik, Kapsam ve Derinlik, Teknik Terim Hakimiyeti metriklerini kullanarak";

@@ -18,10 +18,17 @@ vi.mock("@/lib/visionAnalysis", () => ({
 vi.mock("@/lib/api", () => ({
   endSession: vi.fn(),
   uploadCandidateAnswerIncremental: vi.fn(),
+  recordRealtimePolicyEnforcement: vi.fn(),
+  recordRealtimePolicyObservation: vi.fn(),
 }));
 
 import { connectRealtimeInterview } from "@/lib/realtimeClient";
-import { endSession, uploadCandidateAnswerIncremental } from "@/lib/api";
+import {
+  endSession,
+  recordRealtimePolicyEnforcement,
+  recordRealtimePolicyObservation,
+  uploadCandidateAnswerIncremental,
+} from "@/lib/api";
 
 const config: SessionConfig = {
   firstName: "Ada",
@@ -41,6 +48,9 @@ const config: SessionConfig = {
 describe("InterviewPage smoke", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.mocked(recordRealtimePolicyEnforcement).mockResolvedValue(undefined as never);
+    vi.mocked(recordRealtimePolicyObservation).mockResolvedValue(undefined as never);
+    vi.mocked(uploadCandidateAnswerIncremental).mockResolvedValue({} as never);
 
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
 
@@ -132,6 +142,12 @@ describe("InterviewPage smoke", () => {
     expect(globalThis.fetch).toHaveBeenCalledWith(
       `${BACKEND_URL}/session/S-300/supportive/feedback`,
       expect.objectContaining({ method: "POST" })
+    );
+    expect(recordRealtimePolicyObservation).toHaveBeenCalledWith(
+      "S-300",
+      expect.objectContaining({
+        observedQuestionText: "React'te state nedir?",
+      })
     );
   });
 

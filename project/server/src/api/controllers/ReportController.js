@@ -10,6 +10,8 @@ export class ReportController {
     this.ingestCandidateAnswer = this.ingestCandidateAnswer.bind(this);
     this.ingestVisionFrame = this.ingestVisionFrame.bind(this);
     this.mockAudioLlm = this.mockAudioLlm.bind(this);
+    this.recordRealtimePolicyEnforcement = this.recordRealtimePolicyEnforcement.bind(this);
+    this.observeRealtimePolicyOutcome = this.observeRealtimePolicyOutcome.bind(this);
   }
 
   async getReport(req, res, next) {
@@ -72,6 +74,24 @@ export class ReportController {
     try {
       const result = await this.backendOrchestrator.ingestVisionFrame(req.params.sessionId, req.body || {});
       res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async recordRealtimePolicyEnforcement(req, res, next) {
+    try {
+      const result = await this.backendOrchestrator.recordRealtimePolicyEnforcement(req.params.sessionId, req.body || {});
+      res.json({ policy: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async observeRealtimePolicyOutcome(req, res, next) {
+    try {
+      const result = await this.backendOrchestrator.observeRealtimePolicyOutcome(req.params.sessionId, req.body || {});
+      res.json({ observation: result });
     } catch (error) {
       next(error);
     }

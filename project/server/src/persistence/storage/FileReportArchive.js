@@ -150,6 +150,35 @@ export class FileReportArchive {
     };
   }
 
+  async saveInterviewPolicyTrace({ sessionId, interviewPolicy = null }) {
+    if (!sessionId || !interviewPolicy || typeof interviewPolicy !== "object") return null;
+
+    const sessionDir = await this.ensureSessionDir(sessionId);
+    const relativePath = "interview_policy_trace.json";
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      stage: String(interviewPolicy.stage || ""),
+      questionCount: Number(interviewPolicy.questionCount || 0),
+      currentQuestionIntent: interviewPolicy.currentQuestionIntent || null,
+      currentQuestionText: interviewPolicy.currentQuestionText || null,
+      nextAction: interviewPolicy.nextAction || null,
+      lastAnswerResolution: interviewPolicy.lastAnswerResolution || null,
+      lastCandidateAnswerMeta: interviewPolicy.lastCandidateAnswerMeta || null,
+      askedQuestionIntents: Array.isArray(interviewPolicy.askedQuestionIntents)
+        ? interviewPolicy.askedQuestionIntents
+        : [],
+      activeRealtimePolicy: interviewPolicy.activeRealtimePolicy || null,
+      policyEnforcements: Array.isArray(interviewPolicy.policyEnforcements)
+        ? interviewPolicy.policyEnforcements
+        : [],
+      qaPairs: Array.isArray(interviewPolicy.qaPairs) ? interviewPolicy.qaPairs : [],
+      history: Array.isArray(interviewPolicy.history) ? interviewPolicy.history : [],
+    };
+
+    await writeFile(path.join(sessionDir, relativePath), `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    return { ...payload, relativePath };
+  }
+
   sanitizeFileName(fileName = "cv.pdf") {
     const cleaned = String(fileName || "cv.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
     return cleaned.toLowerCase().endsWith(".pdf") ? cleaned : `${cleaned}.pdf`;
@@ -1708,7 +1737,7 @@ export class FileReportArchive {
 
   async loadFeedbackArtifacts(sessionId) {
     const sessionDir = await this.ensureSessionDir(sessionId);
-    const [audioModel, transcriptAnalysis, visionAnalysis, visionLlmAnalysis, audioLlmReport, transcriptText, sessionConfig] = await Promise.all([
+    const [audioModel, transcriptAnalysis, visionAnalysis, visionLlmAnalysis, audioLlmReport, transcriptText, sessionConfig, interviewPolicyTrace] = await Promise.all([
       this.readJsonIfExists(path.join(sessionDir, "audio_segments.json")),
       this.readJsonIfExists(path.join(sessionDir, "transcript_report.json")),
       this.readJsonIfExists(path.join(sessionDir, "vision_frames.json")),
@@ -1716,6 +1745,7 @@ export class FileReportArchive {
       this.readJsonIfExists(path.join(sessionDir, "audio_report.json")),
       this.readTextIfExists(path.join(sessionDir, "transcript.txt")),
       this.readJsonIfExists(path.join(sessionDir, "session_config.json")),
+      this.readJsonIfExists(path.join(sessionDir, "interview_policy_trace.json")),
     ]);
 
     return {
@@ -1726,6 +1756,7 @@ export class FileReportArchive {
       visionAnalysis,
       visionLlmAnalysis,
       sessionConfig: sessionConfig || null,
+      interviewPolicyTrace: interviewPolicyTrace || null,
       scoreMeta: this.buildScoreMeta(),
     };
   }

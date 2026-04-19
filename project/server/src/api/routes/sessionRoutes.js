@@ -29,6 +29,8 @@ export function createSessionRouter({
   router.get("/reports", reportController.listReports);
   router.get("/reports/history-insights", reportController.getHistoryInsights);
   router.post("/session/:sessionId/answer", reportController.ingestCandidateAnswer);
+  router.post("/session/:sessionId/policy/enforcement", reportController.recordRealtimePolicyEnforcement);
+  router.post("/session/:sessionId/policy/observation", reportController.observeRealtimePolicyOutcome);
   router.post("/session/:sessionId/vision/frame", reportController.ingestVisionFrame);
   router.post("/session/:sessionId/end", reportController.endSessionAndCreateReport);
   router.post("/session/:sessionId/report", reportController.endSessionAndCreateReport); // backward compatibility

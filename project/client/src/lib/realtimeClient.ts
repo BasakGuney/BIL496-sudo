@@ -17,6 +17,8 @@ export type CandidateAnswerAudio = {
   startedAt: number;
   endedAt: number;
   audioBase64: string;
+  answerText?: string;
+  questionText?: string;
 };
 
 export type InterviewerAudioClip = {
@@ -58,6 +60,7 @@ export type RealtimeConnection = {
   audioCtx: AudioContext;
   getTranscript: () => TranscriptEntry[];
   getCandidateAnswerAudios: (stopActive?: boolean) => Promise<CandidateAnswerAudio[]>;
+  applySessionUpdate: (sessionUpdate: Record<string, unknown>) => boolean;
   close: () => void;
 };
 
@@ -239,6 +242,7 @@ export async function connectRealtimeInterview(opts: {
 }): Promise<RealtimeConnection> {
   const transcript: TranscriptEntry[] = [];
   const candidateAnswerAudios: CandidateAnswerAudio[] = [];
+  const pendingCandidateTranscriptEntries: Array<{ text: string; ts: number }> = [];
   const pendingAudioConversions: Promise<void>[] = [];
   const usageResponseIds = new Set<string>();
 
@@ -272,6 +276,7 @@ export async function connectRealtimeInterview(opts: {
   let activeSegmentStopPromise: Promise<void> | null = null;
   let resolveActiveSegmentStopPromise: (() => void) | null = null;
   let interviewerSpeaking = false;
+  let lastInterviewerQuestionText = "";
   let interviewerAudioRecorder: MediaRecorder | null = null;
   let interviewerAudioChunks: Blob[] = [];
   let interviewerAudioStartedAt = 0;
@@ -307,6 +312,20 @@ export async function connectRealtimeInterview(opts: {
     }
 
     pushTranscript(transcript, role, clean, ts, source, model);
+    if (role === "candidate") {
+      const candidateIndex = [...candidateAnswerAudios]
+        .reverse()
+        .findIndex((item) => !String(item?.answerText || "").trim() && Math.abs(Number(item?.endedAt || 0) - ts) <= 4000);
+      if (candidateIndex >= 0) {
+        const resolvedIndex = candidateAnswerAudios.length - 1 - candidateIndex;
+        candidateAnswerAudios[resolvedIndex].answerText = clean;
+      } else {
+        pendingCandidateTranscriptEntries.push({ text: clean, ts });
+        if (pendingCandidateTranscriptEntries.length > 10) {
+          pendingCandidateTranscriptEntries.shift();
+        }
+      }
+    }
     if (opts.onTranscriptUpdate) {
       opts.onTranscriptUpdate([...transcript]);
     }
@@ -330,13 +349,22 @@ export async function connectRealtimeInterview(opts: {
         const conversion = blobToBase64(blob)
           .then((audioBase64) => {
             if (!audioBase64) return;
-            candidateAnswerAudios.push({
+            const answerRecord: CandidateAnswerAudio = {
               questionIndex,
               mimeType: recorder.mimeType || "audio/webm",
               startedAt,
               endedAt,
               audioBase64,
-            });
+              questionText: lastInterviewerQuestionText || undefined,
+            };
+            const pendingTranscriptIndex = pendingCandidateTranscriptEntries.findIndex(
+              (item) => Math.abs(Number(item.ts || 0) - endedAt) <= 4000
+            );
+            if (pendingTranscriptIndex >= 0) {
+              answerRecord.answerText = pendingCandidateTranscriptEntries[pendingTranscriptIndex].text;
+              pendingCandidateTranscriptEntries.splice(pendingTranscriptIndex, 1);
+            }
+            candidateAnswerAudios.push(answerRecord);
           })
           .catch(() => undefined);
         pendingAudioConversions.push(conversion);
@@ -592,6 +620,9 @@ export async function connectRealtimeInterview(opts: {
       interviewerSpeaking = false;
       interviewerTurnCount += 1;
       const fullTextText = extractInterviewerFromResponseDone(msg);
+      if (fullTextText?.trim()) {
+        lastInterviewerQuestionText = fullTextText.trim();
+      }
       stopInterviewerAudioCapture(fullTextText);
       if (fullTextText && opts.onInterviewerFinished) {
         opts.onInterviewerFinished(fullTextText);
@@ -680,6 +711,16 @@ export async function connectRealtimeInterview(opts: {
 
       await Promise.allSettled(pendingAudioConversions);
       return [...candidateAnswerAudios];
+    },
+    applySessionUpdate: (sessionUpdate: Record<string, unknown>) => {
+      if (dc.readyState !== "open") return false;
+      dc.send(
+        JSON.stringify({
+          type: "session.update",
+          session: sessionUpdate,
+        })
+      );
+      return true;
     },
     close,
   };

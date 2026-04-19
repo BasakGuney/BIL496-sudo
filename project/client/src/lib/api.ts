@@ -139,6 +139,36 @@ export async function uploadCandidateAnswerIncremental(sessionId: string, candid
   });
 }
 
+export async function recordRealtimePolicyEnforcement(
+  sessionId: string,
+  payload: {
+    enforcementId: string;
+    deliveredAt?: string;
+    deliveryChannel?: string;
+    nextAction?: string;
+    enforcementLevel?: string;
+  }
+) {
+  return request(`/session/${encodeURIComponent(sessionId)}/policy/enforcement`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function recordRealtimePolicyObservation(
+  sessionId: string,
+  payload: {
+    enforcementId?: string;
+    observedQuestionText: string;
+    observedAt?: string;
+  }
+) {
+  return request(`/session/${encodeURIComponent(sessionId)}/policy/observation`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function endSession(
   sessionId: string,
   transcript: unknown[],

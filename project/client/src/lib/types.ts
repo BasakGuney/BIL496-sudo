@@ -247,6 +247,8 @@ export type CandidateAnswerAudio = {
   startedAt: number;
   endedAt: number;
   audioBase64: string;
+  answerText?: string;
+  questionText?: string;
 };
 
 export type SessionSummary = {
