@@ -335,16 +335,34 @@ export class BackendOrchestrator {
     return { nextAction: "ask_new_topic", reason: "default_topic_progression" };
   }
 
-  getPolicyEnforcementLevel(nextAction = "") {
+  getPolicyEnforcementLevel(nextAction = "", resolution = {}) {
     if (nextAction === "closing" || nextAction === "supportive_repair") {
       return "hard";
     }
+
+    if (nextAction === "ask_followup") {
+      const confidence = Number(resolution?.confidence || 0);
+      const answerWordCount = Number(resolution?.signals?.answerWordCount || 0);
+
+      if (confidence >= 0.75 || answerWordCount <= 3) {
+        return "hard";
+      }
+    }
+
     return "soft";
   }
 
   buildRealtimePolicyDirective(session, policyState, decision = {}) {
     const nextAction = String(decision?.nextAction || policyState?.nextAction || "ask_new_topic");
-    const enforcementLevel = this.getPolicyEnforcementLevel(nextAction);
+    const lastAnswerResolution = policyState?.lastAnswerResolution || null;
+    const enforcementLevel = this.getPolicyEnforcementLevel(nextAction, lastAnswerResolution);
+    const resolutionMethod = String(lastAnswerResolution?.method || "").trim();
+    const decisionSourceEngine = (() => {
+      if (resolutionMethod === "qdrant") return "qdrant";
+      if (resolutionMethod === "gpt_fallback") return "gpt";
+      if (["rule", "heuristic", "fallback"].includes(resolutionMethod)) return "local";
+      return "unknown";
+    })();
     const instructionSummaryMap = {
       ask_followup: "Bir sonraki soruda son cevaba bagli tek bir takip sorusu tercih edildi.",
       ask_new_topic: "Bir sonraki soruda yeni bir tema veya yetkinlik alani tercih edildi.",
@@ -357,9 +375,13 @@ export class BackendOrchestrator {
       nextAction,
       enforcementLevel,
       instructionSummary: instructionSummaryMap[nextAction] || "Bir sonraki hamle sinirlandi.",
-      answerState: policyState?.lastAnswerResolution?.answerState || null,
+      answerState: lastAnswerResolution?.answerState || null,
       lastQuestion: String(policyState?.currentQuestionText || "").trim(),
       lastAnswer: String(policyState?.lastCandidateAnswerMeta?.answerText || "").trim(),
+      resolutionMethod: resolutionMethod || null,
+      decisionSourceEngine,
+      resolutionConfidence: lastAnswerResolution?.confidence ?? null,
+      resolutionReason: lastAnswerResolution?.reason || null,
       issuedAt: new Date().toISOString(),
       sessionUpdate: this.realtimeManager?.buildPolicySessionUpdate
         ? this.realtimeManager.buildPolicySessionUpdate(session?.config || {}, {

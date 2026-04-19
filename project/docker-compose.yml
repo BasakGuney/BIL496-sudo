@@ -1,0 +1,45 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: interview-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+  python-api:
+    build:
+      context: ./server/src/services/analysis/python_api
+    container_name: interview-python-api
+    depends_on:
+      - qdrant
+    env_file:
+      - ./.env
+    environment:
+      REPORTS_DIR: /reports
+      QDRANT_URL: http://qdrant:6333
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./server/reports:/reports
+
+  server:
+    build:
+      context: ./server
+    container_name: interview-server
+    depends_on:
+      - python-api
+    env_file:
+      - ./.env
+    environment:
+      PORT: 3001
+      REPORTS_DIR: /app/reports
+      PYTHON_API_BASE_URL: http://python-api:8000
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./server/reports:/app/reports
+
+volumes:
+  qdrant_storage:

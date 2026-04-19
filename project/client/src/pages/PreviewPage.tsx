@@ -31,6 +31,8 @@ const parseLines = (text: string) =>
 
 const linesToText = (items: string[] = []) => items.join("\n");
 
+const trUpper = (text: string) => text.toLocaleUpperCase("tr-TR");
+
 export function PreviewPage({
   config,
   sessionId,
@@ -287,15 +289,15 @@ export function PreviewPage({
 
               <div className="space-y-4 mb-6">
                 <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
-                  <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Rol</span>
+                  <span className="text-xs text-enterprise-text-3 font-semibold">{trUpper("Rol")}</span>
                   <span className="text-xs font-bold text-white">{config.role}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
-                  <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Şirket</span>
+                  <span className="text-xs text-enterprise-text-3 font-semibold">{trUpper("Şirket")}</span>
                   <span className="text-xs font-bold text-white">{config.companyOrIndustry}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-enterprise-border">
-                  <span className="text-xs text-enterprise-text-3 font-semibold uppercase">Tip</span>
+                  <span className="text-xs text-enterprise-text-3 font-semibold">{trUpper("Tip")}</span>
                   <Badge className="bg-enterprise-accent/15 border-enterprise-accent/20 text-enterprise-accent-2 text-[10px] uppercase">{config.interviewType === "HR" ? "İnsan Kaynakları" : "Teknik"}</Badge>
                 </div>
               </div>

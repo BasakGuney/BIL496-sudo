@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Mimarisi (Genel Bakış)</title>
+    <!-- Mermaid.js Kütüphanesi -->
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+      mermaid.initialize({ 
+          startOnLoad: true, 
+          theme: 'base',
+          themeVariables: {
+              fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+          },
+          flowchart: { 
+              useMaxWidth: false, 
+              htmlLabels: true,
+              curve: 'basis'
+          } 
+      });
+    </script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 50px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 2.5em;
+            text-align: center;
+        }
+        p.description {
+            color: #7f8c8d;
+            font-size: 1.2em;
+            margin-bottom: 40px;
+            max-width: 700px;
+            text-align: center;
+            line-height: 1.5;
+        }
+        .diagram-container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 1000px;
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+            border: 1px solid #eaeaea;
+        }
+        @media print {
+            body { background-color: white; padding: 0; }
+            .diagram-container { box-shadow: none; border: none; }
+        }
+    </style>
+</head>
+<body>
+    <h1>AI Mülakat Sistemi Mimarisi</h1>
+    <p class="description">Sunumlar için hazırlanmış genel bakış diyagramı. Projenin ana katmanlarını, istemci-sunucu iletişimini ve dış servis entegrasyonlarını gösterir.</p>
+    
+    <div class="diagram-container">
+        <div class="mermaid">
+            flowchart TD
+                %% Stiller
+                classDef client fill:#e3f2fd,stroke:#2196f3,stroke-width:2px,color:#0d47a1,rx:5px,ry:5px
+                classDef server fill:#e8f5e9,stroke:#4caf50,stroke-width:2px,color:#1b5e20,rx:5px,ry:5px
+                classDef external fill:#fff3e0,stroke:#ff9800,stroke-width:2px,color:#e65100,stroke-dasharray: 5 5,rx:5px,ry:5px
+                classDef database fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px,color:#4a148c,rx:5px,ry:5px
+                classDef cluster fill:#ffffff,stroke:#cccccc,stroke-width:1px,color:#666
+                classDef subgraphName font-weight:bold,font-size:14px
+                
+                %% İstemci Alanı
+                subgraph Client ["🖥️ Web İstemci (React)"]
+                    UI["Kullanıcı Arayüzü<br/>(Mülakat Ekranı, Formlar)"]
+                    Avatar["Avaturn 3D Avatar<br/>Görselleştirme"]
+                    Media["Mikrofon / WebRTC<br/>Ses Yakalama"]
+                    
+                    UI --- Avatar
+                    UI --- Media
+                end
+                
+                %% Sunucu Alanı
+                subgraph Server ["⚙️ Sunucu (Node.js)"]
+                    API["API Gateway &<br/>WebSocket Yöneticisi"]
+                    Orchestrator["Orchestrator<br/>(Merkezi Akış Yöneticisi)"]
+                    
+                    subgraph Services ["Servis Katmanı"]
+                        direction LR
+                        AI_Service["AI Servisi<br/>(Promptlar & Modeller)"]
+                        Audio_Service["Söz Tespiti<br/>(Turn Detection)"]
+                    end
+                    
+                    DB_Layer["Veri Erişim Katmanı<br/>(Persistence)"]
+                    
+                    API <--> Orchestrator
+                    Orchestrator <--> AI_Service
+                    Orchestrator <--> Audio_Service
+                    Orchestrator <--> DB_Layer
+                end
+                
+                %% Veritabanı
+                db[("Veritabanı<br/>(Kayıtlar, Geri Bildirimler)")]
+                
+                %% Dış Servisler
+                subgraph ExternalServices ["☁️ Dış Servisler"]
+                    LLM["Büyük Dil Modeli API<br/>(Örn: OpenAI)"]
+                    AvaturnAPI["Avaturn Avatar API"]
+                end
+                
+                %% İstemci - Sunucu Bağı
+                Media == "Gerçek Zamanlı Ses" ==> API
+                API == "Yapay Zeka Yanıtları" ==> Avatar
+                Client -. "REST API Çağrıları" .-> API
+                
+                %% Sunucu - Dış Bağlantılar
+                AI_Service -- "Prompt İletimi" --> LLM
+                DB_Layer <--> db
+                
+                %% İstemci - Dış Bağlantılar
+                Avatar -. "Avatar Modeli Yükleme" .-> AvaturnAPI
+                
+                %% Sınıf Atamaları
+                class UI,Avatar,Media client
+                class API,Orchestrator,AI_Service,Audio_Service,DB_Layer server
+                class LLM,AvaturnAPI external
+                class db database
+        </div>
+    </div>
+</body>
+</html>

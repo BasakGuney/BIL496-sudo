@@ -209,6 +209,10 @@ export function InterviewPage({
           id?: string;
           nextAction?: string;
           enforcementLevel?: string;
+          resolutionMethod?: string | null;
+          decisionSourceEngine?: string | null;
+          resolutionConfidence?: number | null;
+          resolutionReason?: string | null;
           sessionUpdate?: Record<string, unknown> | null;
         } | null;
       };
@@ -238,6 +242,10 @@ export function InterviewPage({
           deliveryChannel: "client-session-update",
           nextAction: policy?.nextAction,
           enforcementLevel: policy?.enforcementLevel,
+          resolutionMethod: policy?.resolutionMethod ?? undefined,
+          decisionSourceEngine: policy?.decisionSourceEngine ?? undefined,
+          resolutionConfidence: policy?.resolutionConfidence ?? null,
+          resolutionReason: policy?.resolutionReason ?? null,
         }).catch((error) => console.debug("Realtime policy enforcement trace upload failed", error));
 
       }

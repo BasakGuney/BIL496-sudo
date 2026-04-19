@@ -147,6 +147,10 @@ export async function recordRealtimePolicyEnforcement(
     deliveryChannel?: string;
     nextAction?: string;
     enforcementLevel?: string;
+    resolutionMethod?: string;
+    decisionSourceEngine?: string;
+    resolutionConfidence?: number | null;
+    resolutionReason?: string | null;
   }
 ) {
   return request(`/session/${encodeURIComponent(sessionId)}/policy/enforcement`, {

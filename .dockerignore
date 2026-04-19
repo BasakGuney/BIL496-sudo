@@ -1,0 +1,14 @@
+.git
+.gitignore
+.DS_Store
+node_modules
+dist
+coverage
+tmp
+project/**/node_modules
+project/**/dist
+project/**/coverage
+project/server/reports
+project/server/src/services/analysis/python_api/__pycache__
+project/server/src/services/analysis/python_api/.pytest_cache
+project/server/src/services/analysis/python_api/.qdrant-question-type

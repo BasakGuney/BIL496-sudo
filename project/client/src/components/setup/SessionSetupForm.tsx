@@ -8,11 +8,18 @@ import type { Gender, InterviewType, Mode, SessionConfig } from "@/lib/types";
 import { ChevronRight, FileText, Upload, User, Briefcase, Target, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+function formatTurkishUppercase(label: React.ReactNode) {
+  if (typeof label === "string") {
+    return label.toLocaleUpperCase("tr-TR");
+  }
+  return label;
+}
+
 function RequiredLabel({ children, icon: Icon }: { children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <Label className="flex items-center gap-2 text-enterprise-text-2 mb-2">
       {Icon && <Icon className="w-3.5 h-3.5" />}
-      <span className="text-xs font-semibold uppercase tracking-wider">{children}</span>
+      <span className="text-xs font-semibold tracking-wider">{formatTurkishUppercase(children)}</span>
       <span className="text-enterprise-accent">*</span>
     </Label>
   );
@@ -188,7 +195,7 @@ export function SessionSetupForm({
       <div className="grid gap-2">
         <Label className="flex items-center gap-2 text-enterprise-text-2 mb-2">
           <Upload className="w-3.5 h-3.5" />
-          <span className="text-xs font-semibold uppercase tracking-wider">CV Yükle (PDF)</span>
+          <span className="text-xs font-semibold tracking-wider">{formatTurkishUppercase("CV Yükle (PDF)")}</span>
         </Label>
         
         <div className="relative group">

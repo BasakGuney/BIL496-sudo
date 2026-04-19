@@ -19,6 +19,7 @@ except Exception:  # pragma: no cover - optional dependency
 BASE_DIR = Path(__file__).resolve().parent
 SEED_PATH = BASE_DIR / "prototypes" / "qdrant_question_type" / "seed_examples.json"
 QDRANT_DATA_DIR = BASE_DIR / ".qdrant-question-type"
+QDRANT_URL = os.getenv("QDRANT_URL", "").strip()
 COLLECTION_NAME = "question_type_examples"
 EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 VECTOR_NAME = "fast-paraphrase-multilingual-minilm-l12-v2"
@@ -237,25 +238,27 @@ def _get_client():
     if QdrantClient is None or Document is None:
         return None
 
-    client = QdrantClient(path=str(QDRANT_DATA_DIR))
+    if QDRANT_URL:
+        client = QdrantClient(url=QDRANT_URL)
+    else:
+        client = QdrantClient(path=str(QDRANT_DATA_DIR))
     client.set_model(EMBED_MODEL)
     examples = _load_examples()
 
-    if client.collection_exists(COLLECTION_NAME):
-        client.delete_collection(COLLECTION_NAME)
-    client.create_collection(
-        collection_name=COLLECTION_NAME,
-        vectors_config=client.get_fastembed_vector_params(),
-    )
-    client.upload_collection(
-        collection_name=COLLECTION_NAME,
-        vectors=[
-            {VECTOR_NAME: Document(text=example["question_text"], model=EMBED_MODEL)}
-            for example in examples
-        ],
-        payload=examples,
-        ids=[example["id"] for example in examples],
-    )
+    if not client.collection_exists(COLLECTION_NAME):
+        client.create_collection(
+            collection_name=COLLECTION_NAME,
+            vectors_config=client.get_fastembed_vector_params(),
+        )
+        client.upload_collection(
+            collection_name=COLLECTION_NAME,
+            vectors=[
+                {VECTOR_NAME: Document(text=example["question_text"], model=EMBED_MODEL)}
+                for example in examples
+            ],
+            payload=examples,
+            ids=[example["id"] for example in examples],
+        )
     return client
 
 

@@ -1,0 +1,39 @@
+services:
+  python-api:
+    build:
+      context: ./project/server/src/services/analysis/python_api
+    container_name: interview-python-api
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      REPORTS_DIR: /reports
+    volumes:
+      - ./project/server/reports:/reports
+    ports:
+      - "8000:8000"
+
+  server:
+    build:
+      context: ./project/server
+    container_name: interview-server
+    depends_on:
+      - python-api
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PORT: 3001
+      REPORTS_DIR: /app/reports
+      PYTHON_API_BASE_URL: http://python-api:8000
+    volumes:
+      - ./project/server/reports:/app/reports
+    ports:
+      - "3001:3001"
+
+  client:
+    build:
+      context: ./project/client
+      args:
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:3001}
+    container_name: interview-client
+    depends_on:
+      - server
+    ports:
+      - "3000:80"

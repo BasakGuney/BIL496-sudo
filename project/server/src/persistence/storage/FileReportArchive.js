@@ -155,6 +155,36 @@ export class FileReportArchive {
 
     const sessionDir = await this.ensureSessionDir(sessionId);
     const relativePath = "interview_policy_trace.json";
+    const resolutionMethod = String(interviewPolicy?.lastAnswerResolution?.method || "").trim();
+    const decisionEngine = (() => {
+      if (resolutionMethod === "qdrant") return "qdrant";
+      if (resolutionMethod === "gpt_fallback") return "gpt";
+      if (["rule", "heuristic", "fallback"].includes(resolutionMethod)) return "local";
+      return "unknown";
+    })();
+    const policyEnforcements = Array.isArray(interviewPolicy.policyEnforcements)
+      ? interviewPolicy.policyEnforcements
+      : [];
+    const questionClassifications = policyEnforcements
+      .filter((item) => String(item?.observedQuestionText || "").trim())
+      .map((item, index) => ({
+        index: index + 1,
+        policyId: String(item?.id || "").trim() || null,
+        questionText: String(item?.observedQuestionText || "").trim(),
+        classifiedAs: item?.observedRelation || null,
+        compliance: item?.compliance || null,
+        expectedAction: item?.nextAction || null,
+        enforcementLevel: item?.enforcementLevel || null,
+        basedOnAnswerState: item?.answerState || null,
+        decisionSource: {
+          engine: item?.decisionSourceEngine || "unknown",
+          method: item?.resolutionMethod || null,
+          confidence: item?.resolutionConfidence ?? null,
+          reason: item?.resolutionReason || null,
+        },
+        issuedAt: item?.issuedAt || null,
+        observedAt: item?.observedAt || null,
+      }));
     const payload = {
       generatedAt: new Date().toISOString(),
       stage: String(interviewPolicy.stage || ""),
@@ -162,15 +192,20 @@ export class FileReportArchive {
       currentQuestionIntent: interviewPolicy.currentQuestionIntent || null,
       currentQuestionText: interviewPolicy.currentQuestionText || null,
       nextAction: interviewPolicy.nextAction || null,
+      nextActionDecisionSource: {
+        engine: decisionEngine,
+        method: resolutionMethod || null,
+        confidence: interviewPolicy?.lastAnswerResolution?.confidence ?? null,
+        reason: interviewPolicy?.lastAnswerResolution?.reason || null,
+      },
       lastAnswerResolution: interviewPolicy.lastAnswerResolution || null,
       lastCandidateAnswerMeta: interviewPolicy.lastCandidateAnswerMeta || null,
       askedQuestionIntents: Array.isArray(interviewPolicy.askedQuestionIntents)
         ? interviewPolicy.askedQuestionIntents
         : [],
       activeRealtimePolicy: interviewPolicy.activeRealtimePolicy || null,
-      policyEnforcements: Array.isArray(interviewPolicy.policyEnforcements)
-        ? interviewPolicy.policyEnforcements
-        : [],
+      policyEnforcements,
+      questionClassifications,
       qaPairs: Array.isArray(interviewPolicy.qaPairs) ? interviewPolicy.qaPairs : [],
       history: Array.isArray(interviewPolicy.history) ? interviewPolicy.history : [],
     };

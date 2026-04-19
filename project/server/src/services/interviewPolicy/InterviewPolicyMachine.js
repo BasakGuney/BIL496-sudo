@@ -230,6 +230,18 @@ export class InterviewPolicyMachine {
     const current = this.hydrate(state);
     const enforcementId = String(payload?.id || `policy-${Date.now()}`).trim();
     const existing = current.policyEnforcements.find((item) => String(item?.id || "") === enforcementId) || null;
+    const resolutionMethod = String(
+      payload?.resolutionMethod
+      || existing?.resolutionMethod
+      || current.lastAnswerResolution?.method
+      || ""
+    ).trim();
+    const decisionSourceEngine = (() => {
+      if (resolutionMethod === "qdrant") return "qdrant";
+      if (resolutionMethod === "gpt_fallback") return "gpt";
+      if (["rule", "heuristic", "fallback"].includes(resolutionMethod)) return "local";
+      return "unknown";
+    })();
     const enforcement = {
       ...(existing || {}),
       id: enforcementId,
@@ -247,6 +259,10 @@ export class InterviewPolicyMachine {
       observedRelation: existing?.observedRelation || null,
       compliance: existing?.compliance || null,
       observedAt: existing?.observedAt || null,
+      resolutionMethod: resolutionMethod || null,
+      decisionSourceEngine: payload?.decisionSourceEngine || existing?.decisionSourceEngine || decisionSourceEngine,
+      resolutionConfidence: payload?.resolutionConfidence ?? existing?.resolutionConfidence ?? current.lastAnswerResolution?.confidence ?? null,
+      resolutionReason: payload?.resolutionReason || existing?.resolutionReason || current.lastAnswerResolution?.reason || null,
     };
 
     const nextPolicyEnforcements = existing
