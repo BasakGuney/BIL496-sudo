@@ -126,6 +126,35 @@ describe("BackendOrchestrator smoke", () => {
     );
   });
 
+  it("[POL-01] records explicit closing and finished policy stages when the session ends", async () => {
+    session.runtimeState = {
+      interviewPolicy: {
+        stage: "closing_pending",
+        history: [],
+      },
+    };
+
+    await orchestrator.endSession("S-1", null, [], [], null);
+
+    expect(session.runtimeState.interviewPolicy).toEqual(expect.objectContaining({
+      stage: "finished",
+      activeRealtimePolicy: null,
+    }));
+    expect(session.runtimeState.interviewPolicy.history).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: "CLOSING_STARTED",
+        from: "closing_pending",
+        to: "closing",
+      }),
+      expect.objectContaining({
+        event: "SESSION_FINISHED",
+        from: "closing",
+        to: "finished",
+      }),
+    ]));
+    expect(orchestrator.reportArchive.saveInterviewPolicyTrace).toHaveBeenCalled();
+  });
+
   it("[ITC-03] accepts incremental candidate audio once and marks duplicates", async () => {
     orchestrator.reportArchive.saveIncrementalCandidateAnswerAudio = vi.fn(async () => ({
       relativePath: "candidate/q1.webm",
@@ -176,7 +205,7 @@ describe("BackendOrchestrator smoke", () => {
     }));
     expect(first.realtimePolicy).toEqual(expect.objectContaining({
       nextAction: "ask_followup",
-      enforcementLevel: "soft",
+      enforcementLevel: "hard",
     }));
     expect(second).toEqual({ accepted: true, duplicate: true });
     expect(session.runtimeState.interviewPolicy).toEqual(expect.objectContaining({

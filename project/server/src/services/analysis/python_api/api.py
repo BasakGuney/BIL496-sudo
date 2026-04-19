@@ -7,20 +7,35 @@ import json
 from typing import List, Optional
 from pydantic import BaseModel
 
-from audio_analyzer import (
-    AudioAnalyzer,
-    compute_overall,
-    interpret_report_with_gpt,
-    _build_audio_provisional_report,
-    _build_audio_fallback_report,
-    _compute_audio_overall_score,
-    _compute_emotion_suitability_score,
-    _compute_fluency_score,
-    _compute_speech_rate_score,
-)
 from vision_analyzer import interpret_vision_report_with_gpt
 from transcript_analyzer import analyze_transcript_with_gpt
 from answer_state_resolver import infer_answer_state
+
+AUDIO_ANALYZER_IMPORT_ERROR = None
+
+try:
+    from audio_analyzer import (
+        AudioAnalyzer,
+        compute_overall,
+        interpret_report_with_gpt,
+        _build_audio_provisional_report,
+        _build_audio_fallback_report,
+        _compute_audio_overall_score,
+        _compute_emotion_suitability_score,
+        _compute_fluency_score,
+        _compute_speech_rate_score,
+    )
+except Exception as exc:
+    AudioAnalyzer = None
+    compute_overall = None
+    interpret_report_with_gpt = None
+    _build_audio_provisional_report = None
+    _build_audio_fallback_report = None
+    _compute_audio_overall_score = None
+    _compute_emotion_suitability_score = None
+    _compute_fluency_score = None
+    _compute_speech_rate_score = None
+    AUDIO_ANALYZER_IMPORT_ERROR = str(exc)
 
 REPORTS_DIR = os.getenv("REPORTS_DIR") or os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../reports"))
 
@@ -59,12 +74,31 @@ analyzer = None
 async def startup_event():
     global analyzer
     print("Initializing heavy models during app startup...")
+    if AudioAnalyzer is None:
+        print(f"Audio analyzer disabled: {AUDIO_ANALYZER_IMPORT_ERROR}")
+        analyzer = None
+        return
+
     # Turkish model for clarity scoring since candidates will speak Turkish
     analyzer = AudioAnalyzer(clarity_model_name="mpoyraz/wav2vec2-xls-r-300m-cv7-turkish")
 
 @app.get("/")
 def read_root():
-    return {"status": "Active", "message": "Speech Emotion API is running."}
+    return {
+        "status": "Active",
+        "message": "Speech Emotion API is running.",
+        "audioAnalyzerAvailable": analyzer is not None,
+    }
+
+
+def _ensure_audio_analyzer_available():
+    if analyzer is not None:
+        return
+
+    detail = "Audio analysis dependencies are not installed in this container."
+    if AUDIO_ANALYZER_IMPORT_ERROR:
+        detail = f"{detail} Import error: {AUDIO_ANALYZER_IMPORT_ERROR}"
+    raise HTTPException(status_code=503, detail=detail)
 
 @app.post("/analyze")
 async def analyze_audio(file: UploadFile = File(...)):
@@ -74,6 +108,8 @@ async def analyze_audio(file: UploadFile = File(...)):
     """
     if file.content_type not in ["audio/wav", "audio/x-wav"] and not file.filename.endswith(".wav"):
         raise HTTPException(status_code=400, detail="Only .wav files are supported currently.")
+
+    _ensure_audio_analyzer_available()
 
     # Save the file temporarily
     temp_file_path = f"temp_{int(time.time())}_{file.filename}"
@@ -107,6 +143,7 @@ class AudioAnalysisRequest(BaseModel):
 async def analyze_audio_session(request: AudioAnalysisRequest):
     import traceback
     try:
+        _ensure_audio_analyzer_available()
         results = []
         for f in request.file_paths:
             if not os.path.exists(f):

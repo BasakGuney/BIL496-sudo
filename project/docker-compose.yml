@@ -11,6 +11,8 @@ services:
   python-api:
     build:
       context: ./server/src/services/analysis/python_api
+      args:
+        INSTALL_AUDIO_DEPS: "false"
     container_name: interview-python-api
     depends_on:
       - qdrant

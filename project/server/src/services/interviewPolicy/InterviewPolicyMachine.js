@@ -12,6 +12,13 @@ const STAGES = {
   FINISHED: "finished",
 };
 
+const QUESTION_DISPATCH_STAGES = new Set([
+  STAGES.FIRST_QUESTION_PENDING,
+  STAGES.FOLLOWUP_PENDING,
+  STAGES.NEW_TOPIC_PENDING,
+  STAGES.SUPPORTIVE_REPAIR_PENDING,
+]);
+
 function createHistoryEntry(event, from, to, metadata = {}) {
   return {
     event,
@@ -110,6 +117,10 @@ export class InterviewPolicyMachine {
 
   dispatchQuestion(state, questionText, metadata = {}) {
     const current = this.hydrate(state);
+    if (!QUESTION_DISPATCH_STAGES.has(current.stage)) {
+      return current;
+    }
+
     return {
       ...current,
       stage: STAGES.WAITING_CANDIDATE,
@@ -124,6 +135,39 @@ export class InterviewPolicyMachine {
           questionText,
           ...metadata,
         }),
+      ],
+    };
+  }
+
+  beginClosing(state, metadata = {}) {
+    const current = this.hydrate(state);
+    if (current.stage === STAGES.CLOSING || current.stage === STAGES.FINISHED) {
+      return current;
+    }
+
+    return {
+      ...current,
+      stage: STAGES.CLOSING,
+      history: [
+        ...current.history,
+        createHistoryEntry("CLOSING_STARTED", current.stage, STAGES.CLOSING, metadata),
+      ],
+    };
+  }
+
+  finishSession(state, metadata = {}) {
+    const current = this.hydrate(state);
+    if (current.stage === STAGES.FINISHED) {
+      return current;
+    }
+
+    return {
+      ...current,
+      stage: STAGES.FINISHED,
+      activeRealtimePolicy: null,
+      history: [
+        ...current.history,
+        createHistoryEntry("SESSION_FINISHED", current.stage, STAGES.FINISHED, metadata),
       ],
     };
   }

@@ -286,5 +286,101 @@
     "question_text": "Bu refactor kararini nasil aldiniz?",
     "answer_text": "Kod karmasikti.",
     "answer_state": "followup_candidate"
+  },
+  {
+    "id": 37,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Rate limiting nasil uygularsiniz?",
+    "answer_text": "Redis tabanli sayaç ve zaman penceresi yaklaşimi kullanirim; istemci bazli limitleri de ayrica takip ederim.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 38,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Rate limiting nasil uygularsiniz?",
+    "answer_text": "Bir sekilde kisit koyariz.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 39,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Prod ortaminda hata orani arttiginda nasil ilerlersiniz?",
+    "answer_text": "Once log ve metriklere bakarim, son degisiklikleri kontrol ederim, etki alanini daraltip gerekiyorsa rollback uygularim.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 40,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Prod ortaminda hata orani arttiginda nasil ilerlersiniz?",
+    "answer_text": "Bakmak lazim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 41,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Bir cache stratejisi tasarlarken nelere dikkat edersiniz?",
+    "answer_text": "TTL, invalidation kurallari, veri tutarliligi ve hangi sorgularin en cok tekrarlandigi gibi noktalara bakarim.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 42,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Bir cache stratejisi tasarlarken nelere dikkat edersiniz?",
+    "answer_text": "Tam hatirlamiyorum, su an net toparlayamadim.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 43,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Liderlik ettiginiz bir durumu anlatabilir misiniz?",
+    "answer_text": "Staj projesinde is paketlerini bolup takibi ben yaptim, takilan noktalarda ekip arkadaslarimla hizli koordinasyon kurdum ve teslim tarihini kacirmadik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 44,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Liderlik ettiginiz bir durumu anlatabilir misiniz?",
+    "answer_text": "Cok net bir ornek veremiyorum, biraz dusunmem gerekiyor.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 45,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Takim ici bir anlasmazligi nasil yonettiniz?",
+    "answer_text": "Iki tarafin beklentilerini ayri ayri dinledim, ortak hedefi netlestirdim ve uzerinde uzlasabilecegimiz bir plan ciktik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 46,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Takim ici bir anlasmazligi nasil yonettiniz?",
+    "answer_text": "Konustuk ve cozuldu.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 47,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Bu rolde neden calismak istiyorsunuz?",
+    "answer_text": "Urunun gercek kullanici problemi cozmesi beni motive ediyor; burada hem sahiplik alip hem de farkli ekiplerle calisarak gelisebilecegimi dusunuyorum.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 48,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Bu rolde neden calismak istiyorsunuz?",
+    "answer_text": "Bilmiyorum, ilgimi cekti sadece.",
+    "answer_state": "supportive_repair_candidate"
   }
 ]

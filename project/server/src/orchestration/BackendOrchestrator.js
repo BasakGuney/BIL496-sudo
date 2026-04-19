@@ -1031,6 +1031,9 @@ export class BackendOrchestrator {
 
     session.end();
     const runtime = this.getRuntimeState(session);
+    runtime.interviewPolicy = this.interviewPolicy.beginClosing(runtime.interviewPolicy, {
+      reason: reason || "session_end_requested",
+    });
     const mergedCandidateAnswerAudios = this.mergeUniqueAnswers(
       runtime.incrementalCandidateAnswerAudios,
       candidateAnswerAudios
@@ -1098,6 +1101,17 @@ export class BackendOrchestrator {
           finalizeAudioFromExisting: true,
         }).catch(err => console.error("[BackendOrchestrator] PythonAnalysisClient Error:", err));
       }
+    }
+
+    runtime.interviewPolicy = this.interviewPolicy.finishSession(runtime.interviewPolicy, {
+      reason: reason || "session_end_completed",
+      finalSessionState: session.state,
+    });
+    if (this.reportArchive?.saveInterviewPolicyTrace) {
+      await this.reportArchive.saveInterviewPolicyTrace({
+        sessionId,
+        interviewPolicy: runtime.interviewPolicy,
+      });
     }
 
     return report;

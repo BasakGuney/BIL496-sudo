@@ -96,7 +96,17 @@ describe("session route smoke", () => {
       sessionController: { createSession: () => {}, startSession: () => {}, updateSessionConfig: () => {}, generatePreviewQuestions: () => {}, generateLiveHints: () => {}, generateLiveFeedback: () => {}, recordUsage: () => {} },
       consentController: { updateConsent: () => {} },
       realtimeController: { createOfferAnswer: () => {} },
-      reportController: { listReports: () => {}, getHistoryInsights: () => {}, ingestCandidateAnswer: () => {}, ingestVisionFrame: () => {}, endSessionAndCreateReport: () => {}, getReport: () => {}, mockAudioLlm: () => {} },
+      reportController: {
+        listReports: () => {},
+        getHistoryInsights: () => {},
+        ingestCandidateAnswer: () => {},
+        recordRealtimePolicyEnforcement: () => {},
+        observeRealtimePolicyOutcome: () => {},
+        ingestVisionFrame: () => {},
+        endSessionAndCreateReport: () => {},
+        getReport: () => {},
+        mockAudioLlm: () => {},
+      },
     });
     const routeTable = router.stack
       .filter((layer) => layer.route)

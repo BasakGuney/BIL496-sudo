@@ -862,5 +862,125 @@
     "interview_type": "Technical",
     "language": "tr",
     "is_meta": false
+  },
+  {
+    "id": 109,
+    "question_text": "Bir API tasarlarken güvenlik açısından en çok nelere dikkat edersiniz?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 110,
+    "question_text": "Cache kullanmanın faydalı olduğu bir senaryoyu nasıl tanımlarsınız?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 111,
+    "question_text": "Bir mikroservis mimarisinde servisler arası iletişim için hangi yaklaşımlar kullanılabilir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 112,
+    "question_text": "Rate limiting neden gerekir ve uygularken hangi metrikleri izlersiniz?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 113,
+    "question_text": "Bir veritabanı sorgusu beklenenden yavaş çalışıyorsa önce hangi adımlarla teşhis koyarsınız?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 114,
+    "question_text": "Prod ortamında hata oranı aniden arttığında nasıl bir aksiyon planı izlersiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 115,
+    "question_text": "Kullanıcılar bir özelliğin tutarsız çalıştığını söylüyorsa problemi nasıl izole edersiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 116,
+    "question_text": "Bir deployment sonrasında sistemde beklenmedik gecikmeler oluştu; nasıl ilerlersiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 117,
+    "question_text": "Bir ekip arkadaşınızla fikir ayrılığı yaşadığınızda bunu nasıl yönetirsiniz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 118,
+    "question_text": "Beklentilerin net olmadığı bir durumda nasıl yol aldığınız bir örnek paylaşır mısınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 119,
+    "question_text": "Kariyerinizde yön değiştirdiğiniz bir dönemi ve nedenlerini anlatabilir misiniz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 120,
+    "question_text": "Sizi bugün bulunduğunuz noktaya getiren önemli deneyimlerden biraz bahseder misiniz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 121,
+    "question_text": "Bu şirkette çalışmak istemenizin arkasındaki temel sebep nedir?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 122,
+    "question_text": "Önümüzdeki birkaç yılda kendinizi nasıl bir rolde görmek istiyorsunuz?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 123,
+    "question_text": "Dağıtık sistemlerde tutarlılık ve erişilebilirlik arasında nasıl bir denge kurarsınız?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
   }
 ]
