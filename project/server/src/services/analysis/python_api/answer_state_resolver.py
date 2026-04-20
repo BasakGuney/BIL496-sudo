@@ -70,13 +70,39 @@ def _detect_uncertainty(answer: str) -> bool:
         "bilmiyorum",
         "emin degilim",
         "tam emin degilim",
+        "emin olamadim",
         "hatirlamiyorum",
+        "hatirlayamadim",
+        "tam hatirlayamadim",
         "su an hatirlamiyorum",
         "net hatirlamiyorum",
+        "tam net hatirlamiyorum",
         "yanlis hatirlamiyorsam",
         "tam bilmiyorum",
         "bilemedim",
         "su an bilemedim",
+        "tam toparlayamadim",
+        "toparlayamadim",
+        "ornek veremiyorum",
+        "net bir ornek veremiyorum",
+        "cok net bir ornek veremiyorum",
+        "su an net bir ornek veremiyorum",
+        "detayini cikaramiyorum",
+        "su an detayini cikaramiyorum",
+        "su an net bir durum secemiyorum",
+        "tam net bir durum secemiyorum",
+        "netlestiremiyorum",
+        "su an netlestiremiyorum",
+        "tam olarak toparlayamadim",
+        "nasil ifade edecegimi bilemedim",
+        "tam olarak nasil ifade edecegimi bilemedim",
+        "nasil anlatacagimi toparlayamadim",
+        "tam olarak nasil anlatacagimi bilemedim",
+        "tam cikaramadim",
+        "cikaramadim",
+        "su an cikaramiyorum",
+        "aklimda degil",
+        "detayini hatirlamiyorum",
         "aklima bir sey gelmiyor",
         "aklima bir sey gelmedi",
         "su an aklima bir sey gelmiyor",
@@ -119,9 +145,20 @@ def _question_expects_binary_answer(question: str) -> bool:
         r"\bcalistiniz mi\b",
         r"\bdenediniz mi\b",
         r"\byaptiniz mi\b",
+        r"\buyguladiniz mi\b",
+        r"\byonettiniz mi\b",
+        r"\boldunuz mu\b",
+        r"\bgorev aldiniz mi\b",
+        r"\brol aldiniz mi\b",
+        r"\btecrube ettiniz mi\b",
         r"\boldu mu\b",
+        r"\bkolay midir\b",
         r"\btecrubeniz var mi\b",
         r"\bdaha once .* mi\b",
+        r"\b\w+ mu\b",
+        r"\b\w+ mi\b",
+        r"\b\w+ mu\?\b",
+        r"\b\w+ mi\?\b",
     ]
     return any(re.search(pattern, normalized) for pattern in binary_patterns)
 
@@ -133,6 +170,9 @@ def _build_query_text(question: str, answer: str) -> str:
 def _direct_rule_match(question: str, answer: str, mode: str) -> dict | None:
     clean_question = str(question or "").strip()
     clean_answer = str(answer or "").strip()
+    answer_word_count = _word_count(clean_answer)
+    expects_binary = _question_expects_binary_answer(clean_question)
+    expects_open_narrative = _question_expects_open_narrative(clean_question)
     if not clean_answer:
         return {
             "answerState": "supportive_repair_candidate" if mode == "Supportive" else "followup_candidate",
@@ -157,12 +197,28 @@ def _direct_rule_match(question: str, answer: str, mode: str) -> dict | None:
             "reason": "binary_question_yes_no_sufficient",
         }
 
-    if _word_count(clean_answer) <= 2 and not _question_expects_binary_answer(clean_question):
+    if answer_word_count <= 2 and not expects_binary:
         return {
             "answerState": "followup_candidate",
             "method": "rule",
             "confidence": 0.91,
             "reason": "brief_but_insufficient_for_open_question",
+        }
+
+    if expects_open_narrative and answer_word_count <= 6:
+        return {
+            "answerState": "followup_candidate",
+            "method": "heuristic",
+            "confidence": 0.87,
+            "reason": "open_question_answer_still_too_brief",
+        }
+
+    if not expects_binary and answer_word_count >= 10 and not _detect_uncertainty(clean_answer):
+        return {
+            "answerState": "new_topic_candidate",
+            "method": "heuristic",
+            "confidence": 0.88,
+            "reason": "substantive_open_answer",
         }
 
     return None

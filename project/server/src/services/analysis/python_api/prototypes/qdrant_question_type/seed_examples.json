@@ -33,7 +33,7 @@
   },
   {
     "id": 5,
-    "question_text": "Şu anda nerede çalışıyorsunuz, hangi görevdesiniz, biraz açabilir misiniz?",
+    "question_text": "Sizi profesyonel olarak bugün nasıl tanımlarsınız?",
     "question_type": "self_presentation",
     "interview_type": "HR",
     "language": "tr",
@@ -41,7 +41,7 @@
   },
   {
     "id": 6,
-    "question_text": "Şu an ne üzerinde çalışıyorsunuz?",
+    "question_text": "Bir görüşmenin başında kendinizi nasıl tanıtırsınız?",
     "question_type": "self_presentation",
     "interview_type": "HR",
     "language": "tr",
@@ -49,7 +49,7 @@
   },
   {
     "id": 7,
-    "question_text": "Şu anki deneyimlerinizden kısaca bahseder misiniz?",
+    "question_text": "Kariyer özetinizi birkaç cümleyle paylaşır mısınız?",
     "question_type": "self_presentation",
     "interview_type": "HR",
     "language": "tr",
@@ -65,7 +65,7 @@
   },
   {
     "id": 9,
-    "question_text": "Hangi bölümden mezun oldunuz ve bu alanda nasıl ilerlediniz?",
+    "question_text": "Eğitim geçmişinizin sizi bugünkü profesyonel profilinize nasıl taşıdığını kısaca anlatır mısınız?",
     "question_type": "self_presentation",
     "interview_type": "HR",
     "language": "tr",
@@ -105,7 +105,7 @@
   },
   {
     "id": 14,
-    "question_text": "Kariyerinizde özellikle bu alana yönelmenizin nedeni neydi?",
+    "question_text": "Bu alana yönelmenizin arkasındaki temel motivasyon neydi?",
     "question_type": "motivation",
     "interview_type": "HR",
     "language": "tr",
@@ -617,7 +617,7 @@
   },
   {
     "id": 78,
-    "question_text": "Şu anki rolünüze nasıl geldiniz, kısaca anlatır mısınız?",
+    "question_text": "Bugünkü profesyonel profilinizi oluşturan ana durakları kısaca paylaşır mısınız?",
     "question_type": "self_presentation",
     "interview_type": "HR",
     "language": "tr",
@@ -889,7 +889,11 @@
   },
   {
     "id": 112,
+<<<<<<< Updated upstream
     "question_text": "Rate limiting neden gerekir ve uygularken hangi metrikleri izlersiniz?",
+=======
+    "question_text": "Rate limiting hangi problemi çözer ve temel çalışma mantığı nedir?",
+>>>>>>> Stashed changes
     "question_type": "technical_knowledge",
     "interview_type": "Technical",
     "language": "tr",
@@ -977,10 +981,609 @@
   },
   {
     "id": 123,
+<<<<<<< Updated upstream
     "question_text": "Dağıtık sistemlerde tutarlılık ve erişilebilirlik arasında nasıl bir denge kurarsınız?",
+=======
+    "question_text": "Dağıtık sistemlerde tutarlılık ve erişilebilirlik arasında neden ödünleşim oluşabilir?",
+>>>>>>> Stashed changes
     "question_type": "technical_knowledge",
     "interview_type": "Technical",
     "language": "tr",
     "is_meta": false
+<<<<<<< Updated upstream
+=======
+  },
+  {
+    "id": 124,
+    "question_text": "Profesyonel olarak kendinizi en iyi hangi yönlerinizle tanımlarsınız?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 125,
+    "question_text": "Bugüne kadar edindiğiniz birikimi kısaca nasıl özetlersiniz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 126,
+    "question_text": "Sizi iş hayatında öne çıkaran özellikleriniz nelerdir, biraz kendinizden bahseder misiniz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 127,
+    "question_text": "Kariyer yolculuğunuzu ve şu anki odağınızı birkaç cümleyle anlatır mısınız?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 128,
+    "question_text": "Sizi tanımayan birine önce hangi yönlerinizden bahsetmeyi tercih edersiniz?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 129,
+    "question_text": "Bu rolü sizin için değerli kılan temel motivasyon nedir?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 130,
+    "question_text": "Bu pozisyonun hangi yönleri sizin kariyer beklentilerinizle örtüşüyor?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 131,
+    "question_text": "Neden bu ekibin bir parçası olmak istediğinizi biraz açar mısınız?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 132,
+    "question_text": "Bu başvuruda sizi harekete geçiren temel etkenler nelerdi?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 133,
+    "question_text": "Sizi bu alanda kalmaya ve ilerlemeye motive eden şey nedir?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 134,
+    "question_text": "Bir web uygulamasında authentication ve authorization arasındaki fark nedir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 135,
+    "question_text": "Idempotency kavramı dağıtık sistemlerde neden önemlidir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 136,
+    "question_text": "Circuit breaker paterni hangi problemi çözmek için kullanılır?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 137,
+    "question_text": "Eventual consistency ne demektir, hangi senaryolarda kabul edilebilir olur?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 138,
+    "question_text": "Connection pooling ne işe yarar ve neden performansa etki eder?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 139,
+    "question_text": "Bir sistemde cache hit oranı neden önemlidir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 140,
+    "question_text": "Monitoring ile observability arasındaki farkı nasıl açıklarsınız?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 141,
+    "question_text": "Daha önce authentication altyapısı geliştirdiğiniz bir deneyimden bahseder misiniz?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 142,
+    "question_text": "Gerçek kullanıcı trafiği altında cache yapısını iyileştirdiğiniz bir örneği anlatır mısınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 143,
+    "question_text": "Monitoring ve alerting kurduğunuz bir projede hangi araçları nasıl kullandınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 144,
+    "question_text": "Bir sistemde cache hit oranı düşükse bunu artırmak için nasıl bir yaklaşım izlersiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 145,
+    "question_text": "Yetkilendirme hatalarının arttığı bir senaryoda problemi çözmek için hangi adımları atarsınız?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 146,
+    "question_text": "Bir ekip arkadaşınızın farklı önceliklere sahip olduğu bir durumda ortak zemini nasıl bulursunuz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 147,
+    "question_text": "Kariyerinizde sizi en çok geliştiren görev veya sorumluluk hangisiydi?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 148,
+    "question_text": "Sizi bu pozisyona çeken en önemli unsur nedir?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 149,
+    "question_text": "Bu rol sizin için neden doğru bir sonraki adım gibi görünüyor?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 150,
+    "question_text": "Burada çalışmayı istemenizdeki en güçlü neden nedir?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 151,
+    "question_text": "Bu pozisyonun hangi tarafı sizi uzun vadede motive eder?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 152,
+    "question_text": "Sizi bu kariyer alanına yönelten motivasyon kaynakları nelerdi?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 153,
+    "question_text": "Takım içinde zor bir iletişim problemi yaşadığınızda bunu nasıl ele aldınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 154,
+    "question_text": "Çatışmalı bir durumda uzlaşma sağlamak için nasıl davrandığınızı anlatır mısınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 155,
+    "question_text": "Yoğun baskı altında çalışmanız gereken bir anı nasıl yönettiğinizi anlatır mısınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 156,
+    "question_text": "Bir hata sonrasında sorumluluk alıp nasıl ilerlediğinize dair bir örnek verebilir misiniz?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 157,
+    "question_text": "Farklı görüşteki insanlarla çalışırken nasıl bir yaklaşım benimsediğinizi anlatır mısınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 158,
+    "question_text": "Şimdiye kadarki iş deneyimleriniz içinde size en çok sorumluluk kazandıran dönem hangisiydi?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 159,
+    "question_text": "Daha önce görev aldığınız ekiplerde üstlendiğiniz rollerden biraz bahseder misiniz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 160,
+    "question_text": "Geçmiş deneyimlerinizden hangisi sizi bu role en çok hazırladı?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 161,
+    "question_text": "Bugüne kadar çalıştığınız projeler içinde size en fazla öğrenme sağlayan hangisiydi?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 162,
+    "question_text": "Profesyonel deneyimleriniz içinde sizi en çok zorlayan ama geliştiren görev neydi?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 163,
+    "question_text": "Bir serviste timeout hataları artarsa kök nedeni bulmak için nasıl ilerlersiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 164,
+    "question_text": "Beklenmedik bir latency artışında hangi ölçümleri inceleyerek teşhis koyarsınız?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 165,
+    "question_text": "Cache invalidation kaynaklı tutarsızlık gördüğünüzde problemi nasıl çözersiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 166,
+    "question_text": "Authentication akışında artan hata oranlarını nasıl analiz edersiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 167,
+    "question_text": "Bir mikroserviste kuyruk tüketimi yavaşladığında hangi adımları takip edersiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 168,
+    "question_text": "Background job sayısı arttığında sistemin darboğaz yaşamasını nasıl önlersiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 169,
+    "question_text": "Sizi profesyonel olarak en iyi anlatan üç özelliğiniz nedir?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 170,
+    "question_text": "İş hayatında sizi tanımlayan güçlü yönlerinizi kısaca paylaşır mısınız?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 171,
+    "question_text": "Profesyonel profilinizi bir dakikada nasıl anlatırsınız?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 172,
+    "question_text": "Bir ekip içinde fikir ayrılığı yaşadığınız bir durumu ve nasıl çözdüğünüzü anlatır mısınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 173,
+    "question_text": "Hızlı değişen öncelikler karşısında nasıl davrandığınız bir örneği paylaşır mısınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 174,
+    "question_text": "Beklenmedik bir problem çıktığında ekibe nasıl destek olduğunuzu anlatır mısınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 175,
+    "question_text": "Daha önce yer aldığınız ekip yapılarından ve sorumluluk dağılımından bahseder misiniz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 176,
+    "question_text": "Staj veya iş deneyimlerinizde günlük olarak hangi görevleri yürütüyordunuz?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 177,
+    "question_text": "Önceki deneyimlerinizde hangi alanlarda daha fazla sorumluluk aldınız?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 178,
+    "question_text": "Indexing stratejileri sorgu performansını nasıl etkiler?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 179,
+    "question_text": "Backpressure kavramı dağıtık sistemlerde neden önemlidir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 180,
+    "question_text": "Retry mekanizması tasarlarken hangi riskleri göz önünde bulundurursunuz?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 181,
+    "question_text": "Daha önce index optimizasyonu yaptığınız bir veritabanı örneğini anlatır mısınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 182,
+    "question_text": "Retry veya circuit breaker kullandığınız bir üretim sorunundan bahseder misiniz?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 183,
+    "question_text": "Bir sorgunun yavaşlamasının gerçekten index kaynaklı olup olmadığını nasıl doğrularsınız?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 184,
+    "question_text": "Bir queue consumer geride kalıyorsa sistemi dengelemek için nasıl bir çözüm tasarlarsınız?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 185,
+    "question_text": "Mezuniyetinizden sonra hangi alanlara yöneldiğinizi kısaca anlatır mısınız?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 186,
+    "question_text": "Şu anda çalıştığınız teknolojiler ve bu alana giriş hikayenizle kendinizi kısaca tanıtır mısınız?",
+    "question_type": "self_presentation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 187,
+    "question_text": "Sizi bu kariyer alanına yönlendiren temel motivasyon neydi?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 188,
+    "question_text": "Şu anda iş değişikliği düşünmenizin ana nedeni nedir?",
+    "question_type": "motivation",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 189,
+    "question_text": "Liderlik etmeniz gereken bir durumda nasıl davrandığınızı anlatır mısınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 190,
+    "question_text": "Önceliklerin değiştiği bir projede davranışınızı nasıl uyarladınız?",
+    "question_type": "behavioral",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 191,
+    "question_text": "CV'nizde yer alan bir deneyimi detaylandırır mısınız?",
+    "question_type": "experience",
+    "interview_type": "HR",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 192,
+    "question_text": "Database index yapılarının temel amacı nedir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 193,
+    "question_text": "Message queue kullanmanın sistem tasarımında sağladığı avantajlar nelerdir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 194,
+    "question_text": "CI/CD pipeline içinde test aşamasının rolü nedir?",
+    "question_type": "technical_knowledge",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 195,
+    "question_text": "Daha önce load balancing uyguladığınız bir sistemi anlatır mısınız?",
+    "question_type": "technical_experience",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 196,
+    "question_text": "Veritabanı darboğazı yaşayan bir uygulamayı rahatlatmak için nasıl bir çözüm planı oluşturursunuz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+  },
+  {
+    "id": 197,
+    "question_text": "Yeni bir cache katmanı eklemeden önce hangi verileri toplayıp nasıl karar verirsiniz?",
+    "question_type": "problem_solving",
+    "interview_type": "Technical",
+    "language": "tr",
+    "is_meta": false
+>>>>>>> Stashed changes
   }
 ]

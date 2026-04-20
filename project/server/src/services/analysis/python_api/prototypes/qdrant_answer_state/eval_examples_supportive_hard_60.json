@@ -1,0 +1,482 @@
+[
+  {
+    "id": 1,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "React tarafinda state yonetimi deneyiminiz nasildi?",
+    "answer_text": "Context kullandik ama cok derine inmedi.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 2,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Backend tarafinda transaction yonetiminde ne yaptiniz?",
+    "answer_text": "Transaction ekledik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 3,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Data pipeline tarafinda nasil ilerlediniz?",
+    "answer_text": "Bir akis kurduk.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 4,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Devops tarafinda deployment sureci nasildi?",
+    "answer_text": "Pipeline kullandik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 5,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Security tarafinda rate limiting uygulamaniz oldu mu?",
+    "answer_text": "Limit koyduk.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 6,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Mobile tarafta offline senkronizasyon deneyiminiz nasildi?",
+    "answer_text": "Temel bir cozum kullandik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 7,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Kendinizden biraz bahseder misiniz?",
+    "answer_text": "Yazilim gelistiricisiyim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 8,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Baski altinda nasil calistiginiza dair bir ornek verebilir misiniz?",
+    "answer_text": "Plan yapip ilerledim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 9,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Geri bildirim aldiginiz zor bir ani anlatir misiniz?",
+    "answer_text": "Bir geri bildirim aldim ve duzelttim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 10,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Kariyer hedeflerinizden biraz bahseder misiniz?",
+    "answer_text": "Teknik tarafta ilerlemek istiyorum.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 11,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Takim ici bir anlasmazligi nasil yonettiniz?",
+    "answer_text": "Konustuk ve cozuldu.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 12,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Zaman baskisinda nasil karar verirsiniz?",
+    "answer_text": "Onceliklendirme yaparim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 13,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Daha once Redis kullandiniz mi?",
+    "answer_text": "Evet",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 14,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Frontend tarafinda state yonetimini nasil ele aldiniz?",
+    "answer_text": "Global ve local state'i ayirip gereksiz yeniden render'i azaltacak sekilde akis kurduk.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 15,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Backend tarafinda API performansini nasil iyilestirdiniz?",
+    "answer_text": "En yavas endpoint'leri APM ile bulduk, sorgulari optimize ettik ve cache ile gecikmeyi dusurduk.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 16,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Data tarafinda ETL akislarini nasil tasarladiniz?",
+    "answer_text": "Batch adimlarini ayirip veri kalitesi kontrollerini her asamaya koyduk ve hata alan kisimlara yeniden deneme ekledik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 17,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Devops tarafinda rollback kararini nasil aldiniz?",
+    "answer_text": "Hata oranindaki ani artis ve kritik endpoint bozulunca rollout'u durdurup onceki surume donduk.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 18,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Security tarafinda kimlik dogrulama akislarini nasil kurguladiniz?",
+    "answer_text": "Token omurlerini kisalttik, refresh akislarini ayirdik ve servis bazli yetki kontrollerini merkezi hale getirdik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 19,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Mobile tarafinda offline senkronizasyonu nasil ele aldiniz?",
+    "answer_text": "Degisiklikleri kuyruklayip baglanti geldikten sonra cakisma kurallariyla birlestirdik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 20,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Bu kurumda neden calismak istiyorsunuz?",
+    "answer_text": "Urun etkisinin yuksek oldugu bir ekipte sahiplik alarak gelismek istiyorum.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 21,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Baski altinda calistiginiz bir ornegi anlatir misiniz?",
+    "answer_text": "Isi parcalara bolup riskli kisimlari onceledim ve ekip icinde duzenli durum paylasimi yaptim.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 22,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Takim arkadasinizla anlasmazlik yasadiginizda ne yaparsiniz?",
+    "answer_text": "Beklentileri netlestirir, problemi kisilere degil surece odaklayip ortak hedefte bulusmaya calisirim.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 23,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Daha once takim lideri oldunuz mu?",
+    "answer_text": "Hayir",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 24,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Musteri ile dogrudan iletisim kurdunuz mu?",
+    "answer_text": "Evet",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 25,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Bu API tasariminda neden bu yaklasimi sectiniz?",
+    "answer_text": "Detaylar biraz birbirine giriyor, net bir akista anlatamayabilirim.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 26,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Latency problemini nasil incelediniz?",
+    "answer_text": "Kabaca hatirliyorum ama adim adim cikaramiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 27,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Frontend tarafinda render optimizasyonu kararini neden aldiniz?",
+    "answer_text": "Sebebi vardi ama su an toparlayinca yanlis aktarmak istemem.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 28,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Backend tarafinda yetkilendirme akislerini neden bu sekilde kurdunuz?",
+    "answer_text": "Ana fikri biliyorum ama o anki gerekceyi netlestiremiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 29,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Data tarafinda feature engineering kararlarini neye gore aldiniz?",
+    "answer_text": "Bir mantigi vardi, sadece tam cizgisini su an kuramiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 30,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Devops tarafinda rollback stratejisini neden boyle kurdunuz?",
+    "answer_text": "Hatlar karisiyor, yanlis anlatmamak icin biraz dusunmem gerekir.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 31,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Security tarafinda rate limiting kararini nasil aldiniz?",
+    "answer_text": "Tam emin degilim, sanirim trafik desenine goreydi ama net degil kafamda.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 32,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Mobile tarafinda push notification akislarini neden oyle tasarladiniz?",
+    "answer_text": "Bir gerekcesi vardi da su an dogru cümleye oturtamiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 33,
+    "interview_type": "HR",
+    "mode": "Supportive",
+    "question_text": "Liderlik ettiginiz bir durumu anlatabilir misiniz?",
+    "answer_text": "Aklimda bir sey var ama net ornek diyecegim kadar toparlanmadi.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 34,
+    "interview_type": "HR",
+    "mode": "Supportive",
+    "question_text": "Sizi en cok zorlayan profesyonel deneyim hangisiydi?",
+    "answer_text": "Bir iki sey geliyor ama hangisini dogru secerim emin olamadim.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 35,
+    "interview_type": "HR",
+    "mode": "Supportive",
+    "question_text": "Bu pozisyonda sizi en cok ne motive ediyor?",
+    "answer_text": "Ne demek istedigimi biliyorum ama su an derli toplu kuramiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 36,
+    "interview_type": "HR",
+    "mode": "Supportive",
+    "question_text": "Bir basarisizlik deneyiminizi anlatabilir misiniz?",
+    "answer_text": "Bir ornek var gibi ama detaylari birbirine giriyor.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 37,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Microservice mimarisinde en buyuk zorluk neydi?",
+    "answer_text": "Tam hatirlayamadim.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 38,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Bu sistemde cache stratejisini neden boyle kurdunuz?",
+    "answer_text": "Detayini cikaramiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 39,
+    "interview_type": "HR",
+    "mode": "Supportive",
+    "question_text": "Kariyerinizde sizi en cok etkileyen deneyim neydi?",
+    "answer_text": "Su an netlestiremiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 40,
+    "interview_type": "HR",
+    "mode": "Supportive",
+    "question_text": "Aldiginiz en zor geri bildirim neydi?",
+    "answer_text": "Tam olarak nasil ifade edecegimi bilemedim.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 41,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Observability tarafinda hangi metrikleri izlediniz?",
+    "answer_text": "Latency, throughput ve hata oranini izledik; alarmlari da bu esiklere gore ayarladik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 42,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Queue consumer yavaslayinca nasil mudahale ettiniz?",
+    "answer_text": "Consumer sayisini artirdik ve darboğaz olan sorgulari ayri optimize ettik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 43,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Kubernetes kullandiginiz bir projeyi anlatir misiniz?",
+    "answer_text": "Deployment yaptik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 44,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Rate limiting nasil uygularsiniz?",
+    "answer_text": "Bir sekilde kisit koyariz.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 45,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Bu rolde neden calismak istiyorsunuz?",
+    "answer_text": "Sektor ilgimi cekiyor ve burada gelisebilecegimi dusunuyorum.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 46,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Geri bildirim vermek sizin icin kolay midir?",
+    "answer_text": "Evet",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 47,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Load balancing kararini nasil aldiniz?",
+    "answer_text": "Mantigini biliyorum da gerekceyi tam yerine oturtamiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 48,
+    "interview_type": "HR",
+    "mode": "Supportive",
+    "question_text": "Neden is degistirmek istediginizi biraz acabilir misiniz?",
+    "answer_text": "Sebep var ama su an onu temiz ifade edemeyebilirim.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 49,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Daha once GraphQL kullandiniz mi?",
+    "answer_text": "Hayir",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 50,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Daha once staj yaptiniz mi?",
+    "answer_text": "Evet",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 51,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Frontend tarafinda form dogrulama akislarini nasil kurguladiniz?",
+    "answer_text": "Dogrulama kurallarini ortaklastirip hata mesajlarini alan bazinda yonettik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 52,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Security tarafinda yetki kontrolunu nasil kurguladiniz?",
+    "answer_text": "Role baktik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 53,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Takim ici bir anlasmazligi nasil yonettiniz?",
+    "answer_text": "Iki tarafin beklentilerini dinleyip ortak bir yol belirledim.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 54,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Bu deployment sonrasinda neden rollback yaptiniz?",
+    "answer_text": "Karar dogruydu sanirim ama ayrintilari su an tam kuramiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 55,
+    "interview_type": "HR",
+    "mode": "Supportive",
+    "question_text": "Sizi en cok gururlandiran basari neydi?",
+    "answer_text": "Bir sey geliyor aklima ama tam oturmadi.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 56,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Prod ortaminda hata orani arttiginda nasil ilerlersiniz?",
+    "answer_text": "Bakmak lazim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 57,
+    "interview_type": "Technical",
+    "mode": "Neutral",
+    "question_text": "Prod ortaminda hata orani arttiginda nasil ilerlersiniz?",
+    "answer_text": "Once log ve metriklere bakar, son degisiklikleri kontrol eder ve gerekiyorsa rollback uygularim.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 58,
+    "interview_type": "HR",
+    "mode": "Neutral",
+    "question_text": "Yogun bir donemde onceliklerinizi nasil yonetirsiniz?",
+    "answer_text": "Onceliklendirme yaparim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 59,
+    "interview_type": "Technical",
+    "mode": "Supportive",
+    "question_text": "Bu veri modelini neden sectiniz?",
+    "answer_text": "Seçimin bir nedeni vardi ama tam gerekceleri su an karisiyor.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 60,
+    "interview_type": "HR",
+    "mode": "Supportive",
+    "question_text": "Bir ekip dinamiğinde sizi zorlayan seyi anlatabilir misiniz?",
+    "answer_text": "Kafamda bir durum var ama net bir olay diye anlatmak icin biraz daha dusunmem gerekir.",
+    "answer_state": "supportive_repair_candidate"
+  }
+]

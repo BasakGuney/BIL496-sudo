@@ -382,5 +382,344 @@
     "question_text": "Bu rolde neden calismak istiyorsunuz?",
     "answer_text": "Bilmiyorum, ilgimi cekti sadece.",
     "answer_state": "supportive_repair_candidate"
+<<<<<<< Updated upstream
+=======
+  },
+  {
+    "id": 49,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Daha once feature flag kullandiniz mi?",
+    "answer_text": "Evet",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 50,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Rate limiting uyguladiniz mi?",
+    "answer_text": "Hayir",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 51,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Daha once takim lideri oldunuz mu?",
+    "answer_text": "Hayir",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 52,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Geri bildirim vermek sizin icin kolay midir?",
+    "answer_text": "Evet",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 53,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Observability tarafinda hangi metrikleri izlediniz?",
+    "answer_text": "Latency, error rate ve throughput izledik; alarm esiklerini de buna gore belirledik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 54,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Queue consumer yavaslayinca nasil mudahale ettiniz?",
+    "answer_text": "Consumer sayisini artirdik, partisyonlamayi duzenledik ve darboğaz olan servisi ayrica analiz ettik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 55,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Kendinizi uc kelimeyle tanimlasaniz neler soylerdiniz?",
+    "answer_text": "Disiplinli, merakli, sorumluluk sahibi.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 56,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Kubernetes kullanarak ne tur bir dagitim yapisi kurdunuz?",
+    "answer_text": "Rolling update yaptik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 57,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Baski altinda nasil calistiginiza dair bir ornek verebilir misiniz?",
+    "answer_text": "Kritik isi onceledim ve ekip ile durumu sik paylastim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 58,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Zaman baskisinda nasil karar verirsiniz?",
+    "answer_text": "Kritik olani secerim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 59,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Bu sistemde cache stratejisini neden boyle kurdunuz?",
+    "answer_text": "O kismi tam toparlayamadim su an.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 60,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Sizi en cok zorlayan profesyonel deneyim hangisiydi?",
+    "answer_text": "Su an net bir durum secemiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 61,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "React'te state yonetimi deneyiminiz nasildi?",
+    "answer_text": "Context API kullandim ama detayini acabilirim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 62,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Baski altinda nasil calistiginiza dair bir ornek verebilir misiniz?",
+    "answer_text": "Kritik isi onceledim ve ekip ile durumu paylastim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 63,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Geri bildirim aldiginiz zor bir ani anlatir misiniz?",
+    "answer_text": "Bir geri bildirim aldim ve uzerine calistim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 64,
+    "language": "tr",
+    "interview_type": "HR",
+    "question_text": "Kariyer hedeflerinizden biraz bahseder misiniz?",
+    "answer_text": "Yazilimda ilerlemek istiyorum.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 65,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Kubernetes kullanarak ne tur bir dagitim yapisi kurdunuz?",
+    "answer_text": "Rolling update yaptik ve bitti.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 66,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Caching uyguladiginiz bir senaryoyu anlatir misiniz?",
+    "answer_text": "Redis kullandik ama cok detay vermedim.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 67,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Frontend tarafinda state yonetimi kararini neden aldiniz?",
+    "answer_text": "Tam hatirlayamadim.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 68,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Frontend tarafinda render optimizasyonu kararini neden aldiniz?",
+    "answer_text": "Detayini cikaramiyorum su an.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 69,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Backend tarafinda API performansi kararini neden aldiniz?",
+    "answer_text": "Emin degilim, o karari hangi sinirlar icinde aldigimizi net hatirlamiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 70,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Backend tarafinda yetkilendirme akisleri kararini neden aldiniz?",
+    "answer_text": "Su an net bir ornek veremiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 71,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Data tarafinda ETL tasariminda bu yaklasimi neden sectiniz?",
+    "answer_text": "Tam olarak nasil anlatacagimi bilemedim.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 72,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Data tarafinda feature engineering kararlarini neye gore aldiniz?",
+    "answer_text": "Aklima gelmedi su an, netlestiremiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 73,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Devops tarafinda rollback stratejisini neden boyle kurdunuz?",
+    "answer_text": "Bilemedim, o kisim ekip karariydi ve ben detayini hatirlamiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 74,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Devops tarafinda CI/CD pipeline yapisini neden bu sekilde tasarladiniz?",
+    "answer_text": "Sanirim oyleydi ama su an toparlayamadim.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 75,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Security tarafinda kimlik dogrulama akislarini neden boyle ele aldiniz?",
+    "answer_text": "Tam net bir sekilde hatirlamiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 76,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Security tarafinda rate limiting kararini nasil aldiniz?",
+    "answer_text": "Yanlis hatirlamiyorsam vardir ama su an cikaramiyorum.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 77,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Mobile tarafinda offline senkronizasyon kararini neden aldiniz?",
+    "answer_text": "Su an netlestiremiyorum, tam hatirlayamadim.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 78,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Mobile tarafinda push notification akislarini neden bu sekilde tasarladiniz?",
+    "answer_text": "Ornek veremiyorum su an.",
+    "answer_state": "supportive_repair_candidate"
+  },
+  {
+    "id": 79,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Frontend tarafinda state yonetimi deneyiminiz nasildi?",
+    "answer_text": "Context kullandik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 80,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Backend tarafinda transaction yonetimi konusunda ne yaptiniz?",
+    "answer_text": "Transaction ekledik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 81,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Data tarafinda veri temizleme surecini nasil yonettiniz?",
+    "answer_text": "Eksik verileri temizledik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 82,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Devops tarafinda deployment yapiniz nasildi?",
+    "answer_text": "Rolling update yaptik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 83,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Security tarafinda yetki kontrolunu nasil kurguladiniz?",
+    "answer_text": "Role baktik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 84,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Mobile tarafinda performans profilleme deneyiminiz nasildi?",
+    "answer_text": "Profiler actik.",
+    "answer_state": "followup_candidate"
+  },
+  {
+    "id": 85,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Daha once React ile frontend tarafinda calistiniz mi?",
+    "answer_text": "Evet",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 86,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Daha once FastAPI ile backend tarafinda calistiniz mi?",
+    "answer_text": "Hayir",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 87,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Data tarafinda ETL akislarini nasil tasarladiniz?",
+    "answer_text": "Veri kalitesini kurallarla kontrol edip batch adimlarini ayirdik, hata alan kisimlar icin yeniden deneme ekledik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 88,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Devops tarafinda gozlemleme kurulumunda nasil ilerlediniz?",
+    "answer_text": "Cluster metriklerini merkezi topladik, alarm esiklerini tanimladik ve kritik servisler icin dashboard olusturduk.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 89,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Security tarafinda kimlik dogrulama akislarini nasil tasarladiniz?",
+    "answer_text": "Token omurlerini kisalttik, refresh akislarini ayirdik ve servis bazli yetki kurallarini merkezi hale getirdik.",
+    "answer_state": "new_topic_candidate"
+  },
+  {
+    "id": 90,
+    "language": "tr",
+    "interview_type": "Technical",
+    "question_text": "Mobile tarafinda offline senkronizasyonu nasil ele aldiniz?",
+    "answer_text": "Degisiklikleri kuyruklayip baglanti geri geldiginde cakisma cozumleriyle birlestirdik ve yerel cache'i kontrollu guncelledik.",
+    "answer_state": "new_topic_candidate"
+>>>>>>> Stashed changes
   }
 ]
